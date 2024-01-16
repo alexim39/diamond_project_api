@@ -9,7 +9,7 @@ const transporter = nodemailer.createTransport({
     port: 465,
     auth: {
       user: 'alex.i@async.ng', // replace with your email
-      pass: '$ch00ltraz'//process.env.EMAILPASS, // replace with your password
+      pass: process.env.EMAILPASS, // replace with your password
     },
 });
   

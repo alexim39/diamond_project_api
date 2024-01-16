@@ -41,12 +41,12 @@ const userSurveySchema = mongoose.Schema(
         },
         name: {
             type: String,
-            unique: true,
+            //unique: true,
             required: [true, "Please enter name"]
         },
         surname: {
             type: String,
-            unique: true,
+            //unique: true,
             required: [true, "Please enter surname"]
         },
         
