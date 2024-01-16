@@ -31,12 +31,12 @@ const userSurveySchema = mongoose.Schema(
         },
         phoneNumber: {
             type: String,
-            unique: true,
+            //unique: true,
             required: [true, "Please enter phone number"]
         },
         email: {
             type: String,
-            unique: true,
+            //unique: true,
             //required: [true, "Please enter email address"]
         },
         name: {
