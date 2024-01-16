@@ -1,0 +1,40 @@
+import express from 'express';
+import mongoose from 'mongoose';
+import dotenv  from "dotenv"
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import userSurveyRouter from './src/routes/survey.route.js';
+
+
+const port = process.env.PORT || 3000;
+const app = express();
+app.use(express.json()); // Use json middleware
+app.use(express.urlencoded({extended: false})); // Use formdata middleware
+dotenv.config()
+app.use(cookieParser());
+app.use(cors({
+    credentials: true,
+    origin: [
+        'http://localhost:4200', 
+        'http://diamondprojectonline.com', 
+        'https://diamondprojectonline.com', 
+        'www.diamondprojectonline.com',
+    ]
+}));
+
+/* Routes */
+app.get('/', (req, res) => res.send('Node server is up and running'));
+app.use('/survey', userSurveyRouter);
+
+
+/* DB connection */
+mongoose.connect(`mongodb+srv://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@cluster0.buvy2cx.mongodb.net/${process.env.MONGODB_DATABASE}?retryWrites=true&w=majority`)
+.then(() => {
+    // Application Starts Only when MongoDB is connected
+    console.log('Connected to mongoDB')
+    app.listen(port, () => {
+        console.log(`Server is running on port: http://localhost:${port}`)
+    })
+}).catch((error) => {
+    console.error('Error from mongoDB connection ', error)
+})
