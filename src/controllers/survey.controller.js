@@ -53,7 +53,7 @@ export const surveyForm = async (req, res) => {
             <br>
             <p>A prospect named ${req.body.name} ${req.body.surname} with phone number ${req.body.phoneNumber} just submitted the survey form from www.diamondprojectonline.com.</p>
             <br>
-            <h6>You may have to fellow up on user through the Whatsapp link</h6>
+            <h4>You may have to fellow up on user through the Whatsapp link or by phone call.</h4>
         `;
 
         const emailsToSend = ['aleximenwo@gmail.com', 'adeyemitopesanya@gmail.com'];
