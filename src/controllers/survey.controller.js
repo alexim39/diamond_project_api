@@ -17,7 +17,8 @@ const transporter = nodemailer.createTransport({
 const sendEmail = async (email, subject, message) => {
     try {
         await transporter.sendMail({
-        from: 'Do-not-reply@async.ng', // replace with your Gmail email
+        //from: 'Do-not-reply@async.ng', // replace with your Gmail email
+        from: 'Do-not-reply@diamondprojectonline.com', // replace with your Gmail email
         to: email,
         subject: subject,
         html: message,

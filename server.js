@@ -4,6 +4,7 @@ import dotenv  from "dotenv"
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import userSurveyRouter from './src/routes/survey.route.js';
+import userBoookingRouter from './src/routes/booking.route.js';
 
 
 const port = process.env.PORT || 3000;
@@ -25,6 +26,7 @@ app.use(cors({
 /* Routes */
 app.get('/', (req, res) => res.send('Node server is up and running'));
 app.use('/survey', userSurveyRouter);
+app.use('/booking', userBoookingRouter);
 
 
 /* DB connection */
