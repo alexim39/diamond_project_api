@@ -51,7 +51,7 @@ export const bookingForm = async (req, res) => {
         });
 
         // Send email after successfully submitting the records
-        const emailSubject = 'Survey Submission Confirmation';
+        const emailSubject = 'One-on-One Booking Submission';
         const emailMessage = `
             <h1>Booking Submission</h1>
             <p>A prospect named ${req.body.name} ${req.body.surname} with phone number ${req.body.phone} just booked for a one-on-one session on www.diamondprojectonline.com.</p>
