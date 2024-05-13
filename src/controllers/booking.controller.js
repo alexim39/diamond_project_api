@@ -34,7 +34,7 @@ const sendEmail = async (email, subject, message) => {
 export const bookingForm = async (req, res) => {
     try {
 
-        console.log('sent==',req.body);
+        //console.log('sent==',req.body);
 
         const userBooking = await UserBooking.create({
             reason: req.body.reason,
