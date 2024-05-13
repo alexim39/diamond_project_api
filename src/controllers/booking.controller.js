@@ -54,12 +54,10 @@ export const bookingForm = async (req, res) => {
         const emailSubject = 'Survey Submission Confirmation';
         const emailMessage = `
             <h1>Booking Submission</h1>
-            <br>
-            <p>A prospect named ${req.body.name} ${req.body.surname} with phone number ${req.body.phoneNumber} just booked for a one-on-one session on www.diamondprojectonline.com.</p>
-            <br>
-            <h4>You may have to book the date which is ${req.body.consultDate} by ${req.body.consultTime} for fellow up on prospect through ${req.body.contactMethod}.</h4>
+            <p>A prospect named ${req.body.name} ${req.body.surname} with phone number ${req.body.phone} just booked for a one-on-one session on www.diamondprojectonline.com.</p>
+            <p>You may have to book the date which is ${req.body.consultDate} by ${req.body.consultTime} for fellow up on prospect through ${req.body.contactMethod}.</p>
 
-            <br><br><br><br><br>
+            <br>
             <h1>Complete Prospect Response</h1>
             <br>
             <p>Name: ${req.body.name}</p>
