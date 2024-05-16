@@ -45,16 +45,32 @@ export const surveyForm = async (req, res) => {
             email: req.body.email,
             name: req.body.name,
             surname: req.body.surname,
+            referralCode: req.body.referralCode,
+            referral: req.body.referral,
         });
 
         // Send email after successfully submitting the records
         const emailSubject = 'Survey Submission Confirmation';
         const emailMessage = `
             <h1>Survey Submission</h1>
-            <br>
             <p>A prospect named ${req.body.name} ${req.body.surname} with phone number ${req.body.phoneNumber} just submitted the survey form from www.diamondprojectonline.com.</p>
+            <p>You may have to fellow up on user through the Whatsapp link or by phone call.</p>
+
             <br>
-            <h4>You may have to fellow up on user through the Whatsapp link or by phone call.</h4>
+            <h1>Complete Prospect Response</h1>
+            <br>
+            <p>Name: ${req.body.name}</p>
+            <p>Surname: ${req.body.surname}</p>
+            <p>Email address: ${req.body.email}</p>
+            <p>Phone number: ${req.body.phoneNumber}</p>
+            <p>Do you feel like you could be doing more: ${req.body.readoYouFeelNeedForChangeson}</p>
+            <p>What's your work situation: ${req.body.employedStatus}</p>
+            <p>Referred by: ${req.body.referralCode}</p>
+            <p>Referred through: ${req.body.referral}</p>
+            <p>Looking to make some extra cash?: ${req.body.interestedInEarningAdditionaIcome} </p>
+            <p>Can more skills help you reach your goals?: ${req.body.doYouBelieveInTraining}</p>
+            <p>Are you open to being coached?: ${req.body.areYouOpenToBeCoached}</p>
+            <p>Would you be interested in a session to unlock your potential: ${req.body.ifSessionIsSet}</p>
         `;
 
         const emailsToSend = ['aleximenwo@gmail.com', 'adeyemitopesanya@gmail.com'];

@@ -49,6 +49,14 @@ const userSurveySchema = mongoose.Schema(
             //unique: true,
             required: [true, "Please enter surname"]
         },
+        referralCode: {
+            type: String,
+            //required: [true, "Please enter answer 3"]
+        },
+        referral: {
+            type: String,
+            required: [true, "Please enter response for referral"]
+        },
         
        
     },
