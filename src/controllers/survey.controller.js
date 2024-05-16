@@ -58,7 +58,6 @@ export const surveyForm = async (req, res) => {
 
             <br>
             <h1>Complete Prospect Response</h1>
-            <br>
             <p>Name: ${req.body.name}</p>
             <p>Surname: ${req.body.surname}</p>
             <p>Email address: ${req.body.email}</p>
