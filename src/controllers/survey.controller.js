@@ -62,7 +62,7 @@ export const surveyForm = async (req, res) => {
             <p>Surname: ${req.body.surname}</p>
             <p>Email address: ${req.body.email}</p>
             <p>Phone number: ${req.body.phoneNumber}</p>
-            <p>Do you feel like you could be doing more: ${req.body.readoYouFeelNeedForChangeson}</p>
+            <p>Do you feel like you could be doing more: ${req.body.doYouFeelNeedForChange}</p>
             <p>What's your work situation: ${req.body.employedStatus}</p>
             <p>Referred by: ${req.body.referralCode}</p>
             <p>Referred through: ${req.body.referral}</p>
