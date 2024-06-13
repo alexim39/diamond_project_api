@@ -57,7 +57,11 @@ const userSurveySchema = mongoose.Schema(
             type: String,
             required: [true, "Please enter response for referral"]
         },
-        
+        userDevice: {
+            type: String,
+            //unique: true,
+            //required: [true, "Please enter surname"]
+        },
        
     },
     {

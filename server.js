@@ -5,6 +5,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import userSurveyRouter from './src/routes/survey.route.js';
 import userBoookingRouter from './src/routes/booking.route.js';
+import emailSubscriptionRouter from './src/routes/email-subscription.route.js';
+import contactRouter from './src/routes/contact.route.js';
 
 
 const port = process.env.PORT || 3000;
@@ -27,6 +29,9 @@ app.use(cors({
 app.get('/', (req, res) => res.send('Node server is up and running'));
 app.use('/survey', userSurveyRouter);
 app.use('/booking', userBoookingRouter);
+app.use('/emailSubscription', emailSubscriptionRouter);
+app.use('/contact', contactRouter);
+
 
 
 /* DB connection */

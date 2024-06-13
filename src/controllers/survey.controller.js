@@ -34,6 +34,8 @@ const sendEmail = async (email, subject, message) => {
 export const surveyForm = async (req, res) => {
     try {
 
+        console.log('sent==',req.body);
+
         const userSurvey = await UserSurvey.create({
             doYouFeelNeedForChange: req.body.doYouFeelNeedForChange,
             employedStatus: req.body.employedStatus,
@@ -47,6 +49,7 @@ export const surveyForm = async (req, res) => {
             surname: req.body.surname,
             referralCode: req.body.referralCode,
             referral: req.body.referral,
+            userDevice: req.body.userDevice,
         });
 
         // Send email after successfully submitting the records

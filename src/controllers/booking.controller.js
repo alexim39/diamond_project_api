@@ -48,6 +48,7 @@ export const bookingForm = async (req, res) => {
             email: req.body.email,
             name: req.body.name,
             surname: req.body.surname,
+            userDevice: req.body.userDevice,
         });
 
         // Send email after successfully submitting the records
@@ -67,8 +68,8 @@ export const bookingForm = async (req, res) => {
             <p>Description/Comment: ${req.body.description}</p>
             <p>Referred by: ${req.body.referralCode}</p>
             <p>Referred through: ${req.body.referral}</p>
-            <p>consultation Date: ${req.body.consultDate} </p>
-            <p>consultation Time: ${req.body.consultTime}</p>
+            <p>Consultation Date: ${req.body.consultDate} </p>
+            <p>Consultation Time: ${req.body.consultTime}</p>
             <p>Contact Method: ${req.body.contactMethod}</p>
         `;
 
