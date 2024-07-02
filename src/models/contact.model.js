@@ -65,7 +65,12 @@ const downloadSchema = mongoose.Schema(
             type: String,
             //unique: true,
             required: [true, "Please enter phone number"]
-        }
+        },
+        userDevice: {
+            type: String,
+            //unique: true,
+            //required: [true, "Please enter surname"]
+        },
         
        
     },

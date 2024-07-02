@@ -88,6 +88,7 @@ export const DownloadPreapproachController = async (req, res) => {
             surname: req.body.surname,
             email: req.body.email,
             phone: req.body.phone,
+            userDevice: req.body.userDevice,
         });
 
         // Send email after successfully submitting the records
