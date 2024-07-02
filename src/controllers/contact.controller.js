@@ -1,4 +1,4 @@
-import {ContactModel} from '../models/contact.model.js';
+import {ContactModel, PreapproachDownloadModel} from '../models/contact.model.js';
 import nodemailer from 'nodemailer';
 
 
@@ -66,6 +66,51 @@ export const ContactController = async (req, res) => {
         }
 
         res.status(200).json(contactObject);
+
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).json({
+            message: error.message
+        })
+    }
+}
+
+
+
+// User download contnroller
+export const DownloadPreapproachController = async (req, res) => {
+    try {
+
+        //console.log('sent==',req.body);
+
+        const downloadObject = await PreapproachDownloadModel.create({
+            name: req.body.name,
+            surname: req.body.surname,
+            email: req.body.email,
+            phone: req.body.phone,
+        });
+
+        // Send email after successfully submitting the records
+        const emailSubject = 'Diamond Project Pre-Approach Download';
+        const emailMessage = `
+            <h1>Pre-Approach Download Form</h1>
+            <p>Kindly note that ${req.body.name} ${req.body.surname} downloaded the pre-approach file on Diamond Project webiste.</p>
+
+            <br>
+            <h1>Complete Prospect Response</h1>
+            <p>Name: ${req.body.name}</p>
+            <p>Surname: ${req.body.surname}</p>
+            <p>Email address: ${req.body.email}</p>
+            <p>Phone: ${req.body.phone}</p>
+        `;
+
+        const emailsToSend = ['aleximenwo@gmail.com'];
+
+        for (const email of emailsToSend) {
+            await sendEmail(email, emailSubject, emailMessage);
+        }
+
+        res.status(200).json(downloadObject);
 
     } catch (error) {
         console.error(error.message);

@@ -39,3 +39,40 @@ const contactSchema = mongoose.Schema(
 
 /* Model */
 export const ContactModel = mongoose.model('contact', contactSchema);
+
+
+
+/* pre-approach */
+/* Schema*/
+const downloadSchema = mongoose.Schema(
+    {
+        name: {
+            type: String,
+            //unique: true,
+            required: [true, "Please enter name"]
+        },
+        surname: {
+            type: String,
+            //unique: true,
+            required: [true, "Please enter surname"]
+        },
+        email: {
+            type: String,
+            unique: true,
+            required: [true, "Please enter email address"]
+        },
+        phone: {
+            type: String,
+            //unique: true,
+            required: [true, "Please enter phone number"]
+        }
+        
+       
+    },
+    {
+        timestamps: true
+    }
+)
+
+/* Model */
+export const PreapproachDownloadModel = mongoose.model('preapproach-download', downloadSchema);
