@@ -50,6 +50,7 @@ export const surveyForm = async (req, res) => {
             referralCode: req.body.referralCode,
             referral: req.body.referral,
             userDevice: req.body.userDevice,
+            username: req.body.username,
         });
 
         // Send email after successfully submitting the records

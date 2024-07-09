@@ -49,6 +49,7 @@ export const bookingForm = async (req, res) => {
             name: req.body.name,
             surname: req.body.surname,
             userDevice: req.body.userDevice,
+            username: req.body.username,
         });
 
         // Send email after successfully submitting the records
