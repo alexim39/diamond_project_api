@@ -1,4 +1,4 @@
-import {UserSurvey} from '../models/survey.model.js';
+import {SurveyModel} from '../models/survey.model.js';
 import nodemailer from 'nodemailer';
 
 
@@ -34,9 +34,9 @@ const sendEmail = async (email, subject, message) => {
 export const surveyForm = async (req, res) => {
     try {
 
-        console.log('sent==',req.body);
+        //console.log('sent==',req.body);
 
-        const userSurvey = await UserSurvey.create({
+        const userSurvey = await SurveyModel.create({
             doYouFeelNeedForChange: req.body.doYouFeelNeedForChange,
             employedStatus: req.body.employedStatus,
             interestedInEarningAdditionaIcome: req.body.interestedInEarningAdditionaIcome,

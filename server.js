@@ -7,6 +7,7 @@ import userSurveyRouter from './src/routes/survey.route.js';
 import userBoookingRouter from './src/routes/booking.route.js';
 import emailSubscriptionRouter from './src/routes/email-subscription.route.js';
 import contactRouter from './src/routes/contact.route.js';
+import partnerRouter from './src/routes/partner.route.js';
 
 
 const port = process.env.PORT || 3000;
@@ -31,7 +32,7 @@ app.use('/survey', userSurveyRouter);
 app.use('/booking', userBoookingRouter);
 app.use('/emailSubscription', emailSubscriptionRouter);
 app.use('/contact', contactRouter);
-//app.use('/download', contactRouter);
+app.use('/partners', partnerRouter);
 
 
 

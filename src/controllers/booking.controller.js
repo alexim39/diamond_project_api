@@ -1,4 +1,4 @@
-import {UserBooking} from '../models/booking.model.js';
+import {BookingModel} from '../models/booking.model.js';
 import nodemailer from 'nodemailer';
 
 
@@ -36,7 +36,7 @@ export const bookingForm = async (req, res) => {
 
         //console.log('sent==',req.body);
 
-        const userBooking = await UserBooking.create({
+        const userBooking = await BookingModel.create({
             reason: req.body.reason,
             description: req.body.description,
             referralCode: req.body.referralCode,

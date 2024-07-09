@@ -67,4 +67,4 @@ const userBookingSchema = mongoose.Schema(
 )
 
 /* Model */
-export const UserBooking = mongoose.model('Booking', userBookingSchema);
+export const BookingModel = mongoose.model('Booking', userBookingSchema);

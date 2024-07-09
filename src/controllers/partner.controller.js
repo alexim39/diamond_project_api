@@ -1,4 +1,4 @@
-import {EmailSubscriptionModel} from '../models/email-subscription.model.js';
+import {PartnersModel} from '../models/partner.model.js';
 import nodemailer from 'nodemailer';
 
 
@@ -29,36 +29,24 @@ const sendEmail = async (email, subject, message) => {
     }
 };
 
-  
-// User email subscription
-export const emailSubscription = async (req, res) => {
+ // check if a partner exist
+export const checkPartnerUsername = async (req, res) => {
     try {
+        const { username } = req.params;
+        const returnedObject = await PartnersModel.findOne({ username: username });
 
-        //console.log('sent==',req.body);
-
-        const emailSubscription = await EmailSubscriptionModel.create({
-            email: req.body.email,
-        });
-
-        // Send email after successfully submitting the records
-        const emailSubject = 'Diamond Project Email Subscription';
-        const emailMessage = `
-            <h1>Email Subscription</h1>
-            <p>Kindly note that someone subscribed to the email subscription form on Diamond Project webiste: ${req.body.email}</p>
-        `;
-
-        const emailsToSend = ['aleximenwo@gmail.com'];
-
-        for (const email of emailsToSend) {
-            await sendEmail(email, emailSubject, emailMessage);
+        if (returnedObject) {
+            res.status(200).json(returnedObject);
+        } else {
+            res.status(404).json({
+                message: "No record found for the provided username."
+            });
         }
-
-        res.status(200).json(emailSubscription);
 
     } catch (error) {
         console.error(error.message);
         res.status(500).json({
             message: error.message
-        })
+        });
     }
 }

@@ -1,35 +1,40 @@
 import mongoose from 'mongoose';
 
 
-/* Schema survey*/
-const userSurveySchema = mongoose.Schema(
+/* Schema partners*/
+const partnersSchema = mongoose.Schema(
     {
     
-        doYouFeelNeedForChange: {
+        username: {
             type: String,
-            required: [true, "Please enter answer 1"]
+            unique: true,
+            required: [true, "Please enter response for username"]
         },
-        employedStatus: {
+/*         description: {
             type: String,
-            required: [true, "Please enter answer 2"]
+            //required: [true, "Please enter answer 2"]
         },
-        interestedInEarningAdditionaIcome: {
+        referralCode: {
             type: String,
-            required: [true, "Please enter answer 3"]
+            //required: [true, "Please enter answer 3"]
         },
-        doYouBelieveInTraining: {
+        consultDate: {
+            type: Date,
+            required: [true, "Please enter response for consultation date"]
+        },
+        consultTime: {
             type: String,
-            required: [true, "Please enter answer 4"]
+            required: [true, "Please enter response for consultation time"]
         },
-        areYouOpenToBeCoached: {
+        contactMethod: {
             type: String,
-            required: [true, "Please enter answer 5"]
+            required: [true, "Please enter response for contact method"]
         },
-        ifSessionIsSet: {
+        referral: {
             type: String,
-            required: [true, "Please enter answer 6"]
+            required: [true, "Please enter response for referral"]
         },
-        phoneNumber: {
+        phone: {
             type: String,
             //unique: true,
             required: [true, "Please enter phone number"]
@@ -49,19 +54,12 @@ const userSurveySchema = mongoose.Schema(
             //unique: true,
             required: [true, "Please enter surname"]
         },
-        referralCode: {
-            type: String,
-            //required: [true, "Please enter answer 3"]
-        },
-        referral: {
-            type: String,
-            required: [true, "Please enter response for referral"]
-        },
         userDevice: {
             type: String,
             //unique: true,
             //required: [true, "Please enter surname"]
-        },
+        }, */
+        
        
     },
     {
@@ -70,4 +68,4 @@ const userSurveySchema = mongoose.Schema(
 )
 
 /* Model */
-export const SurveyModel = mongoose.model('Survey', userSurveySchema);
+export const PartnersModel = mongoose.model('partner', partnersSchema);
