@@ -10,55 +10,41 @@ const partnersSchema = mongoose.Schema(
             unique: true,
             required: [true, "Please enter response for username"]
         },
-/*         description: {
-            type: String,
-            //required: [true, "Please enter answer 2"]
-        },
-        referralCode: {
-            type: String,
-            //required: [true, "Please enter answer 3"]
-        },
-        consultDate: {
-            type: Date,
-            required: [true, "Please enter response for consultation date"]
-        },
-        consultTime: {
-            type: String,
-            required: [true, "Please enter response for consultation time"]
-        },
-        contactMethod: {
-            type: String,
-            required: [true, "Please enter response for contact method"]
-        },
-        referral: {
-            type: String,
-            required: [true, "Please enter response for referral"]
-        },
-        phone: {
-            type: String,
-            //unique: true,
-            required: [true, "Please enter phone number"]
-        },
-        email: {
-            type: String,
-            //unique: true,
-            //required: [true, "Please enter email address"]
-        },
         name: {
             type: String,
-            //unique: true,
             required: [true, "Please enter name"]
         },
         surname: {
             type: String,
-            //unique: true,
             required: [true, "Please enter surname"]
         },
-        userDevice: {
+        email: {
             type: String,
-            //unique: true,
-            //required: [true, "Please enter surname"]
-        }, */
+            unique: true,
+            required: [true, "Please enter email address"]
+        },
+        phone: {
+            type: String,
+            unique: true,
+            required: [true, "Please enter phone number"]
+        },
+        reservationCode: {
+            type: String,
+            unique: true,
+            required: [true, "Please enter reservation code"]
+        },
+        password: {
+            type: String,
+            required: [true, "Please enter password"]
+        },
+        tnc: {
+            type: Boolean,
+            default: false
+        },
+        status: {
+            type: Boolean,
+            default: false
+        },
         
        
     },
