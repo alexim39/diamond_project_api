@@ -14,7 +14,7 @@ partnerRouter.post('/signup', partnerSignup);
 partnerRouter.post('/signin', partnerSignin);
 
 // Get partner
-//partnerRouter.get('/user', getPartner);
+partnerRouter.get('/partner', getPartner);
 
 // partner logout
 partnerRouter.post('/signout', partnerSignout);

@@ -1,4 +1,4 @@
-import {PartnersModel} from '../models/partner.model.js';
+import {PartnersModel, ReservationCodeModel} from '../models/partner.model.js';
 import nodemailer from 'nodemailer';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -93,6 +93,29 @@ export const partnerSignup = async (req, res) => {
 
     //console.log('body== ',req.body)
 
+     // Check if the reservation code exists
+    const reservationCodeExists = await ReservationCodeModel.findOne({
+        code: req.body.reservationCode
+    })
+
+     if (!reservationCodeExists) {
+         return res.status(400).json({
+             message: 'The reservation code does not exist.',
+             code: '400'
+         });
+     }
+
+     // Check if the reservation code have been used
+     const reservationCodeUsed = await PartnersModel.findOne({
+        reservationCode: req.body.reservationCode
+    })
+
+    if (reservationCodeUsed) {
+        return res.status(401).send({
+            message: "Code exist"
+        })
+    }
+
     try {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(req.body.password, salt);
@@ -181,7 +204,9 @@ export const getPartner = async (req, res) => {
             })
         }
 
-        const user = await PartnersModel.findOne({_id: claims.id}).populate('courses');
+        //const user = await PartnersModel.findOne({_id: claims.id}).populate('courses');
+        const user = await PartnersModel.findOne({_id: claims.id});
+
 
         const {password, ...userObject} = await user.toJSON()
 
