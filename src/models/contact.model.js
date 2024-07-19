@@ -38,7 +38,7 @@ const contactSchema = mongoose.Schema(
 )
 
 /* Model */
-export const ContactModel = mongoose.model('contact', contactSchema);
+export const ContactModel = mongoose.model('Contact', contactSchema);
 
 
 
@@ -80,4 +80,4 @@ const downloadSchema = mongoose.Schema(
 )
 
 /* Model */
-export const PreapproachDownloadModel = mongoose.model('preapproach-download', downloadSchema);
+export const PreapproachDownloadModel = mongoose.model('Preapproach-download', downloadSchema);

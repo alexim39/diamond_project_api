@@ -19,4 +19,4 @@ const emailSubscriptionSchema = mongoose.Schema(
 )
 
 /* Model */
-export const EmailSubscriptionModel = mongoose.model('email-subscription', emailSubscriptionSchema);
+export const EmailSubscriptionModel = mongoose.model('Email-subscription', emailSubscriptionSchema);

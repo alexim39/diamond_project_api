@@ -54,7 +54,7 @@ const partnersSchema = mongoose.Schema(
 )
 
 /* Model */
-export const PartnersModel = mongoose.model('partner', partnersSchema);
+export const PartnersModel = mongoose.model('Partner', partnersSchema);
 
 
 
@@ -76,4 +76,4 @@ const reservationCodeSchema = mongoose.Schema(
     }
 )
 /* Reservation code Model */
-export const ReservationCodeModel = mongoose.model('reservation-code', reservationCodeSchema);
+export const ReservationCodeModel = mongoose.model('Reservation-code', reservationCodeSchema);
