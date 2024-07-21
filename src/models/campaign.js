@@ -39,6 +39,15 @@ const campaignSchema = mongoose.Schema({
     ref: 'partner', // Replace 'User' with your actual user model name
     required: true, // Enforce that createdBy is always provided
   },
+  campaignName: {
+    type:String,
+    required: true,
+  },
+  deliveryStatus: {
+    type:String,
+    required: true,
+    default: "Pending"
+  },
    
 },
 {

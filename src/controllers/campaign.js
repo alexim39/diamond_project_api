@@ -54,3 +54,24 @@ export const createFacebookCampaign = async (req, res) => {
         })
     }
 }
+
+// Route handler to fetch all Ads by createdBy
+export const getCampaignsCreatedBy = async (req, res) => {
+    try {
+      const { createdBy } = req.params; // Assuming createdBy is passed as a query parameter
+  
+      // Find Ads where createdBy matches the provided ID
+      const ads = await CampaignModel.find({ createdBy });
+  
+      res.status(200).json({
+        message: 'Ads retrieved successfully!',
+        data: ads,
+      });
+    } catch (error) {
+      console.error(error.message);
+      res.status(500).json({
+        message: 'Error retrieving Ads',
+        error: error.message,
+      });
+    }
+  };
