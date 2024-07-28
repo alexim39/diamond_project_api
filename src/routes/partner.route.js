@@ -1,5 +1,5 @@
 import express from 'express';
-import { checkPartnerUsername, partnerSignup, partnerSignin, getPartner, partnerSignout } from '../controllers/partner.controller.js'
+import { checkPartnerUsername, partnerSignup, partnerSignin, getPartner, partnerSignout, updateProfile, updateUsername, changePassword } from '../controllers/partner.controller.js'
 
 const partnerRouter = express.Router();
 
@@ -19,6 +19,13 @@ partnerRouter.get('/partner', getPartner);
 // partner logout
 partnerRouter.post('/signout', partnerSignout);
 
+// Update partner
+partnerRouter.put('/update-profile', updateProfile);
 
+// Update username
+partnerRouter.put('/update-username', updateUsername)
+
+// Change password
+partnerRouter.put('/change-password', changePassword)
 
 export default partnerRouter;

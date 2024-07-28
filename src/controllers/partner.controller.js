@@ -91,7 +91,6 @@ const generateUniqueUsername = async (name, surname) => {
 // partner registration
 export const partnerSignup = async (req, res) => {
 
-    //console.log('body== ',req.body)
 
      // Check if the reservation code exists
     const reservationCodeExists = await ReservationCodeModel.findOne({
@@ -237,3 +236,129 @@ export const partnerSignout = async (req, res) => {
         })
     }
 }
+
+
+// Update a partner
+export const updateProfile = async (req, res) => {  
+    try {  
+        const { id, name, surname, bio, email, phone } = req.body;  
+
+        // Create an object with only the fields you want to update  
+        const updateData = { name, surname, bio, email, phone };  
+
+        const partner = await PartnersModel.findByIdAndUpdate(id, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
+
+// Update username  
+export const updateUsername = async (req, res) => {  
+    try {  
+        const { id, username } = req.body;  
+
+        // Check if the new username already exists for another partner  
+        const existingPartner = await PartnersModel.findOne({ username });  
+        if (existingPartner && existingPartner._id.toString() !== id) {  
+            return res.status(400).json({  
+                message: 'Username already in use by another partner.',
+            });  
+        }  
+
+        // Create an object with only the fields you want to update  
+        const updateData = { username };  
+
+        const partner = await PartnersModel.findByIdAndUpdate(id, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
+
+
+// Change password  
+export const changePassword = async (req, res) => {  
+    const { id, currentPassword, newPassword } = req.body;  
+
+    // Validate input  
+    if (!currentPassword || !newPassword) {  
+        return res.status(400).json({  
+            message: 'Old password and new password are required.'  
+        });  
+    }  
+
+    if (newPassword.length < 6) {  
+        return res.status(401).json({  
+            message: 'New password must be at least 8 characters long.'  
+        });  
+    }  
+
+    if (currentPassword === newPassword) {  
+        return res.status(402).json({  
+            message: 'Old password and new password cannot be the same.'  
+        });  
+    }  
+
+    try {  
+        // Find the partner by ID  
+        const partner = await PartnersModel.findById(id);  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: 'Partner not found.'  
+            });  
+        }  
+
+        // Check if the old password matches the hashed password in the database  
+        const isMatch = await bcrypt.compare(currentPassword, partner.password);  
+        if (!isMatch) {  
+            return res.status(401).json({  
+                message: 'Current password is incorrect.'  
+            });  
+        }  
+
+        // Hash the new password  
+        const salt = await bcrypt.genSalt(10);  
+        const hashedNewPassword = await bcrypt.hash(newPassword, salt);  
+
+        // Update the password in the database  
+        partner.password = hashedNewPassword;  
+        await partner.save();  
+
+        res.status(200).json({  
+            message: 'Password changed successfully!'  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};

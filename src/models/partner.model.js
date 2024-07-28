@@ -45,7 +45,14 @@ const partnersSchema = mongoose.Schema(
             type: Boolean,
             default: false
         },
-        
+        bio: {
+            type: String,
+        },
+        partnerOf: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'partner', // Replace 'User' with your actual user model name
+            //required: true, // Enforce that createdBy is always provided
+        },       
        
     },
     {
