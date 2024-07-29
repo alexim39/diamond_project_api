@@ -241,10 +241,10 @@ export const partnerSignout = async (req, res) => {
 // Update a partner
 export const updateProfile = async (req, res) => {  
     try {  
-        const { id, name, surname, bio, email, phone } = req.body;  
+        const { id, name, surname, bio, email, phone, address } = req.body;  
 
         // Create an object with only the fields you want to update  
-        const updateData = { name, surname, bio, email, phone };  
+        const updateData = { name, surname, bio, email, phone, address };  
 
         const partner = await PartnersModel.findByIdAndUpdate(id, updateData, { new: true });  
         if (!partner) {  

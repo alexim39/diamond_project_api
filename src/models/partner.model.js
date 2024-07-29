@@ -18,6 +18,10 @@ const partnersSchema = mongoose.Schema(
             type: String,
             required: [true, "Please enter surname"]
         },
+        address: {
+            type: String,
+            required: [true, "Please enter address"]
+        },
         email: {
             type: String,
             unique: true,
