@@ -1,6 +1,7 @@
 import {CampaignModel} from '../models/campaign.js';
 import nodemailer from 'nodemailer';
-
+import {PartnersModel,} from '../models/partner.model.js';
+import mongoose from 'mongoose';
 
 // Create a Nodemailer transporter
 const transporter = nodemailer.createTransport({
@@ -74,4 +75,61 @@ export const getCampaignsCreatedBy = async (req, res) => {
         error: error.message,
       });
     }
-  };
+};
+
+
+
+// Record visits
+export const recordVisits = async (req, res) => {
+  try {
+    const { username, channel } = req.body;
+
+    if (!username || !channel) {
+      return res.status(400).json({ message: 'Username and channel are required' });
+    }
+
+    // Step 1: Find the partner's ObjectId by username
+    const partner = await PartnersModel.findOne({ username: username });
+    if (!partner) {
+      return res.status(401).json({ message: 'No partner found' });
+    }
+
+    // Step 2: Check if the channel is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(channel)) {
+      // If channel is not a valid ObjectId, increment visits in the PartnersModel
+      partner.visits = (partner.visits || 0) + 1;
+      await partner.save();
+      return res.status(200).json({
+        message: 'Partner visit updated due to invalid channel',
+        data: partner,
+      });
+    }
+
+    // Step 3: Check if the channel exists in the CampaignModel
+    const campaign = await CampaignModel.findOne({ _id: channel, createdBy: partner._id });
+
+    if (campaign) {
+      // If campaign exists, increment visits in the CampaignModel
+      campaign.visits = (campaign.visits || 0) + 1;
+      await campaign.save();
+      return res.status(200).json({
+        message: 'Campaign visit updated',
+        data: campaign,
+      });
+    } else {
+      // If campaign does not exist, increment visits in the PartnersModel
+      partner.visits = (partner.visits || 0) + 1;
+      await partner.save();
+      return res.status(200).json({
+        message: 'Partner visit updated',
+        data: partner,
+      });
+    }
+
+  } catch (error) {
+    console.error(error.message);
+    return res.status(500).json({
+      message: error.message
+    });
+  }
+}

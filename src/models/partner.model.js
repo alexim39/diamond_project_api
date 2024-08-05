@@ -56,7 +56,14 @@ const partnersSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'partner', // Replace 'User' with your actual user model name
             //required: true, // Enforce that createdBy is always provided
-        },       
+        },  
+        visits: {
+            type:Number,
+            default: 0
+        }, 
+        dobDatePicker: {
+            type: Date
+        }
        
     },
     {

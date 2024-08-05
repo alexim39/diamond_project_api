@@ -10,21 +10,21 @@ const campaignSchema = mongoose.Schema({
     relationshipTarget: { type: String, default: 'All' },
   },
   marketingObjectives: {
-    adObjective: { type: String, required: true }, // Validation for required field
-    successMeasurement: { type: String, required: true }, // Validation for required field
+    adObjective: { type: String, required: true },
+    successMeasurement: { type: String, required: true },
   },
   budget: {
-    budgetType: { type: String, required: true }, // Validation for required field
-    budgetAmount: { type: Number, required: true }, // Validation for required field
+    budgetType: { type: String, required: true },
+    budgetAmount: { type: Number, required: true },
   },
   adDuration: {
-    campaignStartDate: { type: Date, required: true }, // Validation for required field
-    noEndDate: { type: Boolean, required: true }, // Validation for required field
-    campaignEndDate: { type: Date }, // Optional if noEndDate is true
+    campaignStartDate: { type: Date, required: true },
+    noEndDate: { type: Boolean, required: true },
+    campaignEndDate: { type: Date },
   },
   adFormat: {
-    adFormat: { type: String, required: true }, // Validation for required field
-    deviceType: { type: String, required: true }, // Validation for required field
+    adFormat: { type: String, required: true },
+    deviceType: { type: String, required: true },
     adPreferences: {
       FacebookFeed: { type: Boolean, default: true },
       InstagramFeed: { type: Boolean, default: true },
@@ -36,8 +36,8 @@ const campaignSchema = mongoose.Schema({
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'partner', // Replace 'User' with your actual user model name
-    required: true, // Enforce that createdBy is always provided
+    ref: 'partner', 
+    required: true,
   },
   campaignName: {
     type:String,
@@ -47,6 +47,10 @@ const campaignSchema = mongoose.Schema({
     type:String,
     required: true,
     default: "Pending"
+  },
+  visits: {
+    type:Number,
+    default: 0
   },
    
 },
