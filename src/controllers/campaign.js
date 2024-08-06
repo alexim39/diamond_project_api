@@ -56,6 +56,33 @@ export const createFacebookCampaign = async (req, res) => {
     }
 }
 
+// youtube campaign
+export const createYoutubeCampaign = async (req, res) => {
+    try {
+
+        const { body } = req; 
+
+        //console.log(body); return;
+
+        // Create a new Ad document using the data from the request body
+         const newAd = new CampaignModel(body);
+
+        // Save the Ad document to the database
+        await newAd.save();
+
+        res.status(201).json({
+            message: 'Ad campaign created successfully!',
+            data: newAd, // Include the saved Ad data in the response
+        });
+
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).json({
+            message: error.message
+        })
+    }
+}
+
 // Route handler to fetch all Ads by createdBy
 export const getCampaignsCreatedBy = async (req, res) => {
     try {

@@ -11,7 +11,7 @@ const campaignSchema = mongoose.Schema({
   },
   marketingObjectives: {
     adObjective: { type: String, required: true },
-    successMeasurement: { type: String, required: true },
+    successMeasurement: { type: String},
   },
   budget: {
     budgetType: { type: String, required: true },

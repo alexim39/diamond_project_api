@@ -40,7 +40,7 @@ export const confirmPayment = async (req, res) => {
   try {
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
-        Authorization: `Bearer sk_test_2b176cfecf4bf2bf8ed1de53b55f868dc4ed9127`, // Replace with your Paystack secret key
+        Authorization: `Bearer ${process.env.PAYSTACKTOKEN}`, // Replace with your Paystack secret key
       },
     });
 
