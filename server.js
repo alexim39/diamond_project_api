@@ -9,7 +9,8 @@ import emailSubscriptionRouter from './src/routes/email-subscription.route.js';
 import contactRouter from './src/routes/contact.route.js';
 import partnerRouter from './src/routes/partner.route.js';
 import campaignRouter from './src/routes/campaign.js';
-import productsRouter from './src/routes/product.js';
+import productsRouter from './src/routes/product.route.js';
+import TransactionRouter from './src/routes/transaction.route.js';
 
 
 const port = process.env.PORT || 3000;
@@ -37,6 +38,7 @@ app.use('/contact', contactRouter);
 app.use('/partners', partnerRouter);
 app.use('/campaign', campaignRouter);
 app.use('/products', productsRouter);
+app.use('/billing', TransactionRouter);
 
 
 

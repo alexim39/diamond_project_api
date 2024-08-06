@@ -20,7 +20,7 @@ const partnersSchema = mongoose.Schema(
         },
         address: {
             type: String,
-            required: [true, "Please enter address"]
+            //required: [true, "Please enter address"]
         },
         email: {
             type: String,
@@ -63,7 +63,11 @@ const partnersSchema = mongoose.Schema(
         }, 
         dobDatePicker: {
             type: Date
-        }
+        },
+        balance: {
+            type: Number,
+            default: 0,
+        },
        
     },
     {
