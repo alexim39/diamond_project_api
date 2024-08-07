@@ -8,6 +8,7 @@ const campaignSchema = mongoose.Schema({
     locationTarget: { type: String, default: 'States' }, // Can be 'States', 'Cities', or 'Countries' (adjust as needed)
     educationTarget: { type: String, default: 'All' },
     relationshipTarget: { type: String, default: 'All' },
+    industryTarget: { type: String, default: 'All' },
   },
   marketingObjectives: {
     adObjective: { type: String, required: true },
