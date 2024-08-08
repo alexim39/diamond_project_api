@@ -4,7 +4,8 @@ import {
     getCampaignsCreatedBy,
     recordVisits,
     createYoutubeCampaign,
-    createLinkedinCampaign
+    createLinkedinCampaign,
+    getCampaign
 } from '../controllers/campaign.js'
 
 const campaignRouter = express.Router();
@@ -20,6 +21,9 @@ campaignRouter.post('/linkedin', createLinkedinCampaign);
 
 // Get all campaigns createdBy
 campaignRouter.get('/all-createdBy/:createdBy', getCampaignsCreatedBy);
+
+// Get a camapaign
+campaignRouter.get('/:id', getCampaign);
 
 // record visit
 campaignRouter.post('/visits', recordVisits);

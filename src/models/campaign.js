@@ -27,10 +27,10 @@ const campaignSchema = mongoose.Schema({
     adFormat: { type: String, required: true },
     deviceType: { type: String, required: true },
     adPreferences: {
-      FacebookFeed: { type: Boolean, default: true },
-      InstagramFeed: { type: Boolean, default: true },
+      FacebookFeed: { type: Boolean, default: false },
+      InstagramFeed: { type: Boolean, default: false },
       InstagramStories: { type: Boolean, default: false },
-      FacebookStories: { type: Boolean, default: true },
+      FacebookStories: { type: Boolean, default: false },
       AudienceNetwork: { type: Boolean, default: false },
       MessengerInbox: { type: Boolean, default: false },
     },

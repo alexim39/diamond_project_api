@@ -187,3 +187,30 @@ export const recordVisits = async (req, res) => {
     });
   }
 }
+
+// Get a single campaign  
+export const getCampaign = async (req, res) => {  
+  try {  
+    const { id } = req.params; // Assuming id is passed as a route parameter  
+
+    // Find the campaign where id matches the provided ID  
+    const campaign = await CampaignModel.findById(id);  
+
+    if (!campaign) {  
+      return res.status(404).json({  
+        message: 'Campaign not found',  
+      });  
+    }  
+
+    res.status(200).json({  
+      message: 'Campaign retrieved successfully!',  
+      data: campaign,  
+    });  
+  } catch (error) {  
+    console.error(error.message);  
+    res.status(500).json({  
+      message: 'Error retrieving the campaign',  
+      error: error.message,  
+    });  
+  }  
+};
