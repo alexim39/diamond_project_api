@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer';
 import {ProspectModel} from '../models/prospect.model.js';
+import {SurveyModel} from '../models/survey.model.js';
+import {PartnersModel,} from '../models/partner.model.js';
 
 
 // Create a Nodemailer transporter
@@ -52,4 +54,74 @@ export const CreateContactList = async (req, res) => {
         })
     }
 }
+
+// Route handler to fetch all contacts by createdBy
+export const getContactsCreatedBy = async (req, res) => {
+    try {
+      const { createdBy } = req.params;
+
+    // Step 1: Find the user and get username
+    const partner = await PartnersModel.findById(createdBy);
+    if (!partner) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    
+    // Step 2: user found username to get user from survey collection
+    const prospectObject = await ProspectModel.find({
+        partnerId: partner._id
+    })
+
+    if (!prospectObject) {
+        return res.status(400).json({ message: 'Prospects not found' });
+    }
+  
+      res.status(200).json({
+        message: 'Prospects retrieved successfully!',
+        data: prospectObject,
+      });
+
+    } catch (error) {
+      console.error(error.message);
+      res.status(500).json({
+        message: 'Error retrieving Ads',
+        error: error.message,
+      });
+    }
+};
+
+/* // Route handler to fetch all contacts by createdBy
+export const getContactsCreatedBy = async (req, res) => {
+    try {
+      const { createdBy } = req.params;
+
+    // Step 1: Find the user and get username
+    const partner = await PartnersModel.findById(createdBy);
+    if (!partner) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    
+    // Step 2: user found username to get user from survey collection
+    const prospectObject = await SurveyModel.find({
+        username: partner.username
+    })
+
+    if (!prospectObject) {
+        return res.status(400).json({ message: 'Prospects not found' });
+    }
+  
+      res.status(200).json({
+        message: 'Prospects retrieved successfully!',
+        data: prospectObject,
+      });
+
+    } catch (error) {
+      console.error(error.message);
+      res.status(500).json({
+        message: 'Error retrieving Ads',
+        error: error.message,
+      });
+    }
+}; */
 
