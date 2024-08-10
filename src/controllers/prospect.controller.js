@@ -33,27 +33,74 @@ const sendEmail = async (email, subject, message) => {
 
   
 // Prospect contact contnroller
-export const CreateContactList = async (req, res) => {
-    try {
-        const { body } = req; 
+export const CreateContactList = async (req, res) => {  
+  try {  
+      const { body } = req;   
 
-        // Create a new document using the data from the request body
-         const newProspect = new ProspectModel(body);
+      // Check if a prospect with the same phone or email already exists  
+      const existingProspect = await ProspectModel.findOne({  
+          $or: [  
+              { prospectPhone: body.prospectPhone },  
+              { prospectEmail: body.prospectEmail } // Adjust to your actual field name  
+          ]  
+      });  
 
-        // Save the document to the database
-        await newProspect.save();
+      if (existingProspect) {  
+          return res.status(400).json({  
+              message: 'Prospect already exists with this phone number or email!',  
+              data: existingProspect, // Optionally include the existing data  
+          });  
+      }  
 
-        res.status(201).json({
-            message: 'Prospect created successfully!',
-            data: newProspect, // Include the saved data in the response
-        });
-    } catch (error) {
-        console.error(error.message);
-        res.status(500).json({
-            message: error.message
-        })
-    }
+      // Create a new document using the data from the request body  
+      const newProspect = new ProspectModel(body);  
+
+      // Save the document to the database  
+      await newProspect.save();
+
+      res.status(201).json({  
+          message: 'Prospect created successfully!',  
+          data: newProspect, // Include the saved data in the response  
+      });  
+  } catch (error) {  
+      console.error(error.message);  
+      res.status(500).json({  
+          message: error.message  
+      });  
+  }  
 }
+
+/*   export const CreateContactList = async (req, res) => {  
+    try {  
+        const { body } = req;   
+
+        // Check if a prospect with the same unique identifier already exists  
+        const existingProspect = await ProspectModel.findOne({ prospectPhone: body.prospectPhone }); 
+
+        if (existingProspect) {  
+            return res.status(400).json({  
+                message: 'Prospect already exists with this email!',  
+                data: existingProspect, // Optionally include the existing data  
+            });  
+        }  
+
+        // Create a new document using the data from the request body  
+        const newProspect = new ProspectModel(body);  
+
+        // Save the document to the database  
+        await newProspect.save();  
+
+        res.status(201).json({  
+            message: 'Prospect created successfully!',  
+            data: newProspect, // Include the saved data in the response  
+        });  
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+} */
 
 // Route handler to fetch all contacts by createdBy
 export const getContactsCreatedBy = async (req, res) => {
@@ -90,38 +137,177 @@ export const getContactsCreatedBy = async (req, res) => {
     }
 };
 
-/* // Route handler to fetch all contacts by createdBy
-export const getContactsCreatedBy = async (req, res) => {
-    try {
-      const { createdBy } = req.params;
+
+// import contacts from survey
+export const importSurveyToProspect = async (req, res) => {
+//(surveyId) {
+  try {
+
+    const { partnerId } = req.params;
 
     // Step 1: Find the user and get username
-    const partner = await PartnersModel.findById(createdBy);
+    const partner = await PartnersModel.findById(partnerId);
     if (!partner) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(400).json({ message: 'User not found' });
     }
-    
-    
-    // Step 2: user found username to get user from survey collection
-    const prospectObject = await SurveyModel.find({
-        username: partner.username
-    })
 
-    if (!prospectObject) {
-        return res.status(400).json({ message: 'Prospects not found' });
+    // Step 2: user found username to get user from survey collection
+    const surveys = await SurveyModel.find({
+      username: partner.username
+    });
+
+    if (surveys.length === 0) {
+      return res.status(401).json({ message: 'No surveys found with the matching username'});
     }
+
+    let importedCount = 0; // Counter for successful imports
+
+    for (const survey of surveys) {
+      // Check if a prospect with the same email or phone number already exists
+      const existingProspect = await ProspectModel.findOne({
+          $or: [
+              { prospectEmail: survey.email },
+              { prospectPhone: survey.phoneNumber }
+          ]
+      });
+
+      if (existingProspect) {
+        console.log(`Prospect with email ${survey.email} or phone ${survey.phoneNumber} already exists.`);
+        continue; // Skip to the next survey if a duplicate is found
+    }
+
+      // Create a new prospect using the data from the survey
+      const newProspect = new ProspectModel({
+          prospectName: survey.name,
+          prospectSurname: survey.surname,
+          prospectEmail: survey.email,
+          prospectPhone: survey.phoneNumber,
+          prospectSource: 'Unique Link',
+          partnerId: partner._id,
+          surverId: survey._id
+      });
+
+      // Save the new prospect entry to the database
+      await newProspect.save();
+      importedCount++; // Increment the counter
+    }
+
+    //console.log('All matching surveys successfully imported as prospects');
+    res.status(201).json({
+      message: 'Prospects imported successfully!',
+      data: {numberOfImports: importedCount}, // Include the saved data in the response
+    });
+
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      message: 'Error retrieving Ads',
+      error: error.message,
+    });
+  }
+}
+
+// Get all survey prospect
+export const getSurveyProspect = async (req, res) => {
+  try {
+    const { createdBy } = req.params;
+
+  // Step 1: Find the user and get username
+  const partner = await PartnersModel.findById(createdBy);
+  if (!partner) {
+    return res.status(404).json({ message: 'User not found' });
+  }
   
+  
+  /// Step 2: user found username to get user from survey collection
+  const prospectObject = await SurveyModel.find({
+    username: partner.username
+})
+
+if (!prospectObject) {
+    return res.status(400).json({ message: 'Prospects not found' });
+}
+
+  res.status(200).json({
+    message: 'Prospects retrieved successfully!',
+    data: prospectObject,
+  });
+
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      message: 'Error retrieving Ads',
+      error: error.message,
+    });
+  }
+};
+
+// import single prospect from survey to contact
+export const importSingleFromSurveyToContact = async (req, res) => {
+    try {
+      const { partnerId, prospectId } = req.params;
+
+     // get survey user surveyid
+     const survey = await SurveyModel.findById(prospectId);    
+    
+    // Create a new prospect using the data from the survey
+    const newProspect = new ProspectModel({
+        prospectName: survey.name,
+        prospectSurname: survey.surname,
+        prospectEmail: survey.email,
+        prospectPhone: survey.phoneNumber,
+        prospectSource: 'Unique Link',
+        partnerId: partnerId,
+        //surverId: survey._id
+      });
+
+      // Save the new prospect entry to the database
+      await newProspect.save();
+
+      // Delete the survey entry after moving to ProspectModel
+      await SurveyModel.findByIdAndDelete(survey._id);
+    
       res.status(200).json({
-        message: 'Prospects retrieved successfully!',
-        data: prospectObject,
+        message: 'Prospects moved successfully!',
+        data: SurveyModel,
       });
 
     } catch (error) {
       console.error(error.message);
       res.status(500).json({
-        message: 'Error retrieving Ads',
+        message: 'Error retrieving survey',
         error: error.message,
       });
     }
-}; */
+};
+// delete single prospect from survey  
+export const deleteSingleFromSurvey = async (req, res) => {  
+  try {  
+      const { prospectId } = req.params;  
 
+      // Get the survey based on the provided prospectId  
+      const survey = await SurveyModel.findById(prospectId);  
+      
+      // Check if the survey exists  
+      if (!survey) {  
+          return res.status(404).json({  
+              message: 'Survey not found',  
+          });  
+      }  
+
+      // Here we delete the survey entry  
+      await SurveyModel.findByIdAndDelete(prospectId);  
+
+      res.status(200).json({  
+          message: 'Survey deleted successfully!',  
+          data: null, // Consider returning null or the survey id if you want to confirm deletion  
+      });  
+
+  } catch (error) {  
+      console.error(error.message);  
+      res.status(500).json({  
+          message: 'Error deleting survey',  
+          error: error.message,  
+      });  
+  }  
+};

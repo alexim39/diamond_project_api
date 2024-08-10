@@ -37,7 +37,16 @@ const prospectSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'partner',
             required: true,
-          },
+        },
+        surverId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Survey',
+        },
+        status: {
+            type: String,
+            default: 'Prospect'
+            //required: [true, "Please enter message"]
+        },
         
        
     },
