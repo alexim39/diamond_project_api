@@ -44,7 +44,7 @@ const prospectSchema = mongoose.Schema(
         },
         status: {
             type: String,
-            default: 'Prospect'
+            default: 'New Prospect'
             //required: [true, "Please enter message"]
         },
         

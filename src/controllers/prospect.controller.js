@@ -280,6 +280,7 @@ export const importSingleFromSurveyToContact = async (req, res) => {
       });
     }
 };
+
 // delete single prospect from survey  
 export const deleteSingleFromSurvey = async (req, res) => {  
   try {  
@@ -300,6 +301,132 @@ export const deleteSingleFromSurvey = async (req, res) => {
 
       res.status(200).json({  
           message: 'Survey deleted successfully!',  
+          data: null, // Consider returning null or the survey id if you want to confirm deletion  
+      });  
+
+  } catch (error) {  
+      console.error(error.message);  
+      res.status(500).json({  
+          message: 'Error deleting survey',  
+          error: error.message,  
+      });  
+  }  
+};
+
+// get single prospect by id  
+export const getProspectById = async (req, res) => {  
+  try {  
+      const { prospectId } = req.params;  
+
+      // Get the prospect based on the provided prospectId  
+      const prospect = await ProspectModel.findById(prospectId);  
+      
+      // Check if the prospect exists  
+      if (!prospect) {  
+          return res.status(404).json({  
+              message: 'Prospect not found',  
+          });  
+      }  
+
+      res.status(200).json({  
+          message: 'Prospect retrieved successfully!',  
+          data: prospect, 
+      });  
+
+  } catch (error) {  
+      console.error(error.message);  
+      res.status(500).json({  
+          message: 'Error deleting data',  
+          error: error.message,  
+      });  
+  }  
+};
+
+// get status
+export const updateProspectStatus = async (req, res) => { 
+  try {  
+
+    const { status, prospectId } = req.body;
+
+    // Update the status of the prospect with the provided id  
+    const prospect = await ProspectModel.findByIdAndUpdate(  
+        prospectId,  
+        { status: status }, // Update only the status field  
+        { new: true, runValidators: true }
+    );  
+
+    if (!prospect) {  
+      return res.status(404).json({  
+          message: 'Prospect not found',  
+      });  
+    }   
+
+    res.status(200).json({  
+      message: 'Prospect retrieved successfully!',  
+      data: prospect, 
+    });   
+  } catch (error) {  
+    console.error(error.message);  
+    res.status(500).json({  
+        message: 'Error deleting data',  
+        error: error.message,  
+    });
+  }  
+}
+
+// get remark
+export const updateProspectRemark = async (req, res) => { 
+  try {  
+
+    const { remark, prospectId } = req.body;
+
+    // Update the status of the prospect with the provided id  
+    const prospect = await ProspectModel.findByIdAndUpdate(  
+        prospectId,  
+        { prospectRemark: remark }, // Update only the status field  
+        { new: true, runValidators: true }
+    );  
+
+    if (!prospect) {  
+      return res.status(404).json({  
+          message: 'Prospect not found',  
+      });  
+    }   
+
+    res.status(200).json({  
+      message: 'Prospect retrieved successfully!',  
+      data: prospect, 
+    });   
+  } catch (error) {  
+    console.error(error.message);  
+    res.status(500).json({  
+        message: 'Error deleting data',  
+        error: error.message,  
+    });
+  }  
+}
+
+
+// delete single prospect from prospect  
+export const deleteSingleFromProspect = async (req, res) => {  
+  try {  
+      const { prospectId } = req.params;  
+
+      // Get the prospect based on the provided prospectId  
+      const prospect = await ProspectModel.findById(prospectId);  
+      
+      // Check if exists  
+      if (!prospect) {  
+          return res.status(404).json({  
+              message: 'Prospect not found',  
+          });  
+      }  
+
+      // Here we delete the survey entry  
+      await ProspectModel.findByIdAndDelete(prospectId);  
+
+      res.status(200).json({  
+          message: 'Prospect deleted successfully!',  
           data: null, // Consider returning null or the survey id if you want to confirm deletion  
       });  
 
