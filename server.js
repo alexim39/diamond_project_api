@@ -12,6 +12,7 @@ import campaignRouter from './src/routes/campaign.js';
 import productsRouter from './src/routes/product.route.js';
 import TransactionRouter from './src/routes/transaction.route.js';
 import prospectRouter from './src/routes/prospect.route.js';
+import reservationCodeRouter from './src/routes/reservation-code.route.js';
 
 
 const port = process.env.PORT || 3000;
@@ -41,6 +42,7 @@ app.use('/campaign', campaignRouter);
 app.use('/products', productsRouter);
 app.use('/billing', TransactionRouter);
 app.use('/prospect', prospectRouter);
+app.use('/reservationCode', reservationCodeRouter);
 
 
 

@@ -77,25 +77,3 @@ const partnersSchema = mongoose.Schema(
 
 /* Model */
 export const PartnersModel = mongoose.model('Partner', partnersSchema);
-
-
-
-
-
-/* Reservation Code */
-const reservationCodeSchema = mongoose.Schema(
-    {
-    
-        code: {
-            type: String,
-            unique: true,
-            required: [true, "Please enter response for reservation code"]
-        },
-        
-    },
-    {
-        timestamps: true
-    }
-)
-/* Reservation code Model */
-export const ReservationCodeModel = mongoose.model('Reservation-code', reservationCodeSchema);

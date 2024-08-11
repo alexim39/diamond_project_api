@@ -70,38 +70,6 @@ export const CreateContactList = async (req, res) => {
   }  
 }
 
-/*   export const CreateContactList = async (req, res) => {  
-    try {  
-        const { body } = req;   
-
-        // Check if a prospect with the same unique identifier already exists  
-        const existingProspect = await ProspectModel.findOne({ prospectPhone: body.prospectPhone }); 
-
-        if (existingProspect) {  
-            return res.status(400).json({  
-                message: 'Prospect already exists with this email!',  
-                data: existingProspect, // Optionally include the existing data  
-            });  
-        }  
-
-        // Create a new document using the data from the request body  
-        const newProspect = new ProspectModel(body);  
-
-        // Save the document to the database  
-        await newProspect.save();  
-
-        res.status(201).json({  
-            message: 'Prospect created successfully!',  
-            data: newProspect, // Include the saved data in the response  
-        });  
-    } catch (error) {  
-        console.error(error.message);  
-        res.status(500).json({  
-            message: error.message  
-        });  
-    }  
-} */
-
 // Route handler to fetch all contacts by createdBy
 export const getContactsCreatedBy = async (req, res) => {
     try {

@@ -1,4 +1,5 @@
-import {PartnersModel, ReservationCodeModel} from '../models/partner.model.js';
+import {PartnersModel} from '../models/partner.model.js';
+import {ReservationCodeModel} from '../models/reservation-code.model.js';
 import nodemailer from 'nodemailer';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
