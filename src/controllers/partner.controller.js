@@ -105,6 +105,16 @@ export const partnerSignup = async (req, res) => {
          });
      }
 
+     if (reservationCodeExists) {
+        // If the code exists, check its status  
+        if (reservationCodeExists.status === 'Pending') { 
+            return res.status(402).send({
+                message: 'The reservation code has not been approved',
+            });
+        }
+       
+    }
+
      // Check if the reservation code have been used
      const reservationCodeUsed = await PartnersModel.findOne({
         reservationCode: req.body.reservationCode

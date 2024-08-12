@@ -65,6 +65,7 @@ export const confirmPayment = async (req, res) => {
       amount: amountInNaira,
       reference,
       paymentMethod,
+      transactionType: 'Credit',
       status: transactionData.status,
     });
     await transaction.save();
@@ -98,3 +99,65 @@ export const getTransactions = async (req, res) => {
     });
   }
 };
+
+
+// Function to charge the partner    
+export const chargePartner = async (req, res) => {
+  const SMS_CHARGE = 5; // Define the SMS charge amount  
+
+  try {  
+    const { partnerId } = req.params;
+
+      // Find the partner by ID  
+      const partner = await PartnersModel.findById(partnerId);  
+      if (!partner) {  
+        //return { success: false, message: 'Partner not found.' };  
+         return res.status(400).json({  
+            message: 'Partner not found',  
+            data: null, // Optionally include the existing data  
+        });  
+      }  
+
+      // Check if the partner has sufficient balance  
+      if (partner.balance >= SMS_CHARGE) {  
+          // Deduct the SMS charge  
+          partner.balance -= SMS_CHARGE;  
+
+          // Save the updated partner balance  
+          await partner.save();  
+
+          // Record the transaction  
+          const transaction = new TransactionModel({  
+              partnerId: partner._id,  
+              amount: SMS_CHARGE,  
+              status: 'Completed',  
+              paymentMethod: 'SMS Charge',  
+              transactionType: 'Debit',  
+              //reference: `Charge for SMS on ${new Date().toISOString()}`,  
+              reference: Math.floor(100000000 + Math.random() * 900000000).toString() // Generate a random 9-digit number as string, ensuring it's always 9 digits
+          });  
+
+          await transaction.save();  
+
+          //return { success: true, message: 'Charge successful. Transaction recorded.' };  
+          res.status(200).json({
+            message: 'Charge successful. Transaction recorded.',
+            data: transaction,
+          });
+      } else {  
+          //return { success: false, message: 'Insufficient balance for transaction.' };  
+          return res.status(401).json({  
+            message: 'Insufficient balance for transaction',  
+            data: null, // Optionally include the existing data  
+        }); 
+      }  
+  } catch (error) {  
+    //console.error('Error charging partner:', error);  
+    // return { success: false, message: 'An error occurred while processing the charge.' }; 
+    console.error(error.message);
+    res.status(500).json({
+      message: 'An error occurred while processing the charge.',
+      error: error.message,
+    }); 
+  }  
+}
