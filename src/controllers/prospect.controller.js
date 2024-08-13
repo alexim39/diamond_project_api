@@ -70,6 +70,35 @@ export const CreateContactList = async (req, res) => {
   }  
 }
 
+// Prospect update
+export const UpdateContactList = async (req, res) => {  
+  try {  
+
+    const { body } = req;  
+    const updatedProspect = await ProspectModel.findByIdAndUpdate(  
+      body.prospectId,  
+        {  
+            prospectName:  body.prospectName,
+            prospectSurname:  body.prospectSurname,
+            prospectPhone:  body.prospectPhone,
+            prospectEmail:  body.prospectEmail,
+            prospectSource: body._prospectSourceid,
+            prospectRemark: body.prospectRemark,
+        },  
+        { new: true, runValidators: true } // new: true returns the updated document  
+    );  
+
+    if (!updatedProspect) {  
+        return res.status(404).json({ message: "Prospect not found" });  
+    }  
+
+    res.status(200).json(updatedProspect);  
+  } catch (error) {  
+    console.log(error)
+      res.status(400).json({ message: error.message });  
+  }  
+}
+
 // Route handler to fetch all contacts by createdBy
 export const getContactsCreatedBy = async (req, res) => {
     try {

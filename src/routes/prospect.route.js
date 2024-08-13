@@ -1,15 +1,18 @@
 import express from 'express';
 import { 
     CreateContactList,  getContactsCreatedBy,  importSurveyToProspect,  getSurveyProspect, importSingleFromSurveyToContact,  deleteSingleFromSurvey,
-    getProspectById, updateProspectStatus, updateProspectRemark, deleteSingleFromProspect
+    getProspectById, updateProspectStatus, updateProspectRemark, deleteSingleFromProspect, UpdateContactList
 } from '../controllers/prospect.controller.js'
 
 const prospectRouter = express.Router();
 
 
 
-// confirm payment
+// create
 prospectRouter.post('/create', CreateContactList);
+
+// update
+prospectRouter.put('/update', UpdateContactList);
 
 // Get all contacts createdBy
 prospectRouter.get('/all-createdBy/:createdBy', getContactsCreatedBy);
