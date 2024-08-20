@@ -17,9 +17,9 @@ const ParterSMSSchema = mongoose.Schema(
             validate: {  
                 validator: function(v) {  
                     // Check if v is an array of strings  
-                    return Array.isArray(v) && v.every(email => typeof email === 'string');  
+                    return Array.isArray(v) && v.every(phone => typeof phone === 'string');  
                 },  
-                message: props => `${props.value} is not a valid array of emails!`  
+                message: props => `${props.value} is not a valid array of phone!`  
             },  
             required: [true, "prospect is required"]  // Make required  
         },  

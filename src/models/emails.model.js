@@ -18,11 +18,10 @@ const ParterEmailsSchema = mongoose.Schema(
             ref: 'partner',
             required: true,
         },
-        prospectId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Prospect',
-            required: true,
-        },       
+        prospects: {  
+            type: [String],  // Allow array of strings    
+            required: [true, "prospect email is required"]  // Make required  
+        },        
     },
     {
         timestamps: true
