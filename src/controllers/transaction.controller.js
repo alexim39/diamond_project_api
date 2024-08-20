@@ -101,8 +101,8 @@ export const getTransactions = async (req, res) => {
 };
 
 
-// Function to charge the partner    
-export const chargePartner = async (req, res) => {
+// Function to charge the partner for single sms   
+export const singleSMSCharge = async (req, res) => {
   const SMS_CHARGE = 5; // Define the SMS charge amount  
 
   try {  
@@ -137,7 +137,7 @@ export const chargePartner = async (req, res) => {
               reference: Math.floor(100000000 + Math.random() * 900000000).toString() // Generate a random 9-digit number as string, ensuring it's always 9 digits
           });  
 
-          await transaction.save();  
+          await transaction.save();
 
           //return { success: true, message: 'Charge successful. Transaction recorded.' };  
           res.status(200).json({
@@ -160,4 +160,72 @@ export const chargePartner = async (req, res) => {
       error: error.message,
     }); 
   }  
+}
+
+
+// Function to charge the partner for bulk sms    
+export const bulkSMSCharge = async (req, res) => {
+  const SMS_CHARGE = 5; // Define the SMS charge amount  
+
+  //console.log('body== ',req.body)
+  const {partnerId, numberOfContacts, pages} = req.body;
+
+  try { 
+
+     // Find the partner by ID  
+     const partner = await PartnersModel.findById(partnerId);  
+     if (!partner) {  
+       //return { success: false, message: 'Partner not found.' };  
+        return res.status(400).json({  
+           message: 'Partner not found',  
+           data: null, // Optionally include the existing data  
+       });  
+    }  
+
+    // get cost
+    const smsCostPerPage = pages * SMS_CHARGE;
+    const totalCost = smsCostPerPage * numberOfContacts;
+
+     // Check if the partner has sufficient balance  
+     if (partner.balance >= totalCost) {  
+      // Deduct the SMS charge  
+      partner.balance -= totalCost;  
+
+      // Save the updated partner balance  
+      await partner.save();  
+
+      // Record the transaction  
+      const transaction = new TransactionModel({  
+          partnerId: partner._id,  
+          amount: totalCost,  
+          status: 'Completed',  
+          paymentMethod: 'SMS Charge',  
+          transactionType: 'Debit',  
+          //reference: `Charge for SMS on ${new Date().toISOString()}`,  
+          reference: Math.floor(100000000 + Math.random() * 900000000).toString() // Generate a random 9-digit number as string, ensuring it's always 9 digits
+      });  
+
+      await transaction.save();
+
+      //return { success: true, message: 'Charge successful. Transaction recorded.' };  
+      res.status(200).json({
+        message: 'Charge successful. Transaction recorded.',
+        data: transaction,
+      });
+  } else {  
+      //return { success: false, message: 'Insufficient balance for transaction.' };  
+      return res.status(401).json({  
+        message: 'Insufficient balance for transaction',  
+        data: null, // Optionally include the existing data  
+    }); 
+  }  
+
+  } catch (error) {  
+    console.error(error.message);
+    res.status(500).json({
+      message: 'An error occurred while processing the charge.',
+      error: error.message,
+    }); 
+  }  
+  
 }

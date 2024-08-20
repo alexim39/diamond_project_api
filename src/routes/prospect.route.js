@@ -41,4 +41,5 @@ prospectRouter.post('/updateRemark', updateProspectRemark);
 // delete signle prospect for user on prospect model
 prospectRouter.get('/delete/:prospectId', deleteSingleFromProspect );
 
+
 export default prospectRouter;
