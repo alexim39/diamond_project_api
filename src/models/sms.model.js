@@ -1,7 +1,6 @@
-import mongoose from 'mongoose';
+import mongoose from 'mongoose';  
 
-
-/* Schema*/
+/* Schema */  
 const ParterSMSSchema = mongoose.Schema(  
     {  
         smsBody: {  
@@ -13,21 +12,17 @@ const ParterSMSSchema = mongoose.Schema(
             ref: 'partner',  
             required: true,  
         },  
-        prospectId: {  
-            type: mongoose.Schema.Types.ObjectId,  
-            ref: 'Prospect',  
+        prospect: {  
+            type: [String],  // Allow array of strings  
             validate: {  
                 validator: function(v) {  
-                    // Allow null or a valid ObjectId  
-                    return v === null || mongoose.Types.ObjectId.isValid(v);  
+                    // Check if v is an array of strings  
+                    return Array.isArray(v) && v.every(email => typeof email === 'string');  
                 },  
-                message: props => `${props.value} is not a valid ObjectId!`  
+                message: props => `${props.value} is not a valid array of emails!`  
             },  
-            required: [function() {  
-                // Make required only if prospectId is not null  
-                return this.prospectId !== null;  
-            }, "prospectId is required when set"],  
-        },       
+            required: [true, "prospect is required"]  // Make required  
+        },  
         transactionId: {  
             type: mongoose.Schema.Types.ObjectId,  
             ref: 'Transaction',  
@@ -36,7 +31,7 @@ const ParterSMSSchema = mongoose.Schema(
         status: {  
             type: String,  
             required: true  
-        }     
+        }  
     },  
     {  
         timestamps: true  

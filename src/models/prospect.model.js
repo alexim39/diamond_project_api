@@ -47,6 +47,11 @@ const prospectSchema = mongoose.Schema(
             default: 'New Prospect'
             //required: [true, "Please enter message"]
         },
+        role: {
+            type: String,
+            default: 'User'
+            //required: [true, "Please enter message"]
+        },
         
        
     },
