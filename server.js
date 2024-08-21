@@ -2,6 +2,8 @@ import express from 'express';
 import mongoose from 'mongoose';
 import dotenv  from "dotenv"
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import userSurveyRouter from './src/routes/survey.route.js';
 import userBoookingRouter from './src/routes/booking.route.js';
@@ -34,6 +36,8 @@ app.use(cors({
     ]
 }));
 
+
+
 /* Routes */
 app.get('/', (req, res) => res.send('Node server is up and running'));
 app.use('/survey', userSurveyRouter);
@@ -50,7 +54,11 @@ app.use('/reservationCode', reservationCodeRouter);
 app.use('/sms', PartnerSMSRouter);
 app.use('/upload-profile-picture', ProfilePictureRouter);
 
-
+// Convert `import.meta.url` to `__dirname` equivalent
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// Serve static files from the "uploads" directory
+app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads')));
 
 /* DB connection */
 mongoose.connect(`mongodb+srv://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@cluster0.buvy2cx.mongodb.net/${process.env.MONGODB_DATABASE}?retryWrites=true&w=majority`)

@@ -1,9 +1,9 @@
 import express from 'express';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import fs from 'fs';
 import multer from 'multer';
 import {PartnersModel} from '../models/partner.model.js';
-
 
 const ProfilePictureRouter = express.Router();
 
@@ -12,12 +12,11 @@ const storage = multer.diskStorage({
       cb(null, 'src/uploads/');
     },
     filename: (req, file, cb) => {
-        cb(null, `${req.params.userId}-${Date.now()}${path.extname(file.originalname)}`);
+      cb(null, `${req.params.userId}-${Date.now()}${path.extname(file.originalname)}`);
     }
 });
   
 const upload = multer({ storage: storage });
-  
 
 // upload profile picture
 ProfilePictureRouter.post('/image/:userId', upload.single('profilePicture'), async (req, res) => {
@@ -29,7 +28,7 @@ ProfilePictureRouter.post('/image/:userId', upload.single('profilePicture'), asy
 
     try {
 
-       /*  // Find the current user and check if they already have a profile image
+        // Find the current user and check if they already have a profile image
         const currentUser = await PartnersModel.findById(userId);
         if (!currentUser) {
             return res.status(404).send('User not found.');
@@ -37,10 +36,12 @@ ProfilePictureRouter.post('/image/:userId', upload.single('profilePicture'), asy
 
         // If the user has a current profile image, delete the old image file
         if (currentUser.profileImage) {
-            console.log('Current User:', currentUser);
-            console.log('Profile Image:', currentUser.profileImage);
 
-            const oldImagePath = path.join(__dirname, '..', 'src', 'uploads', currentUser.profileImage);
+            // Convert `import.meta.url` to `__dirname` equivalent
+            const __filename = fileURLToPath(import.meta.url);
+            const __dirname = path.dirname(__filename);
+            //const oldImagePath = path.join(__dirname, '..', 'src', 'uploads', currentUser.profileImage);
+            const oldImagePath = path.join(__dirname, '..', 'uploads', currentUser.profileImage);
             console.log('Old Image Path:', oldImagePath);
 
             // Ensure the oldImagePath exists before attempting to delete it
@@ -57,7 +58,7 @@ ProfilePictureRouter.post('/image/:userId', upload.single('profilePicture'), asy
                     });
                 }
             });
-        } */
+        }
 
         // Update the user's profileImage field with the new file path
         const updatedPartner = await PartnersModel.findByIdAndUpdate(
