@@ -68,6 +68,9 @@ const partnersSchema = mongoose.Schema(
             type: Number,
             default: 0,
         },
+        profileImage: {
+            type: String,
+        },
        
     },
     {

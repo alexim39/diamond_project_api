@@ -15,6 +15,7 @@ import prospectRouter from './src/routes/prospect.route.js';
 import reservationCodeRouter from './src/routes/reservation-code.route.js';
 import PartnerEmailsRouter from './src/routes/emails.route.js';
 import PartnerSMSRouter from './src/routes/sms.route.js';
+import ProfilePictureRouter from './src/routes/upload-profile-picture.js';
 
 
 const port = process.env.PORT || 3000;
@@ -47,6 +48,7 @@ app.use('/prospect', prospectRouter);
 app.use('/emails', PartnerEmailsRouter);
 app.use('/reservationCode', reservationCodeRouter);
 app.use('/sms', PartnerSMSRouter);
+app.use('/upload-profile-picture', ProfilePictureRouter);
 
 
 

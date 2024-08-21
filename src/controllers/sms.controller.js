@@ -99,7 +99,10 @@ export const getSMSCreatedBy = async (req, res) => {
         });  
   
         if (!smsObject || smsObject.length === 0) {  
-            return res.status(400).json({ message: 'SMS not found' });  
+            return res.status(400).json({ 
+                message: 'SMS not found',
+                code: 400
+            });  
         }  
   
         // Step 3: Create a map of transaction records using transactionId  

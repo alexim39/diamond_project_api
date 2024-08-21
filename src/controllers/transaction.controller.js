@@ -103,7 +103,7 @@ export const getTransactions = async (req, res) => {
 
 // Function to charge the partner for single sms   
 export const singleSMSCharge = async (req, res) => {
-  const SMS_CHARGE = 5; // Define the SMS charge amount  
+  const SMS_CHARGE = 4.56//5; // Define the SMS charge amount  
 
   try {  
     const { partnerId } = req.params;
@@ -165,7 +165,7 @@ export const singleSMSCharge = async (req, res) => {
 
 // Function to charge the partner for bulk sms    
 export const bulkSMSCharge = async (req, res) => {
-  const SMS_CHARGE = 5; // Define the SMS charge amount  
+  const SMS_CHARGE = 4.56//5; // Define the SMS charge amount  
 
   //console.log('body== ',req.body)
   const {partnerId, numberOfContacts, pages} = req.body;
