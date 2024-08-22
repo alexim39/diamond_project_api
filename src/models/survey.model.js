@@ -55,10 +55,16 @@ const userSurveySchema = mongoose.Schema(
         },
         referral: {
             type: String,
-            required: [true, "Please enter response for referral"]
+            //required: [true, "Please enter response for referral"]
         },
         userDevice: {
             type: String,
+            //unique: true,
+            //required: [true, "Please enter surname"]
+        },
+        prospectStatus: {
+            type: String,
+            default: 'Not Moved',
             //unique: true,
             //required: [true, "Please enter surname"]
         },
@@ -66,7 +72,7 @@ const userSurveySchema = mongoose.Schema(
             type: String,
             default: 'alexim39',
             unique: true,
-            //required: [true, "Please enter surname"]
+            required: [true, "Please enter username"]
         },
        
     },

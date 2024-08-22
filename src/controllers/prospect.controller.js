@@ -239,7 +239,7 @@ if (!prospectObject) {
   }
 };
 
-// import single prospect from survey to contact
+/* // import single prospect from survey to contact
 export const importSingleFromSurveyToContact = async (req, res) => {
     try {
       const { partnerId, prospectId } = req.params;
@@ -276,7 +276,56 @@ export const importSingleFromSurveyToContact = async (req, res) => {
         error: error.message,
       });
     }
-};
+}; */
+
+/* Import single prospect from survey to contact */  
+export const importSingleFromSurveyToContact = async (req, res) => {  
+  try {  
+      const { partnerId, prospectId } = req.params;  
+
+      // Get the user survey by prospectId  
+      const survey = await SurveyModel.findById(prospectId);    
+
+      if (!survey) {  
+          return res.status(404).json({  
+              message: 'Survey not found.',  
+          });  
+      }  
+
+      // Update the prospectStatus to "Moved to Contact"  
+      survey.prospectStatus = "Moved to Contact";  
+      await survey.save();  
+
+      // Create a new prospect using the data from the survey  
+      const newProspect = new ProspectModel({  
+          prospectName: survey.name,  
+          prospectSurname: survey.surname,  
+          prospectEmail: survey.email,  
+          prospectPhone: survey.phoneNumber,  
+          prospectSource: 'Unique Link',  
+          partnerId: partnerId,  
+          surveyId: survey._id // If you need to keep the survey ID, uncomment this  
+      });  
+
+      // Save the new prospect entry to the database  
+      await newProspect.save();  
+
+      // Delete the survey entry after moving to ProspectModel  
+      //await SurveyModel.findByIdAndDelete(survey._id);  
+      
+      res.status(200).json({  
+          message: 'Prospects moved successfully!',  
+          data: newProspect,  // Send back the created prospect data  
+      });  
+
+  } catch (error) {  
+      console.error(error.message);  
+      res.status(500).json({  
+          message: 'Error importing prospect from survey',  
+          error: error.message,  
+      });  
+  }  
+};  
 
 // delete single prospect from survey  
 export const deleteSingleFromSurvey = async (req, res) => {  
