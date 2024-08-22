@@ -64,8 +64,8 @@ const userSurveySchema = mongoose.Schema(
         },
         username: {
             type: String,
-            default: 'alexim39'
-            //unique: true,
+            default: 'alexim39',
+            unique: true,
             //required: [true, "Please enter surname"]
         },
        
