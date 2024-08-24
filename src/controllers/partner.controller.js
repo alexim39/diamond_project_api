@@ -1,4 +1,6 @@
 import {PartnersModel} from '../models/partner.model.js';
+import {BookingModel} from '../models/booking.model.js';
+import {SurveyModel} from '../models/survey.model.js';
 import {ReservationCodeModel} from '../models/reservation-code.model.js';
 import nodemailer from 'nodemailer';
 import bcrypt from 'bcryptjs';
@@ -277,8 +279,36 @@ export const updateProfile = async (req, res) => {
     }  
 };
 
+// Update a profession
+export const updateProfession = async (req, res) => {  
+    try {  
+        const { id, jobTitle, educationBackground, hobby, skill} = req.body;  
+
+        // Create an object with only the fields you want to update  
+        const updateData = { jobTitle, educationBackground, hobby, skill };  
+
+        const partner = await PartnersModel.findByIdAndUpdate(id, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
+
 // Update username  
-export const updateUsername = async (req, res) => {  
+/* export const updateUsername = async (req, res) => {  
     try {  
         const { id, username } = req.body;  
 
@@ -312,7 +342,62 @@ export const updateUsername = async (req, res) => {
         });  
     }  
 };
+ */
 
+// update username
+export const updateUsername = async (req, res) => {  
+    try {  
+        const { id, username } = req.body;  
+
+        // Check if the new username already exists for another partner  
+        const existingPartner = await PartnersModel.findOne({ username });  
+        if (existingPartner && existingPartner._id.toString() !== id) {  
+            return res.status(400).json({  
+                message: 'Username already in use by another partner.',  
+            });  
+        }  
+
+        // Find the partner to be updated  
+        const partnerToUpdate = await PartnersModel.findById(id);  
+        if (!partnerToUpdate) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        // Capture the old username for updating surveys  
+        const oldUsername = partnerToUpdate.username;  
+
+        // Create an object with only the fields you want to update  
+        const updateData = { username };  
+
+        // Update the username in PartnersModel  
+        const partner = await PartnersModel.findByIdAndUpdate(id, updateData, { new: true });  
+
+        // Update all occurrences of the old username in SurveyModel  
+        await SurveyModel.updateMany(  
+            { username: oldUsername }, // Find surveys with the old username  
+            { $set: { username } } // Update to the new username  
+        ); 
+
+        // Update all occurrences of the old username in BookingModel  
+        await BookingModel.updateMany(  
+            { username: oldUsername }, // Find surveys with the old username  
+            { $set: { username } } // Update to the new username  
+        );  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
 
 // Change password  
 export const changePassword = async (req, res) => {  
@@ -374,4 +459,137 @@ export const changePassword = async (req, res) => {
     }  
 };
 
+// Get all partners
+export const getAllUsers = async (req, res) => {
+    try {  
+        const partners = await PartnersModel.find();  
+        res.status(200).json(partners);  
+    } catch (error) {  
+        console.error('Error fetching partners:', error);  
+        res.status(500).json({ message: 'Internal server error' });  
+    }  
+}
 
+// Get partner by name and surname  
+export const getPartnerByName = async (req, res) => {  
+    const { name, surname } = req.params; // Retrieve name and surname from request parameters  
+
+    try {  
+       // Find the partner with matching name and surname  
+       const partner = await PartnersModel.findOne({ name: name, surname: surname });  
+        
+       // If no partner is found, return a 404 status  
+       if (!partner) {  
+           return res.status(404).json({ message: 'Partner not found' });  
+       }
+
+        // Return the found partners  
+        res.status(200).json({  
+            message: 'Partner found',
+            data: partner
+        });
+    } catch (error) {  
+        console.error('Error fetching partners:', error);  
+        res.status(500).json({ message: 'Internal server error' });  
+    }  
+};
+
+// Follow a partner
+export const followPartner = async (req, res) => {
+    try {
+        const { searchPartnerId } = req.params; // ID of the partner to follow
+        const partnerId = req.body.partnerId; // ID of the current user (from authentication)
+    
+       // console.log('followPartner:');
+        /* console.log('searchPartnerId:', searchPartnerId);
+        console.log('partnerId:', partnerId); */
+
+      // Validate that the searchPartnerId is provided
+      if (!searchPartnerId) {
+        return res.status(400).json({ message: 'Missing required parameter: searchPartnerId' });
+      }
+  
+      const partnerToFollow = await PartnersModel.findById(searchPartnerId);
+      if (!partnerToFollow) {
+        return res.status(404).json({ message: 'Partner not found' });
+      }
+  
+      // Add current user to the followers list if not already following
+      if (!partnerToFollow.followers.includes(partnerId)) {
+        partnerToFollow.followers.push(partnerId);
+        await partnerToFollow.save();
+        return res.status(200).json({ message: 'Successfully followed the partner' });
+      }
+  
+      return res.status(400).json({ message: 'You are already following this partner' });
+    } catch (error) {
+      console.error('Error following partner:', error);
+      res.status(500).json({ message: 'Server error', error });
+    }
+  };
+  
+
+// Unfollow a partner
+export const unfollowPartner = async (req, res) => {
+    try {
+        const { searchPartnerId } = req.params; // ID of the partner to follow
+        const partnerId = req.body.partnerId; // ID of the current user (from authentication)
+    
+        //console.log('unfollowPartner:');
+        /* console.log('searchPartnerId:', searchPartnerId);
+        console.log('partnerId:', partnerId); */
+
+      // Validate that the parameters are provided
+      if (!searchPartnerId || !partnerId) {
+        return res.status(400).json({ message: 'Missing required parameters' });
+      }
+  
+      const partnerToUnfollow = await PartnersModel.findById(searchPartnerId);
+      if (!partnerToUnfollow) {
+        return res.status(404).json({ message: 'Partner not found' });
+      }
+  
+      // Remove the current user from the followers list if following
+      if (partnerToUnfollow.followers.includes(partnerId)) {
+        partnerToUnfollow.followers = partnerToUnfollow.followers.filter(
+          followerId => followerId.toString() !== partnerId.toString()
+        );
+        await partnerToUnfollow.save();
+        return res.status(200).json({ message: 'Successfully unfollowed the partner' });
+      }
+  
+      return res.status(400).json({ message: 'You are not following this partner' });
+    } catch (error) {
+      console.error('Error unfollowing partner:', error);
+      res.status(500).json({ message: 'Server error', error });
+    }
+  };
+  
+export const checkFollowStatus = async (req, res) => {
+    try {
+      const { searchPartnerId, partnerId } = req.params; // Extracting both parameters
+  
+      //console.log('checkFollowStatus:');
+      /* console.log('searchPartnerId:', searchPartnerId);
+      console.log('partnerId:', partnerId); */
+      
+      // Validate that the parameters are provided
+      if (!searchPartnerId || !partnerId) {
+        return res.status(400).json({ message: 'Missing required parameters' });
+      }
+  
+      const partner = await PartnersModel.findById(searchPartnerId);
+      if (!partner) {
+        return res.status(404).json({ message: 'Partner not found' });
+      }
+  
+      // Check if the current user's ID is in the followers array
+      const isFollowing = partner.followers.includes(partnerId);
+  
+      return res.status(200).json({ isFollowing });
+    } catch (error) {
+      console.error('Error checking follow status:', error);
+      res.status(500).json({ message: 'Server error', error });
+    }
+  };
+  

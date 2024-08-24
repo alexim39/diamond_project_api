@@ -1,5 +1,14 @@
 import express from 'express';
-import { checkPartnerUsername, partnerSignup, partnerSignin, getPartner, partnerSignout, updateProfile, updateUsername, changePassword } from '../controllers/partner.controller.js'
+import { 
+    checkPartnerUsername, getAllUsers, getPartnerByName,
+    partnerSignup, 
+    partnerSignin, 
+    getPartner, 
+    partnerSignout, 
+    updateProfile, 
+    updateUsername, unfollowPartner, checkFollowStatus,
+    changePassword, updateProfession, followPartner
+} from '../controllers/partner.controller.js'
 
 const partnerRouter = express.Router();
 
@@ -22,10 +31,28 @@ partnerRouter.post('/signout', partnerSignout);
 // Update partner
 partnerRouter.put('/update-profile', updateProfile);
 
+// Update partner
+partnerRouter.put('/update-profession', updateProfession);
+
 // Update username
 partnerRouter.put('/update-username', updateUsername)
 
 // Change password
 partnerRouter.put('/change-password', changePassword)
+
+// get all partners
+partnerRouter.get('/getAllUsers', getAllUsers)
+
+// get all partners
+partnerRouter.get('/getPartnerByName/:name/:surname', getPartnerByName)
+
+// follow
+partnerRouter.post('/follow/:searchPartnerId', followPartner);
+
+// unfollow
+partnerRouter.post('/unfollow/:searchPartnerId', unfollowPartner);
+
+// check follow
+partnerRouter.get('/check-follow-status/:partnerId/:searchPartnerId', checkFollowStatus);
 
 export default partnerRouter;

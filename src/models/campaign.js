@@ -53,6 +53,11 @@ const campaignSchema = mongoose.Schema({
     type:Number,
     default: 0
   },
+  userDevice: {
+    type: String,
+    //unique: true,
+    //required: [true, "Please enter surname"]
+  },
    
 },
 {

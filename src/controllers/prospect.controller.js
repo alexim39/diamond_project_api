@@ -170,6 +170,11 @@ export const importSurveyToProspect = async (req, res) => {
 
       if (existingProspect) {
         console.log(`Prospect with email ${survey.email} or phone ${survey.phoneNumber} already exists.`);
+
+        // Update the prospectStatus to "Moved to Contact"  
+        survey.prospectStatus = "Moved to Contact";  
+        await survey.save();  
+        
         continue; // Skip to the next survey if a duplicate is found
     }
 

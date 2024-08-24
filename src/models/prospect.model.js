@@ -22,7 +22,7 @@ const prospectSchema = mongoose.Schema(
         prospectEmail: {
             type: String,
             unique: true,
-            required: [true, "Please enter email address"]
+            //required: [true, "Please enter email address"]
         },
         prospectSource: {
             type: String,

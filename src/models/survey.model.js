@@ -70,7 +70,7 @@ const userSurveySchema = mongoose.Schema(
         },
         username: {
             type: String,
-            default: 'alexim39',
+            default: 'business',
             unique: true,
             required: [true, "Please enter username"]
         },

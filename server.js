@@ -18,6 +18,8 @@ import reservationCodeRouter from './src/routes/reservation-code.route.js';
 import PartnerEmailsRouter from './src/routes/emails.route.js';
 import PartnerSMSRouter from './src/routes/sms.route.js';
 import ProfilePictureRouter from './src/routes/upload-profile-picture.js';
+import TicketRouter from './src/routes/ticket.route.js';
+import TeamRouter from './src/routes/team.route.js';
 
 
 const port = process.env.PORT || 3000;
@@ -53,6 +55,8 @@ app.use('/emails', PartnerEmailsRouter);
 app.use('/reservationCode', reservationCodeRouter);
 app.use('/sms', PartnerSMSRouter);
 app.use('/upload-profile-picture', ProfilePictureRouter);
+app.use('/ticket', TicketRouter);
+app.use('/team', TeamRouter);
 
 // Convert `import.meta.url` to `__dirname` equivalent
 const __filename = fileURLToPath(import.meta.url);
