@@ -54,3 +54,34 @@ export const saveTeam = async (req, res) => {
         res.status(500).json({ message: "Internal server error" });  
     }  
 };
+
+
+// get team by partner
+export const getTeamsCreatedBy = async (req, res) => {
+    try {  
+        const { id } = req.params;  
+  
+      
+        // Find teams objects for the partner  
+        const teamsObject = await TeamModel.find({  
+            partnerId: id 
+        });  
+
+  
+        if (!teamsObject || teamsObject.length === 0) {  
+            return res.status(400).json({ message: 'Teamms not found' });  
+        } 
+
+        res.status(200).json({  
+            message: 'Teams retrieved successfully!',  
+            data: teamsObject  
+        });
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: 'Error retrieving SMS and transactions',  
+            error: error.message,  
+        });  
+    }  
+}

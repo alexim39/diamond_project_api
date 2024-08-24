@@ -12,30 +12,17 @@ const teamSchema = mongoose.Schema(
         },  
         teamPurpose: {  
             type: String,  
-            required: [true, "Please select a purpose for the team"],  
-            enum: [  
-                "Recruitment Team",  
-                "Training and Development Team",  
-                "Strategic Planning Team",  
-                "Partner Support Team",  
-                "Marketing Team",  
-                "Sales Team",  
-                "Product Development Team",  
-                "Events Management Team",  
-                "Tech Support Team",  
-                "Content Creation Team",  
-                "Compliance and Regulatory Team",  
-                "Innovation Team",  
-                "Recognition and Rewards Team",  
-                "Networking Team",  
-                "Feedback and Improvement Team"  
-            ],  
+            required: [true, "Please select a purpose for the team"] 
         },  
         partnerId: {  
             type: mongoose.Schema.Types.ObjectId,  
-            ref: 'User', // Assuming there's a User model to reference  
+            ref: 'Partner', // Assuming there's a User model to reference  
             required: true,  
         },  
+        members: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Partner'
+          }],
     },  
     {  
         timestamps: true, // Automatically add createdAt and updatedAt fields  
