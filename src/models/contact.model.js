@@ -71,6 +71,12 @@ const downloadSchema = mongoose.Schema(
             //unique: true,
             //required: [true, "Please enter surname"]
         },
+        username: {
+            type: String,
+            default: 'business',
+            unique: true,
+            //required: [true, "Please enter username"]
+        },
         
        
     },
