@@ -42,8 +42,9 @@ export const checkPartnerUsername = async (req, res) => {
         if (returnedObject) {
             res.status(200).json(returnedObject);
         } else {
-            res.status(404).json({
-                message: "No record found for the provided username."
+            return res.status(400).json({
+                message: 'The username found',
+                code: '400'
             });
         }
 
