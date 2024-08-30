@@ -33,8 +33,11 @@ app.use(cors({
     origin: [
         'http://localhost:4200', 
         'http://diamondprojectonline.com', 
+        'http://partners.diamondprojectonline.com', 
         'https://diamondprojectonline.com', 
+        'https://partners.diamondprojectonline.com/', 
         'www.diamondprojectonline.com',
+        'www.partners.diamondprojectonline.com/',
     ]
 }));
 
