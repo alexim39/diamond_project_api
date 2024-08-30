@@ -35,9 +35,9 @@ app.use(cors({
         'http://diamondprojectonline.com', 
         'http://partners.diamondprojectonline.com', 
         'https://diamondprojectonline.com', 
-        'https://partners.diamondprojectonline.com/', 
+        'https://partners.diamondprojectonline.com', 
         'www.diamondprojectonline.com',
-        'www.partners.diamondprojectonline.com/',
+        'www.partners.diamondprojectonline.com',
     ]
 }));
 
