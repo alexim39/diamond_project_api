@@ -10,6 +10,17 @@ const emailSubscriptionSchema = mongoose.Schema(
             unique: true,
             required: [true, "Please enter email address"]
         },
+        userDevice: {
+            type: String,
+            //unique: true,
+            //required: [true, "Please enter surname"]
+        },
+        username: {
+            type: String,
+            default: 'business',
+            unique: true,
+            //required: [true, "Please enter username"]
+        },
         
        
     },

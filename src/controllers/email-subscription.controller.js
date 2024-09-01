@@ -38,6 +38,8 @@ export const emailSubscription = async (req, res) => {
 
         const emailSubscription = await EmailSubscriptionModel.create({
             email: req.body.email,
+            userDevice: req.body.userDevice,
+            username: req.body.username,
         });
 
         // Send email after successfully submitting the records
