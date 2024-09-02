@@ -1,6 +1,6 @@
 import {BookingModel} from '../models/booking.model.js';
 import nodemailer from 'nodemailer';
-
+import {PartnersModel} from '../models/partner.model.js';
 
 // Create a Nodemailer transporter
 const transporter = nodemailer.createTransport({
@@ -52,6 +52,13 @@ export const bookingForm = async (req, res) => {
             username: req.body.username,
         });
 
+        // Find the user by username  
+        const partner = await PartnersModel.findOne({ username: req.body.username });  
+        
+        if (!partner) {  
+            return res.status(404).json({ message: 'User not found' });  
+        }  
+
         // Send email after successfully submitting the records
         const emailSubject = 'One-on-One Booking Submission';
         const emailMessage = `
@@ -74,7 +81,7 @@ export const bookingForm = async (req, res) => {
             <p>Contact Method: ${req.body.contactMethod}</p>
         `;
 
-        const emailsToSend = ['aleximenwo@gmail.com', 'adeyemitopesanya@gmail.com'];
+        const emailsToSend = [partner.email];
 
         for (const email of emailsToSend) {
             await sendEmail(email, emailSubject, emailMessage);

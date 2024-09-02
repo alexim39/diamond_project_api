@@ -1,4 +1,5 @@
 import {SurveyModel} from '../models/survey.model.js';
+import {PartnersModel} from '../models/partner.model.js';
 import nodemailer from 'nodemailer';
 
 
@@ -31,7 +32,7 @@ const sendEmail = async (email, subject, message) => {
 
   
 // User survey form
-export const surveyForm = async (req, res) => {
+/* export const surveyForm = async (req, res) => {
     try {
 
         //console.log('sent==',req.body);
@@ -90,4 +91,74 @@ export const surveyForm = async (req, res) => {
             message: error.message
         })
     }
-}
+} */
+
+// User survey form  
+export const surveyForm = async (req, res) => {  
+    try {  
+        // Create the survey record  
+        const userSurvey = await SurveyModel.create({  
+            doYouFeelNeedForChange: req.body.doYouFeelNeedForChange,  
+            employedStatus: req.body.employedStatus,  
+            interestedInEarningAdditionaIcome: req.body.interestedInEarningAdditionaIcome,  
+            doYouBelieveInTraining: req.body.doYouBelieveInTraining,  
+            areYouOpenToBeCoached: req.body.areYouOpenToBeCoached,  
+            ifSessionIsSet: req.body.ifSessionIsSet,  
+            phoneNumber: req.body.phoneNumber,  
+            email: req.body.email,  
+            name: req.body.name,  
+            surname: req.body.surname,  
+            referralCode: req.body.referralCode,  
+            referral: req.body.referral,  
+            userDevice: req.body.userDevice,  
+            username: req.body.username,  
+        });  
+
+        // Find the user by username  
+        const partner = await PartnersModel.findOne({ username: req.body.username });  
+        
+        if (!partner) {  
+            return res.status(404).json({ message: 'User not found' });  
+        }  
+
+        // Send email after successfully submitting the records  
+        const emailSubject = 'Survey Submission Confirmation';  
+        const emailMessage = `  
+            <h1>Survey Submission</h1>  
+            <p>A prospect named ${req.body.name} ${req.body.surname} with phone number ${req.body.phoneNumber} just submitted the survey form from www.diamondprojectonline.com.</p>  
+            <p>You may have to follow up on the user through WhatsApp or by phone call.</p>  
+
+            <br>  
+            <h1>Complete Prospect Response</h1>  
+            <p>Name: ${req.body.name}</p>  
+            <p>Surname: ${req.body.surname}</p>  
+            <p>Email address: ${req.body.email}</p>  
+            <p>Phone number: ${req.body.phoneNumber}</p>  
+            <p>Do you feel like you could be doing more: ${req.body.doYouFeelNeedForChange}</p>  
+            <p>What's your work situation: ${req.body.employedStatus}</p>  
+            <p>Referred by: ${req.body.referralCode}</p>  
+            <p>Referred through: ${req.body.referral}</p>  
+            <p>Looking to make some extra cash?: ${req.body.interestedInEarningAdditionaIcome} </p>  
+            <p>Can more skills help you reach your goals?: ${req.body.doYouBelieveInTraining}</p>  
+            <p>Are you open to being coached?: ${req.body.areYouOpenToBeCoached}</p>  
+            <p>Would you be interested in a session to unlock your potential: ${req.body.ifSessionIsSet}</p>  
+        `;  
+
+        // Use the found user's email to send the email  
+        //await sendEmail(user.email, emailSubject, emailMessage);  
+
+        const emailsToSend = [partner.email];
+
+        for (const email of emailsToSend) {
+            await sendEmail(email, emailSubject, emailMessage);
+        }
+
+        res.status(200).json(userSurvey);  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+}  

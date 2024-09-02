@@ -1,5 +1,6 @@
 import {ContactModel, PreapproachDownloadModel} from '../models/contact.model.js';
 import nodemailer from 'nodemailer';
+import {PartnersModel} from '../models/partner.model.js';
 
 
 // Create a Nodemailer transporter
@@ -59,7 +60,7 @@ export const ContactController = async (req, res) => {
             <p>Messsage: ${req.body.message}</p>
         `;
 
-        const emailsToSend = ['aleximenwo@gmail.com'];
+        const emailsToSend = [partner.email];
 
         for (const email of emailsToSend) {
             await sendEmail(email, emailSubject, emailMessage);
@@ -91,6 +92,13 @@ export const DownloadPreapproachController = async (req, res) => {
             userDevice: req.body.userDevice,
             username: req.body.username,
         });
+
+         // Find the user by username  
+         const partner = await PartnersModel.findOne({ username: req.body.username });  
+        
+         if (!partner) {  
+             return res.status(404).json({ message: 'User not found' });  
+         }  
 
         // Send email after successfully submitting the records
         const emailSubject = 'Diamond Project Pre-Approach Download';
