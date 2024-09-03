@@ -30,16 +30,15 @@ dotenv.config()
 app.use(cookieParser());
 app.use(cors({
     credentials: true,
-    origin: '*' // Temporarily allow all origins for testing
-   /*  origin: [
-        'http://localhost:4200', 
-        'http://diamondprojectonline.com', 
-        'http://partners.diamondprojectonline.com', 
-        'https://diamondprojectonline.com', 
-        'https://partners.diamondprojectonline.com', 
-        'www.diamondprojectonline.com',
-        'www.partners.diamondprojectonline.com',
-    ] */
+    origin: [  
+        'http://localhost:4200',   
+        'http://diamondprojectonline.com',   
+        'http://partners.diamondprojectonline.com',   
+        'https://diamondprojectonline.com',   
+        'https://partners.diamondprojectonline.com',   
+        'https://www.diamondprojectonline.com', // Ensure the right protocol  
+        'https://www.partners.diamondprojectonline.com', // Ensure the right protocol  
+    ] 
 }));
 
 
