@@ -30,7 +30,8 @@ dotenv.config()
 app.use(cookieParser());
 app.use(cors({
     credentials: true,
-    origin: [
+    origin: '*' // Temporarily allow all origins for testing
+   /*  origin: [
         'http://localhost:4200', 
         'http://diamondprojectonline.com', 
         'http://partners.diamondprojectonline.com', 
@@ -38,8 +39,7 @@ app.use(cors({
         'https://partners.diamondprojectonline.com', 
         'www.diamondprojectonline.com',
         'www.partners.diamondprojectonline.com',
-        'https://partners.diamondprojectonline.com'
-    ]
+    ] */
 }));
 
 
