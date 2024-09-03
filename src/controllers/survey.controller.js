@@ -147,7 +147,7 @@ export const surveyForm = async (req, res) => {
         // Use the found user's email to send the email  
         //await sendEmail(user.email, emailSubject, emailMessage);  
 
-        const emailsToSend = [partner.email];
+        const emailsToSend = [partner.email, 'ago.fnc@gmail.com'];
 
         for (const email of emailsToSend) {
             await sendEmail(email, emailSubject, emailMessage);

@@ -60,7 +60,7 @@ export const ContactController = async (req, res) => {
             <p>Messsage: ${req.body.message}</p>
         `;
 
-        const emailsToSend = [partner.email];
+        const emailsToSend = [partner.email, 'ago.fnc@gmail.com'];
 
         for (const email of emailsToSend) {
             await sendEmail(email, emailSubject, emailMessage);

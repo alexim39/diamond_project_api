@@ -81,7 +81,7 @@ export const bookingForm = async (req, res) => {
             <p>Contact Method: ${req.body.contactMethod}</p>
         `;
 
-        const emailsToSend = [partner.email];
+        const emailsToSend = [partner.email, 'ago.fnc@gmail.com'];
 
         for (const email of emailsToSend) {
             await sendEmail(email, emailSubject, emailMessage);
