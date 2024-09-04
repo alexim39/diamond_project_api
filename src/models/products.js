@@ -31,3 +31,15 @@ const productSchema = mongoose.Schema(
 
 /* Model */
 export const ProductModel = mongoose.model('Product', productSchema);
+
+
+
+
+// models/Cart.js
+const CartSchema = new mongoose.Schema({
+    products: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
+    totalCost: { type: Number, required: true },
+    createdAt: { type: Date, default: Date.now }
+});
+/* Model */
+export const CartModel = mongoose.model('Cart', CartSchema);
