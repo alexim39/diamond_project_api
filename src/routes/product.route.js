@@ -3,8 +3,8 @@ import {
     getAllProducts,
     updateProduct,
     Savecart,
-    GetAllCarts
-} from '../controllers/product.js'
+    GetAllCartsBy
+} from '../controllers/product.controller.js'
 
 const productsRouter = express.Router();
 
@@ -16,7 +16,7 @@ productsRouter.get('/getAll', getAllProducts);
 productsRouter.put('/:id', updateProduct);
 // purchase transaction on cart
 productsRouter.post('/cart', Savecart);
-// get all carts
-productsRouter.get('/carts', GetAllCarts);
+//getAllOrderBy
+productsRouter.get('/getAllOrderBy/:partnerId', GetAllCartsBy);
 
 export default productsRouter;
