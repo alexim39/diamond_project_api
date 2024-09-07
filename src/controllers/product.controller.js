@@ -140,6 +140,26 @@ export const Savecart = async (req, res) => {
       });  
     
       await cart.save();  
+
+      // Send email after successfully submitting the records  
+      const emailSubject = 'Product Order Confirmation';  
+      const emailMessage = `  
+          <h1>Product Orders</h1>  
+          <p>A partner just made an order on the platform</p>  
+          <p>You may have to follow up on partner to close out the order.</p>  
+
+      `;  
+
+      // Use the found user's email to send the email  
+      //await sendEmail(user.email, emailSubject, emailMessage);  
+
+      //const emailsToSend = [partner.email, 'ago.fnc@gmail.com'];
+      const emailsToSend = ['ago.fnc@gmail.com'];
+
+      for (const email of emailsToSend) {
+          await sendEmail(email, emailSubject, emailMessage);
+      }
+
       res.status(200).json({ message: 'Cart saved successfully', cart });   
 
     } else {  
