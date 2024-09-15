@@ -1,7 +1,7 @@
 import express from 'express';
 import { 
-    checkPartnerUsername, getAllUsers, getPartnerByName,
-    partnerSignup, 
+    checkPartnerUsername, getAllUsers,
+    partnerSignup, getPartnerByNames, getPartnerByName,
     partnerSignin, 
     getPartner, 
     partnerSignout, 
@@ -44,7 +44,10 @@ partnerRouter.put('/change-password', changePassword)
 partnerRouter.get('/getAllUsers', getAllUsers)
 
 // get all partners
-partnerRouter.get('/getPartnerByName/:name/:surname', getPartnerByName)
+partnerRouter.get('/getPartnerByNames/:name/:surname', getPartnerByNames)
+
+// get all partners
+partnerRouter.get('/getPartnerByName/:name', getPartnerByName)
 
 // follow
 partnerRouter.post('/follow/:searchPartnerId', followPartner);

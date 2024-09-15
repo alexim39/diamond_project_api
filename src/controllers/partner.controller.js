@@ -92,72 +92,62 @@ const generateUniqueUsername = async (name, surname) => {
     return username;
   };
 
-// partner registration
-export const partnerSignup = async (req, res) => {
+// partner registration  
+export const partnerSignup = async (req, res) => {  
+    const reservationCodeExists = await ReservationCodeModel.findOne({  
+        code: req.body.reservationCode  
+    });  
 
+    if (!reservationCodeExists) {  
+        return res.status(400).json({  
+            message: 'The reservation code does not exist.',  
+            code: '400'  
+        });  
+    }  
 
-     // Check if the reservation code exists
-    const reservationCodeExists = await ReservationCodeModel.findOne({
-        code: req.body.reservationCode
-    })
+    if (reservationCodeExists && reservationCodeExists.status === 'Pending') {   
+        return res.status(402).send({  
+            message: 'The reservation code has not been approved',  
+        });  
+    }  
 
-     if (!reservationCodeExists) {
-         return res.status(400).json({
-             message: 'The reservation code does not exist.',
-             code: '400'
-         });
-     }
+    const reservationCodeUsed = await PartnersModel.findOne({  
+        reservationCode: req.body.reservationCode  
+    });  
 
-     if (reservationCodeExists) {
-        // If the code exists, check its status  
-        if (reservationCodeExists.status === 'Pending') { 
-            return res.status(402).send({
-                message: 'The reservation code has not been approved',
-            });
-        }
-       
-    }
+    if (reservationCodeUsed) {  
+        return res.status(401).send({  
+            message: "Code exists"  
+        });  
+    }  
 
-     // Check if the reservation code have been used
-     const reservationCodeUsed = await PartnersModel.findOne({
-        reservationCode: req.body.reservationCode
-    })
+    try {  
+        const salt = await bcrypt.genSalt(10);  
+        const hashedPassword = await bcrypt.hash(req.body.password.trim(), salt); // Trim white spaces from password  
 
-    if (reservationCodeUsed) {
-        return res.status(401).send({
-            message: "Code exist"
-        })
-    }
+        const username = await generateUniqueUsername(req.body.name.trim(), req.body.surname.trim()); // Trim white spaces from name and surname  
 
-    try {
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(req.body.password, salt);
-  
-      const username = await generateUniqueUsername(req.body.name, req.body.surname);
-  
-      const user = await PartnersModel.create({
-          name: req.body.name,
-          surname: req.body.surname,
-          email: req.body.email,
-          password: hashedPassword,
-          tnc: req.body.tnc,
-          reservationCode: req.body.reservationCode,
-          phone: req.body.phone,
-          username: username,
-      });
-  
-      // Don't return user password
-      const { password, ...userObject } = await user.toJSON();
-  
-      res.status(200).json(userObject);
-  
-    } catch (error) {
-      console.error(error.message);
-      res.status(500).json({
-          message: error.message
-      });
-    }
-  };
+        const user = await PartnersModel.create({  
+            name: req.body.name.trim(),  
+            surname: req.body.surname.trim(),  
+            email: req.body.email.trim(),  
+            password: hashedPassword,  
+            tnc: req.body.tnc,  
+            reservationCode: req.body.reservationCode.trim(), // Trim white spaces from reservation code  
+            phone: req.body.phone.trim(), // Trim white spaces from phone  
+            username: username,  
+        });  
+
+        const { password, ...userObject } = await user.toJSON();  
+
+        res.status(200).json(userObject);  
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
 
 // User login
 export const partnerSignin = async (req, res) => {
@@ -460,37 +450,93 @@ export const changePassword = async (req, res) => {
     }  
 };
 
-// Get all partners
-export const getAllUsers = async (req, res) => {
+// Get all partners  
+export const getAllUsers = async (req, res) => {  
     try {  
         const partners = await PartnersModel.find();  
-        res.status(200).json(partners);  
+        const sanitizedResult = JSON.stringify(partners).replace(/\s+/g, ''); // Remove all whitespace  
+        res.status(200).json(JSON.parse(sanitizedResult)); // Parse back to JSON  
     } catch (error) {  
         console.error('Error fetching partners:', error);  
         res.status(500).json({ message: 'Internal server error' });  
     }  
-}
+};
 
-// Get partner by name and surname  
-export const getPartnerByName = async (req, res) => {  
+// Get partner by name and/or surname  
+export const getPartnerByNames = async (req, res) => {  
     const { name, surname } = req.params; // Retrieve name and surname from request parameters  
-
     try {  
-       // Find the partner with matching name and surname  
-       const partner = await PartnersModel.findOne({ name: name, surname: surname });  
-        
-       // If no partner is found, return a 404 status  
-       if (!partner) {  
-           return res.status(404).json({ message: 'Partner not found' });  
-       }
+        // Trim whitespace from name and surname  
+        const trimmedName = name ? name.trim() : '';  // Default to empty string if undefined  
+        const trimmedSurname = surname ? surname.trim() : ''; // Default to empty string if undefined  
+
+        // Initialize the query object  
+        const query = {};  
+
+        // Build the query based on provided parameters  
+        if (trimmedName) {  
+            query.name = trimmedName; // Always include name in the query if provided  
+        }  
+
+        // Only include surname in query if provided  
+        if (trimmedSurname) {  
+            query.surname = trimmedSurname; // Include surname in the query if provided  
+        }  
+
+        // Find partners based on the query object  
+        const partners = await PartnersModel.find(query);  
+
+        // If no partners are found, return a 404 status  
+        if (!partners || partners.length === 0) {  
+            return res.status(404).json({ message: 'Partner not found' });  
+        }  
+        // Return the found partners  
+        res.status(200).json({  
+            message: 'Partner(s) found',  
+            data: partners  
+        });  
+    } catch (error) {  
+        console.error('Error fetching partner:', error);  
+        res.status(500).json({ message: 'Internal server error' });  
+    }  
+};
+
+// Get partner by name and optionally by surname  
+export const getPartnerByName = async (req, res) => {  
+    const { name } = req.params; // Retrieve name from request parameters  
+    try {  
+        // Trim whitespace from name and capitalize the first letter  
+        const trimmedName = name ? name.trim() : ''; // Default to empty string if undefined  
+        const capitalizedTrimmedName = trimmedName.charAt(0).toUpperCase() + trimmedName.slice(1); // Capitalize the first letter  
+
+        // Check if name is provided  
+        if (!capitalizedTrimmedName) {  
+            return res.status(400).json({ message: 'Name is required.' });  
+        }  
+
+        // Initialize the query object to find by name or surname  
+        const query = {  
+            $or: [  
+                { name: capitalizedTrimmedName },  
+                { surname: capitalizedTrimmedName },  
+            ]  
+        };  
+
+        // Find partners based on the query object  
+        const partners = await PartnersModel.find(query);  
+
+        // If no partners are found, return a 404 status  
+        if (!partners || partners.length === 0) {  
+            return res.status(404).json({ message: 'Partner not found' });  
+        }  
 
         // Return the found partners  
         res.status(200).json({  
-            message: 'Partner found',
-            data: partner
-        });
+            message: 'Partner(s) found',  
+            data: partners  
+        });  
     } catch (error) {  
-        console.error('Error fetching partners:', error);  
+        console.error('Error fetching partner:', error);  
         res.status(500).json({ message: 'Internal server error' });  
     }  
 };

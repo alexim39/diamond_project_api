@@ -85,3 +85,80 @@ export const getTeamsCreatedBy = async (req, res) => {
         });  
     }  
 }
+
+// get a team by partner
+export const getTeamBy = async (req, res) => {
+    try {  
+        const { id } = req.params;    
+      
+        // Find teams objects for the partner 
+        const team = await TeamModel.findById(id);  
+        if (!team) {  
+            return res.status(404).json({ message: 'Team not found' });  
+        }
+
+        res.status(200).json({  
+            message: 'Team retrieved successfully!',  
+            data: team  
+        });
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: 'Error retrieving SMS and transactions',  
+            error: error.message,  
+        });  
+    }  
+}
+
+// delete a team by partner
+export const deleteTeamBy = async (req, res) => {
+    try {  
+        const { id } = req.params;  
+        
+      // Here we delete the survey entry  
+      await TeamModel.findByIdAndDelete(id);  
+
+      res.status(200).json({  
+          message: 'Team deleted successfully!',  
+          data: null, // Consider returning null or the survey id if you want to confirm deletion  
+      });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: 'Error retrieving SMS and transactions',  
+            error: error.message,  
+        });  
+    }  
+}
+
+// update a team by partner
+export const updateTeamBy = async (req, res) => {
+    try {  
+
+       // console.log(req.body)
+        const { temaId, partnerId, teamPurpose, description, teamName} = req.body;  
+
+        // Create an object with only the fields you want to update  
+        const updateData = { teamName, description, teamPurpose };  
+
+        const team = await TeamModel.findByIdAndUpdate(temaId, updateData, { new: true });  
+        if (!team) {  
+            return res.status(404).json({  
+                message: `Team not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: team,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    } 
+}
