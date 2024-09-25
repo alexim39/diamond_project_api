@@ -80,7 +80,7 @@ const userSurveySchema = mongoose.Schema(
         username: {
             type: String,
             default: 'business',
-            unique: true,
+           // unique: true,
             //required: [true, "Please enter username"]
         },
        
