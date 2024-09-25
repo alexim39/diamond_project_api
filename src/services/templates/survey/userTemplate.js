@@ -11,7 +11,7 @@ export const userWelcomeEmailTemplate = (surveyData) => `
       <p>For information about getting started plans visit the <a href="https://diamondprojectonline.com/plans" style="color: #007BFF;"> plan section </a> of our website for more details.</p>
       <br>
       <div style="text-align: center;">
-        <a href="https://diamondprojectonline.com/dashboard" style="padding: 10px 20px; background-color: #28A745; color: white; text-decoration: none; border-radius: 5px; text-align: center; margin: 1em 0;">Visit Your Dashboard</a>
+        <a href="https://diamondprojectonline.com/plans" style="padding: 10px 20px; background-color: #28A745; color: white; text-decoration: none; border-radius: 5px; text-align: center; margin: 1em 0;">Get Started Now</a>
       </div>
     </main>
     <br>
