@@ -5,29 +5,38 @@ import mongoose from 'mongoose';
 const userSurveySchema = mongoose.Schema(
     {
     
-        doYouFeelNeedForChange: {
+        ageRange: {
             type: String,
-            required: [true, "Please enter answer 1"]
+            required: [true, "Please choose age range"]
+        },
+        socialMedia: { 
+            type: [String], 
+            required: [true, "Please choose social media channel"]
+
         },
         employedStatus: {
             type: String,
-            required: [true, "Please enter answer 2"]
+            required: [true, "Please enter employment status"]
         },
-        interestedInEarningAdditionaIcome: {
+        importanceOfPassiveIncome: {
             type: String,
-            required: [true, "Please enter answer 3"]
+            required: [true, "Please choose passive income response"]
         },
-        doYouBelieveInTraining: {
+        onlinePurchaseSchedule: {
             type: String,
-            required: [true, "Please enter answer 4"]
+            required: [true, "Please choose online purchase response"]
         },
-        areYouOpenToBeCoached: {
+        primaryOnlineBusinessMotivation: {
             type: String,
-            required: [true, "Please enter answer 5"]
+            required: [true, "Please choose primary motivation response"]
         },
-        ifSessionIsSet: {
+        comfortWithTech: {
             type: String,
-            required: [true, "Please enter answer 6"]
+            required: [true, "Please choose comfort with tech"]
+        },
+        onlineBusinessTimeDedication: {
+            type: String,
+            required: [true, "Please choose hours of dedication"]
         },
         phoneNumber: {
             type: String,
