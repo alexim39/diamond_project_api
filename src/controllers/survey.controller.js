@@ -28,7 +28,7 @@ export const surveyForm = async (req, res) => {
     }
 
     // Send welcome email to the user
-    const userSubject = 'Welcome to Diamond Project';
+    const userSubject = 'Welcome to Diamond Project Online';
     const userMessage = userWelcomeEmailTemplate(surveyData);
     await sendEmail(surveyData.email, userSubject, userMessage);
 

@@ -5,11 +5,11 @@ export const ownerEmailTemplate = (surveyData) => `
     </header>
     <main style="padding: 20px;">
       <h1>Survey Submission</h1>
-      <p>A prospect named <strong>${surveyData.name} ${surveyData.surname}</strong> with phone number <strong>${surveyData.phoneNumber}</strong> just submitted the survey form from <a href="https://diamondprojectonline.com">Diamond Project Online</a>.</p>
+      <p>A prospect named <strong>${surveyData.name.toUpperCase()} ${surveyData.surname.toUpperCase()}</strong> with phone number <strong>${surveyData.phoneNumber}</strong> just submitted the survey form from <a href="https://diamondprojectonline.com">Diamond Project Online</a>.</p>
       <p>You may need to follow up with the user via WhatsApp or phone call.</p>
       <h2>Prospect Contact Details</h2>
-      <p><strong>Name:</strong> ${surveyData.name}</p>
-      <p><strong>Surname:</strong> ${surveyData.surname}</p>
+      <p><strong>Name:</strong> ${surveyData.name.toUpperCase()}</p>
+      <p><strong>Surname:</strong> ${surveyData.surname.toUpperCase()}</p>
       <p><strong>Email address:</strong> ${surveyData.email}</p>
       <p><strong>Phone number:</strong> ${surveyData.phoneNumber}</p>
       <br>
