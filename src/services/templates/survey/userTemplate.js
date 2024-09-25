@@ -8,7 +8,7 @@ export const userWelcomeEmailTemplate = (surveyData) => `
       <p>Dear <strong>${surveyData.name.toUpperCase()}</strong>,</p>
       <p>Thank you for your interest in Diamond Project! We are excited to have you on board.</p>
       <p>If you have any questions, please visit our <a href="https://diamondprojectonline.com/faq" style="color: #007BFF;">FAQ page</a> for answers to common questions.</p>
-      <p>For information about getting started plans visit the <a href="https://diamondprojectonline.com/plans" style="color: #007BFF;">FAQ page</a> plan section of our website for more details.</p>
+      <p>For information about getting started plans visit the <a href="https://diamondprojectonline.com/plans" style="color: #007BFF;"> plan section </a> of our website for more details.</p>
       <br>
       <div style="text-align: center;">
         <a href="https://diamondprojectonline.com/dashboard" style="padding: 10px 20px; background-color: #28A745; color: white; text-decoration: none; border-radius: 5px; text-align: center; margin: 1em 0;">Visit Your Dashboard</a>
