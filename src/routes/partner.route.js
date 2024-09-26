@@ -2,10 +2,10 @@ import express from 'express';
 import { 
     checkPartnerUsername, getAllUsers,
     partnerSignup, getPartnerByNames, getPartnerByName,
-    partnerSignin, 
-    getPartner, 
-    partnerSignout, 
-    updateProfile, 
+    partnerSignin, tiktokPage, twitterPage, updateTestimonial,
+    getPartner, updateYoutubePage, updateInstagramPage,
+    partnerSignout, updateFacebookPage, updateLinkedinPage,
+    updateProfile, updateWhatsappGroupLink, updateWhatsappChatLink,
     updateUsername, unfollowPartner, checkFollowStatus,
     changePassword, updateProfession, followPartner
 } from '../controllers/partner.controller.js'
@@ -57,5 +57,18 @@ partnerRouter.post('/unfollow/:searchPartnerId', unfollowPartner);
 
 // check follow
 partnerRouter.get('/check-follow-status/:partnerId/:searchPartnerId', checkFollowStatus);
+
+// Update partner social media pages
+partnerRouter.put('/whatsappgrouplink', updateWhatsappGroupLink);
+partnerRouter.put('/whatsappchatlink', updateWhatsappChatLink);
+partnerRouter.put('/facebookPage', updateFacebookPage);
+partnerRouter.put('/linkedinPage', updateLinkedinPage);
+partnerRouter.put('/youtubePage', updateYoutubePage);
+partnerRouter.put('/instagramPage', updateInstagramPage);
+partnerRouter.put('/tiktokPage', tiktokPage);
+partnerRouter.put('/twitterPage', twitterPage);
+// update testimonial
+partnerRouter.put('/testimonial', updateTestimonial);
+
 
 export default partnerRouter;

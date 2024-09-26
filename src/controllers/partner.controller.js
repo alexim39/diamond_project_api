@@ -639,4 +639,256 @@ export const checkFollowStatus = async (req, res) => {
       res.status(500).json({ message: 'Server error', error });
     }
   };
+
+// Update a WhatsApp group link  
+export const updateWhatsappGroupLink = async (req, res) => {  
+    try {  
+        const { url, partnerId } = req.body;  
+
+        // Create an object with the field you want to update  
+        const updateData = { whatsappGroupLink: url }; // Update the field name accordingly  
+
+        const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
+  
+// Update a WhatsApp chat link  
+export const updateWhatsappChatLink = async (req, res) => {  
+    try {  
+        const { url, partnerId } = req.body;  
+
+        // Create an object with the field you want to update  
+        const updateData = { whatsappChatLink: url }; // Update the field name accordingly  
+
+        const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
+  
+// facebook page update
+export const updateFacebookPage = async (req, res) => {  
+    try {  
+        const { url, partnerId } = req.body;  
+
+        // Create an object with the field you want to update  
+        const updateData = { facebookPage: url }; // Update the field name accordingly  
+
+        const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
+  
+// linkedin page update
+export const updateLinkedinPage = async (req, res) => {  
+    try {  
+        const { url, partnerId } = req.body;  
+
+        // Create an object with the field you want to update  
+        const updateData = { linkedinPage: url }; // Update the field name accordingly  
+
+        const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
+
+// youtube page update
+export const updateYoutubePage = async (req, res) => {  
+    try {  
+        const { url, partnerId } = req.body;  
+
+        // Create an object with the field you want to update  
+        const updateData = { youtubePage: url }; // Update the field name accordingly  
+
+        const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
+  
+// instagram page update
+export const updateInstagramPage = async (req, res) => {  
+    try {  
+        const { url, partnerId } = req.body;  
+
+        // Create an object with the field you want to update  
+        const updateData = { instagramPage: url }; // Update the field name accordingly  
+
+        const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
+  
+// tiktok page update
+export const tiktokPage = async (req, res) => {  
+    try {  
+        const { url, partnerId } = req.body;  
+
+        // Create an object with the field you want to update  
+        const updateData = { tiktokPage: url }; // Update the field name accordingly  
+
+        const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
+  
+// twitter page update
+export const twitterPage = async (req, res) => {  
+    try {  
+        const { url, partnerId } = req.body;  
+
+        // Create an object with the field you want to update  
+        const updateData = { twitterPage: url }; // Update the field name accordingly  
+
+        const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
+  
+// Update Testimonial
+export const updateTestimonial = async (req, res) => {  
+    try {  
+        const { testimonial, partnerId } = req.body;  
+
+        // Create an object with the field you want to update  
+        const updateData = { testimonial: testimonial }; // Update the field name accordingly  
+
+        const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });  
+        if (!partner) {  
+            return res.status(404).json({  
+                message: `Partner not found`  
+            });  
+        }  
+
+        res.status(200).json({  
+            message: 'Partner updated successfully!',  
+            data: partner,  
+        });  
+
+    } catch (error) {  
+        console.error(error.message);  
+        res.status(500).json({  
+            message: error.message  
+        });  
+    }  
+};
   
