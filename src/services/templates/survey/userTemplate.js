@@ -1,8 +1,8 @@
 export const userWelcomeEmailTemplate = (surveyData) => `
   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
 
-    <header style="text-align: center; padding: 10px; background-color: #0e0d17;">
-      <span style="font-family: sans-serif; font-size: 20px; font-weight: bold; color: #b0afc8;">Diamond Project Online</span>
+    <header style="text-align: center; padding: 10px; background-color: #f4f4f4;">
+      <span style="font-family: sans-serif; font-size: 20px; font-weight: bold; color: #0e0d17;">Diamond Project Online</span>
     </header>
 
     <main style="padding: 20px;">
@@ -38,7 +38,7 @@ export const userWelcomeEmailTemplate = (surveyData) => `
       </p>
 
       <p>
-      If you have any questions, please visit our <a href="https://diamondprojectonline.com/faq" style="color: #007BFF;">FAQ page</a> for answers to common questions or reach out to us at contacts@diamondprojectonline.com
+      If you have any questions, please visit our <a href="https://diamondprojectonline.com/faq" style="color: #007BFF;">FAQ page</a> for answers to common questions or each out to us at contacts@diamondprojectonline.com
       </p>
 
       <p>
