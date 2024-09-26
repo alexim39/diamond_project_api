@@ -1,7 +1,7 @@
 export const ownerEmailTemplate = (surveyData) => `
   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
     <header style="text-align: center; padding: 10px; background-color: #f4f4f4;">
-      <span style="font-family: sans-serif; font-size: 20px; font-weight: bold; color: black;">Diamond Project Online</span>
+      <span style="font-family: sans-serif; font-size: 20px; font-weight: bold; color: #b0afc8;">Diamond Project Online</span>
     </header>
     <main style="padding: 20px;">
       <h1>Survey Submission</h1>
