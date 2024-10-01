@@ -3,7 +3,7 @@ import {
     confirmPayment,
     getTransactions,
     singleSMSCharge,
-    bulkSMSCharge
+    bulkSMSCharge, withdrawRequest
 } from '../controllers/transaction.controller.js'
 
 const TransactionRouter = express.Router();
@@ -19,5 +19,8 @@ TransactionRouter.get('/single-sms-charge/:partnerId', singleSMSCharge);
 
 // bulk sms charger
 TransactionRouter.post('/bulk-sms-charge', bulkSMSCharge);
+
+// confirm payment
+TransactionRouter.post('/withdraw-request', withdrawRequest);
 
 export default TransactionRouter;

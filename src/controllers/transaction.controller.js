@@ -172,9 +172,9 @@ export const bulkSMSCharge = async (req, res) => {
 
   try { 
 
-     // Find the partner by ID  
-     const partner = await PartnersModel.findById(partnerId);  
-     if (!partner) {  
+    // Find the partner by ID  
+    const partner = await PartnersModel.findById(partnerId);  
+    if (!partner) {  
        //return { success: false, message: 'Partner not found.' };  
         return res.status(400).json({  
            message: 'Partner not found',  
@@ -228,4 +228,67 @@ export const bulkSMSCharge = async (req, res) => {
     }); 
   }  
   
+}
+
+// confirm payment
+export const withdrawRequest = async (req, res) => {
+  const { bank, accountNumber, accountName, amount, partnerId } = req.body;
+
+  try { 
+
+     // Find the partner by ID  
+     const partner = await PartnersModel.findById(partnerId);  
+     if (!partner) {  
+       //return { success: false, message: 'Partner not found.' };  
+        return res.status(400).json({  
+           message: 'Partner not found',  
+           data: null, // Optionally include the existing data  
+       });  
+    }  
+
+    // Check if the partner has sufficient balance  
+    if (partner.balance >= amount) { 
+      // Deduct the SMS charge  
+      partner.balance -= amount;  
+
+      // Save the updated partner balance  
+      await partner.save();
+      
+      // Record the transaction  
+      const transaction = new TransactionModel({  
+        partnerId: partner._id,  
+        amount: amount,  
+        status: 'Pending',  
+        paymentMethod: 'Withdrawal',  
+        transactionType: 'Debit',  
+        //reference: `Charge for SMS on ${new Date().toISOString()}`,  
+        reference: Math.floor(100000000 + Math.random() * 900000000).toString() // Generate a random 9-digit number as string, ensuring it's always 9 digits
+    });  
+
+    await transaction.save();
+
+    //return { success: true, message: 'Charge successful. Transaction recorded.' };  
+    res.status(200).json({
+      message: 'Charge successful. Transaction recorded.',
+      data: transaction,
+    });
+
+
+    } else {  
+      //return { success: false, message: 'Insufficient balance for transaction.' };  
+      return res.status(401).json({  
+        message: 'Insufficient balance for transaction',  
+        data: null, // Optionally include the existing data  
+      }); 
+    }  
+
+
+  } catch (error) {  
+    console.error(error.message);
+    res.status(500).json({
+      message: 'An error occurred while processing the charge.',
+      error: error.message,
+    }); 
+  }  
+
 }
