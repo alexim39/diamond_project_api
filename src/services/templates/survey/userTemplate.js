@@ -6,7 +6,7 @@ export const userWelcomeEmailTemplate = (surveyData) => `
     </header>
 
     <main style="padding: 20px;">
-      <h1>Welcome to Diamond Project Online - Your Path to Digital Freedom</h1>
+      <h2>Welcome to Diamond Project Online - Your Path to Digital Freedom</h2>
 
       <p>Hi <strong>${surveyData.name.toUpperCase()}</strong>,</p>
 
