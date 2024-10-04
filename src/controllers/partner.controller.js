@@ -2,36 +2,10 @@ import {PartnersModel} from '../models/partner.model.js';
 import {BookingModel} from '../models/booking.model.js';
 import {SurveyModel} from '../models/survey.model.js';
 import {ReservationCodeModel} from '../models/reservation-code.model.js';
-import nodemailer from 'nodemailer';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
-// Create a Nodemailer transporter
-const transporter = nodemailer.createTransport({
-    host: 'async.ng',
-    secure: true,
-    port: 465,
-    auth: {
-      user: 'alex.i@async.ng', // replace with your email
-      pass: process.env.EMAILPASS, // replace with your password
-    },
-});
-  
-// Function to send email
-const sendEmail = async (email, subject, message) => {
-    try {
-        await transporter.sendMail({
-        //from: 'Do-not-reply@async.ng', // replace with your Gmail email
-        from: 'Do-not-reply@diamondprojectonline.com', // replace with your Gmail email
-        to: email,
-        subject: subject,
-        html: message,
-        });
-        console.log(`Email sent to ${email}`);
-    } catch (error) {
-        console.error(`Error sending email to ${email}: ${error.message}`);
-    }
-};
+import { sendEmail } from '../services/emailService.js';
+import { userWelcomeEmailTemplate } from '../services/templates/partner/signup.js';
 
  // check if a partner exist
 export const checkPartnerUsername = async (req, res) => {
@@ -92,62 +66,90 @@ const generateUniqueUsername = async (name, surname) => {
     return username;
   };
 
-// partner registration  
-export const partnerSignup = async (req, res) => {  
-    const reservationCodeExists = await ReservationCodeModel.findOne({  
-        code: req.body.reservationCode  
-    });  
+ // partner registration
+export const partnerSignup = async (req, res) => {
+    try {
+        // Ensure the reservation code is trimmed and case-insensitive search
+        const reservationCodeExists = await ReservationCodeModel.findOne({
+            code: req.body.reservationCode.trim()
+        }).collation({ locale: 'en', strength: 2 }); // Case-insensitive search
 
-    if (!reservationCodeExists) {  
-        return res.status(400).json({  
-            message: 'The reservation code does not exist.',  
-            code: '400'  
-        });  
-    }  
+        if (!reservationCodeExists) {
+            return res.status(400).json({
+                message: 'This reservation code does not exist.',
+                code: '400'
+            });
+        }
 
-    if (reservationCodeExists && reservationCodeExists.status === 'Pending') {   
-        return res.status(402).send({  
-            message: 'The reservation code has not been approved',  
-        });  
-    }  
+        if (reservationCodeExists.status === 'Pending') {
+            return res.status(402).send({
+                message: 'This reservation code has not been approved',
+            });
+        }
 
-    const reservationCodeUsed = await PartnersModel.findOne({  
-        reservationCode: req.body.reservationCode  
-    });  
+        const reservationCodeUsed = await PartnersModel.findOne({
+            reservationCode: req.body.reservationCode.trim()
+        });
 
-    if (reservationCodeUsed) {  
-        return res.status(401).send({  
-            message: "Code exists"  
-        });  
-    }  
+        if (reservationCodeUsed) {
+            return res.status(401).send({
+                message: "Code exists"
+            });
+        }
 
-    try {  
-        const salt = await bcrypt.genSalt(10);  
-        const hashedPassword = await bcrypt.hash(req.body.password.trim(), salt); // Trim white spaces from password  
+        // Hash the password and generate a unique username
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(req.body.password.trim(), salt);
 
-        const username = await generateUniqueUsername(req.body.name.trim(), req.body.surname.trim()); // Trim white spaces from name and surname  
+        const username = await generateUniqueUsername(req.body.name.trim(), req.body.surname.trim());
 
-        const user = await PartnersModel.create({  
-            name: req.body.name.trim(),  
-            surname: req.body.surname.trim(),  
-            email: req.body.email.trim(),  
-            password: hashedPassword,  
-            tnc: req.body.tnc,  
-            reservationCode: req.body.reservationCode.trim(), // Trim white spaces from reservation code  
-            phone: req.body.phone.trim(), // Trim white spaces from phone  
-            username: username,  
-        });  
+        // Create the new partner
+        const newPartner = new PartnersModel({
+            name: req.body.name.trim(),
+            surname: req.body.surname.trim(),
+            email: req.body.email.trim(),
+            password: hashedPassword,
+            tnc: req.body.tnc,
+            reservationCode: req.body.reservationCode.trim(),
+            phone: req.body.phone.trim(),
+            username: username,
+        });
 
-        const { password, ...userObject } = await user.toJSON();  
+        // Save the new partner to get their ID
+        await newPartner.save();
 
-        res.status(200).json(userObject);  
-    } catch (error) {  
-        console.error(error.message);  
-        res.status(500).json({  
-            message: error.message  
-        });  
-    }  
+        // Update the partnerOf property for the new partner if the reservation code is approved
+        if (reservationCodeExists.status === 'Approved' && reservationCodeExists.partnerId) {
+            // Ensure the partnerId in the reservation code exists before updating
+            const uplinePartner = await PartnersModel.findById(reservationCodeExists.partnerId);
+
+            if (!uplinePartner) {
+                return res.status(404).json({
+                    message: `Could not find upline partner for this reservation code.`
+                });
+            }
+
+            // Now update the partnerOf field of the newly created partner
+            newPartner.partnerOf = reservationCodeExists.partnerId;
+            await newPartner.save(); // Save the updated partner
+        }
+
+        const { password, ...userObject } = await newPartner.toJSON();
+
+        // Send welcome email to the user
+        const userSubject = ' Welcome to Diamond Project Online Partners Platform – Your Journey Begins!';
+        const userMessage = userWelcomeEmailTemplate(newPartner);
+        await sendEmail(newPartner.email, userSubject, userMessage);
+
+        res.status(200).json(userObject);
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).json({
+            message: error.message
+        });
+    }
 };
+
 
 // User login
 export const partnerSignin = async (req, res) => {
@@ -297,43 +299,6 @@ export const updateProfession = async (req, res) => {
         });  
     }  
 };
-
-// Update username  
-/* export const updateUsername = async (req, res) => {  
-    try {  
-        const { id, username } = req.body;  
-
-        // Check if the new username already exists for another partner  
-        const existingPartner = await PartnersModel.findOne({ username });  
-        if (existingPartner && existingPartner._id.toString() !== id) {  
-            return res.status(400).json({  
-                message: 'Username already in use by another partner.',
-            });  
-        }  
-
-        // Create an object with only the fields you want to update  
-        const updateData = { username };  
-
-        const partner = await PartnersModel.findByIdAndUpdate(id, updateData, { new: true });  
-        if (!partner) {  
-            return res.status(404).json({  
-                message: `Partner not found`  
-            });  
-        }  
-
-        res.status(200).json({  
-            message: 'Partner updated successfully!',  
-            data: partner,  
-        });  
-
-    } catch (error) {  
-        console.error(error.message);  
-        res.status(500).json({  
-            message: error.message  
-        });  
-    }  
-};
- */
 
 // update username
 export const updateUsername = async (req, res) => {  

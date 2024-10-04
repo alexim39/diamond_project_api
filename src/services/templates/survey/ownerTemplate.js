@@ -14,7 +14,7 @@ export const ownerEmailTemplate = (surveyData) => `
       <p><strong>Phone number:</strong> ${surveyData.phoneNumber}</p>
       <br>
       <div style="text-align: center;">
-        <a href="https://partners.diamondprojectonline.com/" style="padding: 10px 20px; background-color: #007BFF; color: white; text-decoration: none; border-radius: 5px; text-align: center; margin: 1em 0;">Go to Partner Dashboard</a>
+        <a href="https://partners.diamondprojectonline.com/" style="padding: 10px 20px; background-color: #007BFF; color: white; text-decoration: none; border-radius: 5px; text-align: center; margin: 1em 0;">Go to Partners Platform</a>
       </div>
     </main>
     <br>

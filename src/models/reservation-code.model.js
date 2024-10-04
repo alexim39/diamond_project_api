@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 
-
 /* Schema*/
 const reservationCodeSchema = mongoose.Schema(
     {
@@ -12,13 +11,13 @@ const reservationCodeSchema = mongoose.Schema(
         },
         partnerId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'partner',
+            ref: 'Partner',
             required: true,
         },
         prospectId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Prospect',
-            required: true,
+            //required: true,
         },
         status: {
             type: String,

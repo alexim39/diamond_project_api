@@ -1,12 +1,15 @@
 import express from 'express';
 import { 
-    submitReservationCode
+    submitReservationCode, activateNewPartnerCode
 } from '../controllers/reservation-code.controller.js'
 
 const reservationCodeRouter = express.Router();
 
-// submit code
+// submit code from prospect contact
 reservationCodeRouter.post('/submit', submitReservationCode);
+
+// submit new partner code
+reservationCodeRouter.post('/new-partner', activateNewPartnerCode);
 
 
 export default reservationCodeRouter;
