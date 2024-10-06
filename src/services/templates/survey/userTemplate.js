@@ -38,7 +38,7 @@ export const userWelcomeEmailTemplate = (surveyData) => `
       </p>
 
       <p>
-      If you have any questions, please visit our <a href="https://diamondprojectonline.com/faq" style="color: #007BFF;">FAQ page</a> for answers to some questions about our business or reach out to us at contacts@diamondprojectonline.com
+      If you have further questions, please visit our <a href="https://diamondprojectonline.com/faq" style="color: #007BFF;">FAQ page</a> for answers to some questions about our business or reach out to us at contacts@diamondprojectonline.com
       </p>
 
       <p>

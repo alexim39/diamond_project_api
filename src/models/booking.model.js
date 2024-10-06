@@ -64,6 +64,11 @@ const userBookingSchema = mongoose.Schema(
             unique: true,
             //required: [true, "Please enter username"]
         },
+        status: {
+            type: String,
+            default: 'Scheduled',
+            //required: [true, "Please enter username"]
+        },
         
        
     },

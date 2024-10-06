@@ -1,20 +1,20 @@
-export const ownerEmailTemplate = (surveyData) => `
+export const ownerEmailTemplate = (userBooking) => `
   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
     <header style="text-align: center; padding: 10px; background-color: #f4f4f4;">
       <span style="font-family: sans-serif; font-size: 20px; font-weight: bold; color: #0e0d17;">Diamond Project Online</span>
     </header>
     <main style="padding: 20px;">
-      <h2>Survey Submission</h2>
-      <p>A prospect named <strong>${surveyData.name.toUpperCase()} ${surveyData.surname.toUpperCase()}</strong> with phone number <strong>${surveyData.phoneNumber}</strong> just submitted the survey form from <a href="https://diamondprojectonline.com">Diamond Project Online</a>.</p>
-      <p>You may need to follow up with the user via WhatsApp or phone call.</p>
+      <h2>Notification for One-on-One Booking Session</h2>
+      <p>A prospect named <strong>${userBooking.name.toUpperCase()} ${userBooking.surname.toUpperCase()}</strong> with phone number <strong>${userBooking.phone}</strong> has been booked for a one-on-onse session.</p>
+      <p>You will need to be available at scheduled date and time</p>
 
-      <h3>Prospect Contact Details</h3>
+      <h3>Booking Details</h3>
 
-        <ul>
-        <li><strong>Name: </strong> ${surveyData.name.toUpperCase()}<</ol>
-        <li><strong>Surname: </strong> ${surveyData.surname.toUpperCase()}</li>
-        <li><strong>Email address: </strong> ${surveyData.email}</li>
-        <li><strong>Phone number: </strong> ${surveyData.phoneNumber}</li>
+      <ul>
+        <li><strong>Date: </strong> ${new Date(userBooking.consultDate)}<</ol>
+        <li><strong>Time: </strong> ${userBooking.consultTime}</li>
+        <li><strong>Platform: </strong> ${userBooking.contactMethod}</li>
+        <li><strong>Purpose: </strong> ${userBooking.reason}</li>
       </ul>
 
       <br>
