@@ -10,8 +10,8 @@ export const ownerEmailTemplate = (surveyData) => `
 
       <h3>Prospect Contact Details</h3>
 
-        <ul>
-        <li><strong>Name: </strong> ${surveyData.name.toUpperCase()}<</ol>
+      <ul>
+        <li><strong>Name: </strong> ${surveyData.name.toUpperCase()}</ol>
         <li><strong>Surname: </strong> ${surveyData.surname.toUpperCase()}</li>
         <li><strong>Email address: </strong> ${surveyData.email}</li>
         <li><strong>Phone number: </strong> ${surveyData.phoneNumber}</li>
