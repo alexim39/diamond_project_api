@@ -1,6 +1,7 @@
 import { BookingModel } from "../models/booking.model.js";
 import { sendEmail } from "../services/emailService.js";
 import { PartnersModel } from "../models/partner.model.js";
+import { EmailSubscriptionModel } from "../models/email-subscription.model.js";
 import { ownerEmailTemplate } from "../services/templates/session-booking/ownerTemplate.js";
 import { userNotificationEmailTemplate } from "../services/templates/session-booking/userTemplate.js";
 
@@ -148,3 +149,36 @@ export const UpdateBooking = async (req, res) => {
       res.status(400).json({ message: error.message });
     }
 };
+
+// get partner email list
+export const getPartnerEmailList = async (req, res) => {
+    try {
+      const { createdBy } = req.params;
+  
+      // Step 1: Find the user and get username
+      const partner = await PartnersModel.findById(createdBy);
+      if (!partner) {
+        return res.status(404).json({ message: "User not found" });
+      }
+  
+      /// Step 2: user found username to get user from emailListObject collection
+      const emailListObject = await EmailSubscriptionModel.find({
+        username: partner.username,
+      });
+  
+      if (!emailListObject) {
+        return res.status(400).json({ message: "Email list not found" });
+      }
+  
+      res.status(200).json({
+        message: "Email list retrieved successfully!",
+        data: emailListObject,
+      });
+    } catch (error) {
+      //console.error(error.message);
+      res.status(500).json({
+        message: "Error retrieving Ads",
+        error: error.message,
+      });
+    }
+  };
