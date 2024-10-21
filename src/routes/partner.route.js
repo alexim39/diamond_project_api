@@ -7,7 +7,7 @@ import {
     partnerSignout, updateFacebookPage, updateLinkedinPage,
     updateProfile, updateWhatsappGroupLink, updateWhatsappChatLink,
     updateUsername, unfollowPartner, checkFollowStatus,
-    changePassword, updateProfession, followPartner
+    changePassword, updateProfession, followPartner, getPartnersOf, getPartnerById
 } from '../controllers/partner.controller.js'
 
 const partnerRouter = express.Router();
@@ -69,6 +69,15 @@ partnerRouter.put('/tiktokPage', tiktokPage);
 partnerRouter.put('/twitterPage', twitterPage);
 // update testimonial
 partnerRouter.put('/testimonial', updateTestimonial);
+
+// get all partnersOf
+partnerRouter.get('/getPartnersOf/:partnerId', getPartnersOf);
+
+// get partner by id
+partnerRouter.get('/getById/:partnerId', getPartnerById);
+
+// get partner by id
+//partnerRouter.get('/getById/:partnerId', getPartnerById);
 
 
 export default partnerRouter;
