@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import { ProspectModel } from "../models/prospect.model.js";
-import { SurveyModel } from "../models/survey.model.js";
+import { ProspectSurveyModel } from "../models/survey.model.js";
 import { PartnersModel } from "../models/partner.model.js";
 import { PreapproachDownloadModel } from "../models/contact.model.js";
 
@@ -143,7 +143,7 @@ export const importSurveyToProspect = async (req, res) => {
     }
 
     // Step 2: user found username to get user from survey collection
-    const surveys = await SurveyModel.find({
+    const surveys = await ProspectSurveyModel.find({
       username: partner.username,
     });
 
@@ -218,7 +218,7 @@ export const getSurveyProspect = async (req, res) => {
     }
 
     /// Step 2: user found username to get user from survey collection
-    const prospectObject = await SurveyModel.find({
+    const prospectObject = await ProspectSurveyModel.find({
       username: partner.username,
     });
 
@@ -245,7 +245,7 @@ export const importSingleFromSurveyToContact = async (req, res) => {
     const { partnerId, prospectId } = req.params;
 
     // Get the user survey by prospectId
-    const survey = await SurveyModel.findById(prospectId);
+    const survey = await ProspectSurveyModel.findById(prospectId);
 
     if (!survey) {
       return res.status(404).json({
@@ -272,7 +272,7 @@ export const importSingleFromSurveyToContact = async (req, res) => {
     await newProspect.save();
 
     // Delete the survey entry after moving to ProspectModel
-    //await SurveyModel.findByIdAndDelete(survey._id);
+    //await ProspectSurveyModel.findByIdAndDelete(survey._id);
 
     res.status(200).json({
       message: "Prospects moved successfully!",
@@ -293,7 +293,7 @@ export const deleteSingleFromSurvey = async (req, res) => {
     const { prospectId } = req.params;
 
     // Get the survey based on the provided prospectId
-    const survey = await SurveyModel.findById(prospectId);
+    const survey = await ProspectSurveyModel.findById(prospectId);
 
     // Check if the survey exists
     if (!survey) {
@@ -303,7 +303,7 @@ export const deleteSingleFromSurvey = async (req, res) => {
     }
 
     // Here we delete the survey entry
-    await SurveyModel.findByIdAndDelete(prospectId);
+    await ProspectSurveyModel.findByIdAndDelete(prospectId);
 
     res.status(200).json({
       message: "Survey deleted successfully!",
@@ -417,7 +417,7 @@ export const getProspectById = async (req, res) => {
       const hasPreapproach = preapproachDownloads.length > 0;  
 
       // Find survey with the same email and phone number  
-      const surveyData = await SurveyModel.findOne({  
+      const surveyData = await ProspectSurveyModel.findOne({  
           email: prospect.prospectEmail,  
           phoneNumber: prospect.prospectPhone  
       }).lean();  // Use lean to return a plain JavaScript object  

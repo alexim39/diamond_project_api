@@ -1,6 +1,6 @@
 import { PartnersModel } from "../models/partner.model.js";
 import { BookingModel } from "../models/booking.model.js";
-import { SurveyModel } from "../models/survey.model.js";
+import { ProspectSurveyModel } from "../models/survey.model.js";
 import { ReservationCodeModel } from "../models/reservation-code.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -349,7 +349,7 @@ export const updateUsername = async (req, res) => {
     });
 
     // Update all occurrences of the old username in SurveyModel
-    await SurveyModel.updateMany(
+    await ProspectSurveyModel.updateMany(
       { username: oldUsername }, // Find surveys with the old username
       { $set: { username } } // Update to the new username
     );
