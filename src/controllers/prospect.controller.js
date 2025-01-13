@@ -318,6 +318,8 @@ export const deleteSingleFromSurvey = async (req, res) => {
   }
 };
 
+
+
 // get single prospect by id
 /* export const getProspectById = async (req, res) => {
   try {

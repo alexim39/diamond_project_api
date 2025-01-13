@@ -64,3 +64,34 @@ export const emailSubscription = async (req, res) => {
         })
     }
 }
+
+// delete single prospect email from list
+export const deleteSingleEmailFromEmailList = async (req, res) => {
+    try {
+      const { emailId } = req.params;
+    
+      // Get the email based on the provided prospectId
+      const email = await EmailSubscriptionModel.findById(emailId);
+  
+      // Check if the email exists
+      if (!email) {
+        return res.status(404).json({
+          message: "Email not found",
+        });
+      }
+  
+      // Here we delete the email entry
+      await EmailSubscriptionModel.findByIdAndDelete(emailId);
+  
+      res.status(200).json({
+        message: "Email deleted successfully!",
+        data: null, // Consider returning null or the survey id if you want to confirm deletion
+      });
+    } catch (error) {
+      console.error(error.message);
+      res.status(500).json({
+        message: "Error deleting email",
+        error: error.message,
+      });
+    }
+  };
