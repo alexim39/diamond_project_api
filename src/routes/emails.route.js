@@ -1,6 +1,6 @@
 import express from 'express';
 import { 
-    SendSingleEmailsToProspect,
+    SendSingleEmailsToProspect, deleteEmail,
     SendBulkEmailsToProspect,
     getEmailsCreatedBy
 } from '../controllers/emails.controller.js'
@@ -15,6 +15,9 @@ PartnerEmailsRouter.post('/send-bulk-email', SendBulkEmailsToProspect);
 
 // get email
 PartnerEmailsRouter.get('/getById/:partnerId', getEmailsCreatedBy);
+
+// delete email
+PartnerEmailsRouter.delete('/delete-single/:id', deleteEmail );
 
 
 export default PartnerEmailsRouter;

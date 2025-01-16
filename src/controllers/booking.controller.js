@@ -42,7 +42,6 @@ export const bookingForm = async (req, res) => {
     const ownerEmails = [
       partner.email,
       "ago.fnc@gmail.com",
-      "adeyemi.t@diamondprojectonline.com",
     ];
     for (const email of ownerEmails) {
       await sendEmail(email, ownerSubject, ownerMessage);
@@ -98,33 +97,33 @@ export const getBookingsForPartner = async (req, res) => {
 
 // delete booking
 export const deleteBooking = async (req, res) => {
-    try {
-      const { id } = req.params;
-  
-      const booking = await BookingModel.findById(id);
-  
-      // Check if the boooking exists
-      if (!booking) {
-        return res.status(404).json({
-          message: "Booking not found",
-        });
-      }
-  
-      // Here we delete the survey entry
-      await BookingModel.findByIdAndDelete(id);
-  
-      res.status(200).json({
-        message: "Booking deleted successfully!",
-        data: null, // Consider returning null or the survey id if you want to confirm deletion
-      });
-    } catch (error) {
-      console.error(error.message);
-      res.status(500).json({
-        message: "Error deleting survey",
-        error: error.message,
+  try {
+    const { id } = req.params;
+
+    const booking = await BookingModel.findById(id);
+
+    // Check if the boooking exists
+    if (!booking) {
+      return res.status(404).json({
+        message: "Booking not found",
       });
     }
-  };
+
+    // Here we delete the survey entry
+    await BookingModel.findByIdAndDelete(id);
+
+    res.status(200).json({
+      message: "Booking deleted successfully!",
+      data: null, // Consider returning null or the survey id if you want to confirm deletion
+    });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      message: "Error deleting survey",
+      error: error.message,
+    });
+  }
+};
 
 // Booking update
 export const UpdateBooking = async (req, res) => {

@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 
 
 // Create a Nodemailer transporter
-const transporter = nodemailer.createTransport({
+/* const transporter = nodemailer.createTransport({
     host: 'async.ng',
     secure: true,
     port: 465,
@@ -14,10 +14,10 @@ const transporter = nodemailer.createTransport({
       user: 'alex.i@async.ng', // replace with your email
       pass: process.env.EMAILPASS, // replace with your password
     },
-});
+}); */
   
 // Function to send email
-const sendEmail = async (email, subject, message) => {
+/* const sendEmail = async (email, subject, message) => {
     try {
         await transporter.sendMail({
         //from: 'Do-not-reply@async.ng', // replace with your Gmail email
@@ -31,7 +31,7 @@ const sendEmail = async (email, subject, message) => {
         console.error(`Error sending email to ${email}: ${error.message}`);
     }
 };
-
+ */
 // Save SMS details  
 export const saveSMSDetails = async (req, res) => {  
     //console.log(req.body);  
@@ -134,4 +134,34 @@ export const getSMSCreatedBy = async (req, res) => {
             error: error.message,  
         });  
     }  
+};
+
+// delete sms
+export const deleteSMS = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const sms = await ParterSMSModel.findById(id);
+
+    // Check if the sms exists
+    if (!sms) {
+      return res.status(404).json({
+        message: "sms not found",
+      });
+    }
+
+    // Here we delete the entry
+    await ParterSMSModel.findByIdAndDelete(id);
+
+    res.status(200).json({
+      message: "SMS deleted successfully!",
+      data: null,
+    });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      message: "Error deleting sms",
+      error: error.message,
+    });
+  }
 };

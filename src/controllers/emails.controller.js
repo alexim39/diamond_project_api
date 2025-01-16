@@ -3,7 +3,7 @@ import {PartnersModel} from '../models/partner.model.js';
 import nodemailer from 'nodemailer';
 
 
-// Create a Nodemailer transporter
+/* // Create a Nodemailer transporter
 const transporter = nodemailer.createTransport({
     host: 'async.ng',
     secure: true,
@@ -13,8 +13,8 @@ const transporter = nodemailer.createTransport({
       pass: process.env.EMAILPASS, // replace with your password
     },
 });
-  
-// Function to send email
+   */
+/* // Function to send email
 const sendEmail = async (email, subject, message) => {
     try {
         await transporter.sendMail({
@@ -29,7 +29,7 @@ const sendEmail = async (email, subject, message) => {
         console.error(`Error sending email to ${email}: ${error.message}`);
     }
 };
-
+ */
 
  
 // send email to prospect
@@ -155,3 +155,33 @@ export const getEmailsCreatedBy = async (req, res) => {
         });  
     }  
 }
+
+// delete email
+export const deleteEmail = async (req, res) => {
+    try {
+      const { id } = req.params;
+  
+      const email = await ParterEmailsModel.findById(id);
+  
+      // Check if the email exists
+      if (!email) {
+        return res.status(404).json({
+          message: "email not found",
+        });
+      }
+  
+      // Here we delete the entry
+      await ParterEmailsModel.findByIdAndDelete(id);
+  
+      res.status(200).json({
+        message: "Email deleted successfully!",
+        data: null,
+      });
+    } catch (error) {
+      console.error(error.message);
+      res.status(500).json({
+        message: "Error deleting email",
+        error: error.message,
+      });
+    }
+  };
