@@ -6,256 +6,161 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { sendEmail } from "../services/emailService.js";
 import { userWelcomeEmailTemplate } from "../services/templates/partner/signup.js";
+import dotenv  from "dotenv"
+dotenv.config()
+import nodemailer from 'nodemailer';
 
-// check if a partner exist
-export const checkPartnerUsername = async (req, res) => {
-  try {
-    const { username } = req.params;
-    const returnedObject = await PartnersModel.findOne({ username: username });
 
-    if (returnedObject) {
-      res.status(200).json(returnedObject);
-    } else {
-      return res.status(400).json({
-        message: "The username found",
-        code: "400",
-      });
-    }
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
+// Utility function for error handling
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
+// Check if a partner exists
+export const checkPartnerUsername = asyncHandler(async (req, res) => {
+  const { username } = req.params;
+  const partner = await PartnersModel.findOne({ username });
+
+  if (partner) {
+    return res.status(200).json(partner);
   }
-};
 
-// generate a unique username for user
+  res.status(404).json({
+    message: "Username not found",
+    code: "404",
+  });
+});
+
+// Generate a unique username
 const generateUniqueUsername = async (name, surname) => {
-  let username = "";
-  // Generate username from the first character of the name and surname
-  if (name && surname) {
-    const baseUsername = (name.charAt(0) + surname).toLowerCase();
-    let candidateUsername = baseUsername;
-    let counter = 1;
-
-    // Loop until a unique username is found
-    while (true) {
-      try {
-        // Check if the username already exists in the database
-        const existingUser = await PartnersModel.findOne({
-          username: candidateUsername,
-        }).exec();
-        if (!existingUser) {
-          username = candidateUsername;
-          break;
-        } else {
-          // Generate a new candidate username with a counter suffix
-          candidateUsername = baseUsername + counter;
-          counter++;
-        }
-      } catch (error) {
-        console.error(
-          "Error while checking username uniqueness:",
-          error.message
-        );
-        throw new Error("Error generating unique username");
-      }
-    }
+  if (!name || !surname) {
+    throw new Error("Name and surname are required to generate a username");
   }
 
-  if (!username) {
-    throw new Error("Error generating unique username");
-  }
+  const baseUsername = (name.charAt(0) + surname).toLowerCase();
+  let candidateUsername = baseUsername;
+  let counter = 1;
 
-  return username;
-};
-
-// partner registration
-export const partnerSignup = async (req, res) => {
-  try {
-    // Ensure the reservation code is trimmed and case-insensitive search
-    const reservationCodeExists = await ReservationCodeModel.findOne({
-      code: req.body.reservationCode.trim(),
-    }).collation({ locale: "en", strength: 2 }); // Case-insensitive search
-
-    if (!reservationCodeExists) {
-      return res.status(400).json({
-        message: "This reservation code does not exist.",
-        code: "400",
-      });
-    }
-
-    if (reservationCodeExists.status === "Pending") {
-      return res.status(402).send({
-        message: "This reservation code has not been approved",
-      });
-    }
-
-    const reservationCodeUsed = await PartnersModel.findOne({
-      reservationCode: req.body.reservationCode.trim(),
-    });
-
-    if (reservationCodeUsed) {
-      return res.status(401).send({
-        message: "Code exists",
-      });
-    }
-
-    // Hash the password and generate a unique username
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(req.body.password.trim(), salt);
-
-    const username = await generateUniqueUsername(
-      req.body.name.trim(),
-      req.body.surname.trim()
-    );
-
-    // Create the new partner
-    const newPartner = new PartnersModel({
-      name: req.body.name.trim(),
-      surname: req.body.surname.trim(),
-      email: req.body.email.trim(),
-      password: hashedPassword,
-      tnc: req.body.tnc,
-      reservationCode: req.body.reservationCode.trim(),
-      phone: req.body.phone.trim(),
-      username: username,
-    });
-
-    // Save the new partner to get their ID
-    await newPartner.save();
-
-    // Update the partnerOf property for the new partner if the reservation code is approved
-    if (
-      reservationCodeExists.status === "Approved" &&
-      reservationCodeExists.partnerId
-    ) {
-      // Ensure the partnerId in the reservation code exists before updating
-      const uplinePartner = await PartnersModel.findById(
-        reservationCodeExists.partnerId
-      );
-
-      if (!uplinePartner) {
-        return res.status(404).json({
-          message: `Could not find upline partner for this reservation code.`,
-        });
-      }
-
-      // Now update the partnerOf field of the newly created partner
-      newPartner.partnerOf = reservationCodeExists.partnerId;
-      await newPartner.save(); // Save the updated partner
-    }
-
-    const { password, ...userObject } = await newPartner.toJSON();
-
-    // Send welcome email to the user
-    const userSubject =
-      " Welcome to Diamond Project Online Partners Platform – Your Journey Begins!";
-    const userMessage = userWelcomeEmailTemplate(newPartner);
-    await sendEmail(newPartner.email, userSubject, userMessage);
-
-    res.status(200).json(userObject);
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
+  while (true) {
+    const existingUser = await PartnersModel.findOne({ username: candidateUsername }).exec();
+    if (!existingUser) return candidateUsername;
+    candidateUsername = `${baseUsername}${counter++}`;
   }
 };
 
-// User login
-export const partnerSignin = async (req, res) => {
-  //console.log('body== ',req.body)
+// Partner registration
+export const partnerSignup = asyncHandler(async (req, res) => {
+  const { name, surname, email, password, reservationCode, tnc, phone } = req.body;
 
-  try {
-    const user = await PartnersModel.findOne({
-      email: req.body.email,
-    });
+  // Validate reservation code
+  const reservation = await ReservationCodeModel.findOne({
+    code: reservationCode.trim(),
+  }).collation({ locale: "en", strength: 2 });
 
-    if (!user) {
-      return res.status(404).send({
-        message: "User does not exist",
-      });
-    }
-
-    if (!(await bcrypt.compare(req.body.password, user.password))) {
-      return res.status(400).json({
-        message: "Invalid password credentails",
-      });
-    }
-
-    // NOTE secret should be stored in env file
-    const token = jwt.sign({ id: user._id }, process.env.JWTTOKENSECRET);
-    res.cookie("jwt", token, {
-      httpOnly: true,
-      sameSite: "none",
-      secure: true, // set to true if you're using https
-      maxAge: 24 * 60 * 60 * 1000, // 1 day
-    });
-
-    //res.send(token)
-    res.send({
-      message: "success",
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
+  if (!reservation) {
+    return res.status(400).json({ message: "Invalid reservation code", code: "400" });
   }
-};
+  if (reservation.status === "Pending") {
+    return res.status(402).json({ message: "Reservation code is not approved yet" });
+  }
 
-// Get user a partner details after signin
-export const getPartner = async (req, res) => {
-  try {
-    const cookie = req.cookies["jwt"];
+  const isCodeUsed = await PartnersModel.findOne({ reservationCode: reservationCode.trim() });
+  if (isCodeUsed) {
+    return res.status(401).json({ message: "Reservation code already used" });
+  }
 
-    // NOTE secret should be stored in env file
-    const claims = jwt.verify(cookie, process.env.JWTTOKENSECRET);
+  // Hash password and generate username
+  const hashedPassword = await bcrypt.hash(password.trim(), 10);
+  const username = await generateUniqueUsername(name.trim(), surname.trim());
 
-    if (!claims) {
-      return res.status(401).send({
-        message: "User unauthenticated",
-      });
+  // Create new partner
+  const newPartner = new PartnersModel({
+    name: name.trim(),
+    surname: surname.trim(),
+    email: email.trim(),
+    password: hashedPassword,
+    tnc,
+    reservationCode: reservationCode.trim(),
+    phone: phone.trim(),
+    username,
+  });
+
+  // Assign partnerOf if the reservation is approved
+  if (reservation.status === "Approved" && reservation.partnerId) {
+    const uplinePartner = await PartnersModel.findById(reservation.partnerId);
+    if (!uplinePartner) {
+      return res.status(404).json({ message: "Upline partner not found" });
     }
-
-    //const user = await PartnersModel.findOne({_id: claims.id}).populate('courses');
-    const user = await PartnersModel.findOne({ _id: claims.id });
-
-    const { password, ...userObject } = await user.toJSON();
-
-    res.status(200).send(userObject);
-  } catch (error) {
-    console.error(error.message);
-    res.status(401).json({
-      message: "Unauthenticated",
-      error: error.message,
-    });
+    newPartner.partnerOf = reservation.partnerId;
   }
-};
 
-// logout
-export const partnerSignout = async (req, res) => {
-  try {
-    res.cookie("jwt", "", { maxAge: 0 });
-    res.send({
-      message: "logged_out",
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
+  await newPartner.save();
+
+  // Send welcome email
+  const userSubject = "Welcome to Diamond Project Online Partners Platform!";
+  const userMessage = userWelcomeEmailTemplate(newPartner);
+  await sendEmail(newPartner.email, userSubject, userMessage);
+
+  const { password: _, ...userObject } = newPartner.toJSON();
+  res.status(200).json(userObject);
+});
+
+// Partner login
+export const partnerSignin = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+  const user = await PartnersModel.findOne({ email });
+
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(400).json({ message: "Invalid email or password" });
   }
-};
 
-// Update a partner
+  const token = jwt.sign({ id: user._id }, process.env.JWTTOKENSECRET, {
+    expiresIn: "1d",
+  });
+
+  res.cookie("jwt", token, {
+    httpOnly: true,
+    sameSite: "none",
+    secure: true,
+    maxAge: 24 * 60 * 60 * 1000,
+  });
+
+  res.json({ message: "Login successful" });
+});
+
+// Get partner details
+export const getPartner = asyncHandler(async (req, res) => {
+  const token = req.cookies["jwt"];
+  const claims = jwt.verify(token, process.env.JWTTOKENSECRET);
+
+  if (!claims) {
+    return res.status(401).json({ message: "User unauthenticated" });
+  }
+
+  const user = await PartnersModel.findById(claims.id);
+  const { password: _, ...userObject } = user.toJSON();
+  res.status(200).json(userObject);
+});
+
+// Logout
+export const partnerSignout = asyncHandler(async (req, res) => {
+  res.cookie("jwt", "", { maxAge: 0 });
+  res.json({ message: "Logged out successfully" });
+});
+
+// Update a partner's profile
 export const updateProfile = async (req, res) => {
   try {
     const { id, name, surname, bio, email, phone, address, dobDatePicker } =
       req.body;
 
-    // Create an object with only the fields you want to update
+    // Validate input
+    if (!name || !surname || !email || !phone) {
+      return res.status(400).json({
+        message: "Name, surname, email, and phone are required.",
+      });
+    }
+
+    // Update fields
     const updateData = {
       name,
       surname,
@@ -269,9 +174,10 @@ export const updateProfile = async (req, res) => {
     const partner = await PartnersModel.findByIdAndUpdate(id, updateData, {
       new: true,
     });
+
     if (!partner) {
       return res.status(404).json({
-        message: `Partner not found`,
+        message: "Partner not found.",
       });
     }
 
@@ -287,25 +193,31 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-// Update a profession
+// Update a partner's profession
 export const updateProfession = async (req, res) => {
   try {
     const { id, jobTitle, educationBackground, hobby, skill } = req.body;
 
-    // Create an object with only the fields you want to update
+    if (!jobTitle || !educationBackground) {
+      return res.status(400).json({
+        message: "Job title and education background are required.",
+      });
+    }
+
     const updateData = { jobTitle, educationBackground, hobby, skill };
 
     const partner = await PartnersModel.findByIdAndUpdate(id, updateData, {
       new: true,
     });
+
     if (!partner) {
       return res.status(404).json({
-        message: `Partner not found`,
+        message: "Partner not found.",
       });
     }
 
     res.status(200).json({
-      message: "Partner updated successfully!",
+      message: "Partner's profession updated successfully!",
       data: partner,
     });
   } catch (error) {
@@ -316,87 +228,95 @@ export const updateProfession = async (req, res) => {
   }
 };
 
-// update username
+// Update a partner's username
 export const updateUsername = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { id, username } = req.body;
 
-    // Check if the new username already exists for another partner
-    const existingPartner = await PartnersModel.findOne({ username });
+    if (!username || !id) {
+      throw new Error("Username and ID are required.");
+    }
+
+    const usernameRegex = /^[a-zA-Z0-9_]+$/;
+    if (!usernameRegex.test(username)) {
+      throw new Error(
+        "Username can only contain letters, numbers, and underscores."
+      );
+    }
+
+    // Check if username already exists
+    const existingPartner = await PartnersModel.findOne({ username }).session(
+      session
+    );
     if (existingPartner && existingPartner._id.toString() !== id) {
-      return res.status(400).json({
-        message: "Username already in use by another partner.",
-      });
+      throw new Error("Username already in use by another partner.");
     }
 
-    // Find the partner to be updated
-    const partnerToUpdate = await PartnersModel.findById(id);
-    if (!partnerToUpdate) {
-      return res.status(404).json({
-        message: `Partner not found`,
-      });
+    const partner = await PartnersModel.findById(id).session(session);
+    if (!partner) {
+      throw new Error("Partner not found.");
     }
 
-    // Capture the old username for updating surveys
-    const oldUsername = partnerToUpdate.username;
+    const oldUsername = partner.username;
 
-    // Create an object with only the fields you want to update
-    const updateData = { username };
+    partner.username = username;
+    await partner.save({ session });
 
-    // Update the username in PartnersModel
-    const partner = await PartnersModel.findByIdAndUpdate(id, updateData, {
-      new: true,
-    });
-
-    // Update all occurrences of the old username in SurveyModel
+    // Update related collections
     await ProspectSurveyModel.updateMany(
-      { username: oldUsername }, // Find surveys with the old username
-      { $set: { username } } // Update to the new username
+      { username: oldUsername },
+      { $set: { username } },
+      { session }
     );
 
-    // Update all occurrences of the old username in BookingModel
     await BookingModel.updateMany(
-      { username: oldUsername }, // Find surveys with the old username
-      { $set: { username } } // Update to the new username
+      { username: oldUsername },
+      { $set: { username } },
+      { session }
     );
+
+    await session.commitTransaction();
+    session.endSession();
 
     res.status(200).json({
-      message: "Partner updated successfully!",
+      message: "Username updated successfully!",
       data: partner,
     });
   } catch (error) {
-    console.error(error.message);
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({
       message: error.message,
     });
   }
 };
 
-// Change password
+// Change a partner's password
 export const changePassword = async (req, res) => {
   const { id, currentPassword, newPassword } = req.body;
 
-  // Validate input
   if (!currentPassword || !newPassword) {
     return res.status(400).json({
-      message: "Old password and new password are required.",
+      message: "Current password and new password are required.",
     });
   }
 
-  if (newPassword.length < 6) {
-    return res.status(401).json({
+  if (newPassword.length < 8) {
+    return res.status(400).json({
       message: "New password must be at least 8 characters long.",
     });
   }
 
   if (currentPassword === newPassword) {
-    return res.status(402).json({
-      message: "Old password and new password cannot be the same.",
+    return res.status(400).json({
+      message: "Current password and new password cannot be the same.",
     });
   }
 
   try {
-    // Find the partner by ID
     const partner = await PartnersModel.findById(id);
     if (!partner) {
       return res.status(404).json({
@@ -404,7 +324,6 @@ export const changePassword = async (req, res) => {
       });
     }
 
-    // Check if the old password matches the hashed password in the database
     const isMatch = await bcrypt.compare(currentPassword, partner.password);
     if (!isMatch) {
       return res.status(401).json({
@@ -412,11 +331,9 @@ export const changePassword = async (req, res) => {
       });
     }
 
-    // Hash the new password
     const salt = await bcrypt.genSalt(10);
     const hashedNewPassword = await bcrypt.hash(newPassword, salt);
 
-    // Update the password in the database
     partner.password = hashedNewPassword;
     await partner.save();
 
@@ -445,33 +362,20 @@ export const getAllUsers = async (req, res) => {
 
 // Get partner by name and/or surname
 export const getPartnerByNames = async (req, res) => {
-  const { name, surname } = req.params; // Retrieve name and surname from request parameters
+  const { name, surname } = req.params;
   try {
-    // Trim whitespace from name and surname
-    const trimmedName = name ? name.trim() : ""; // Default to empty string if undefined
-    const trimmedSurname = surname ? surname.trim() : ""; // Default to empty string if undefined
+    const trimmedName = name ? name.trim() : "";
+    const trimmedSurname = surname ? surname.trim() : "";
 
-    // Initialize the query object
     const query = {};
+    if (trimmedName) query.name = trimmedName;
+    if (trimmedSurname) query.surname = trimmedSurname;
 
-    // Build the query based on provided parameters
-    if (trimmedName) {
-      query.name = trimmedName; // Always include name in the query if provided
-    }
-
-    // Only include surname in query if provided
-    if (trimmedSurname) {
-      query.surname = trimmedSurname; // Include surname in the query if provided
-    }
-
-    // Find partners based on the query object
     const partners = await PartnersModel.find(query);
 
-    // If no partners are found, return a 404 status
     if (!partners || partners.length === 0) {
       return res.status(404).json({ message: "Partner not found" });
     }
-    // Return the found partners
     res.status(200).json({
       message: "Partner(s) found",
       data: partners,
@@ -482,37 +386,23 @@ export const getPartnerByNames = async (req, res) => {
   }
 };
 
-// Get partner by name and optionally by surname
+// Get partner by name
 export const getPartnerByName = async (req, res) => {
-  const { name } = req.params; // Retrieve name from request parameters
+  const { name } = req.params;
   try {
-    // Trim whitespace from name and capitalize the first letter
-    const trimmedName = name ? name.trim() : ""; // Default to empty string if undefined
-    const capitalizedTrimmedName =
-      trimmedName.charAt(0).toUpperCase() + trimmedName.slice(1); // Capitalize the first letter
+    const trimmedName = name ? name.trim() : "";
+    const capitalizedTrimmedName = trimmedName.charAt(0).toUpperCase() + trimmedName.slice(1);
 
-    // Check if name is provided
     if (!capitalizedTrimmedName) {
       return res.status(400).json({ message: "Name is required." });
     }
 
-    // Initialize the query object to find by name or surname
-    const query = {
-      $or: [
-        { name: capitalizedTrimmedName },
-        { surname: capitalizedTrimmedName },
-      ],
-    };
-
-    // Find partners based on the query object
+    const query = { $or: [{ name: capitalizedTrimmedName }, { surname: capitalizedTrimmedName }] };
     const partners = await PartnersModel.find(query);
 
-    // If no partners are found, return a 404 status
     if (!partners || partners.length === 0) {
       return res.status(404).json({ message: "Partner not found" });
     }
-
-    // Return the found partners
     res.status(200).json({
       message: "Partner(s) found",
       data: partners,
@@ -526,18 +416,11 @@ export const getPartnerByName = async (req, res) => {
 // Follow a partner
 export const followPartner = async (req, res) => {
   try {
-    const { searchPartnerId } = req.params; // ID of the partner to follow
-    const partnerId = req.body.partnerId; // ID of the current user (from authentication)
+    const { searchPartnerId } = req.params;
+    const partnerId = req.body.partnerId;
 
-    // console.log('followPartner:');
-    /* console.log('searchPartnerId:', searchPartnerId);
-        console.log('partnerId:', partnerId); */
-
-    // Validate that the searchPartnerId is provided
     if (!searchPartnerId) {
-      return res
-        .status(400)
-        .json({ message: "Missing required parameter: searchPartnerId" });
+      return res.status(400).json({ message: "Missing required parameter: searchPartnerId" });
     }
 
     const partnerToFollow = await PartnersModel.findById(searchPartnerId);
@@ -545,18 +428,13 @@ export const followPartner = async (req, res) => {
       return res.status(404).json({ message: "Partner not found" });
     }
 
-    // Add current user to the followers list if not already following
     if (!partnerToFollow.followers.includes(partnerId)) {
       partnerToFollow.followers.push(partnerId);
       await partnerToFollow.save();
-      return res
-        .status(200)
-        .json({ message: "Successfully followed the partner" });
+      return res.status(200).json({ message: "Successfully followed the partner" });
     }
 
-    return res
-      .status(400)
-      .json({ message: "You are already following this partner" });
+    return res.status(400).json({ message: "You are already following this partner" });
   } catch (error) {
     console.error("Error following partner:", error);
     res.status(500).json({ message: "Server error", error });
@@ -566,14 +444,9 @@ export const followPartner = async (req, res) => {
 // Unfollow a partner
 export const unfollowPartner = async (req, res) => {
   try {
-    const { searchPartnerId } = req.params; // ID of the partner to follow
-    const partnerId = req.body.partnerId; // ID of the current user (from authentication)
+    const { searchPartnerId } = req.params;
+    const partnerId = req.body.partnerId;
 
-    //console.log('unfollowPartner:');
-    /* console.log('searchPartnerId:', searchPartnerId);
-        console.log('partnerId:', partnerId); */
-
-    // Validate that the parameters are provided
     if (!searchPartnerId || !partnerId) {
       return res.status(400).json({ message: "Missing required parameters" });
     }
@@ -583,36 +456,26 @@ export const unfollowPartner = async (req, res) => {
       return res.status(404).json({ message: "Partner not found" });
     }
 
-    // Remove the current user from the followers list if following
     if (partnerToUnfollow.followers.includes(partnerId)) {
       partnerToUnfollow.followers = partnerToUnfollow.followers.filter(
         (followerId) => followerId.toString() !== partnerId.toString()
       );
       await partnerToUnfollow.save();
-      return res
-        .status(200)
-        .json({ message: "Successfully unfollowed the partner" });
+      return res.status(200).json({ message: "Successfully unfollowed the partner" });
     }
 
-    return res
-      .status(400)
-      .json({ message: "You are not following this partner" });
+    return res.status(400).json({ message: "You are not following this partner" });
   } catch (error) {
     console.error("Error unfollowing partner:", error);
     res.status(500).json({ message: "Server error", error });
   }
 };
 
-// Check partners fellow status
+// Check follow status
 export const checkFollowStatus = async (req, res) => {
   try {
-    const { searchPartnerId, partnerId } = req.params; // Extracting both parameters
+    const { searchPartnerId, partnerId } = req.params;
 
-    //console.log('checkFollowStatus:');
-    /* console.log('searchPartnerId:', searchPartnerId);
-      console.log('partnerId:', partnerId); */
-
-    // Validate that the parameters are provided
     if (!searchPartnerId || !partnerId) {
       return res.status(400).json({ message: "Missing required parameters" });
     }
@@ -622,7 +485,6 @@ export const checkFollowStatus = async (req, res) => {
       return res.status(404).json({ message: "Partner not found" });
     }
 
-    // Check if the current user's ID is in the followers array
     const isFollowing = partner.followers.includes(partnerId);
 
     return res.status(200).json({ isFollowing });
@@ -632,270 +494,60 @@ export const checkFollowStatus = async (req, res) => {
   }
 };
 
-// Update a WhatsApp group link
-export const updateWhatsappGroupLink = async (req, res) => {
+// Update partner's social media links
+const updateSocialMediaLink = async (req, res, platform, field) => {
   try {
     const { url, partnerId } = req.body;
+    const updateData = { [field]: url };
 
-    // Create an object with the field you want to update
-    const updateData = { whatsappGroupLink: url }; // Update the field name accordingly
-
-    const partner = await PartnersModel.findByIdAndUpdate(
-      partnerId,
-      updateData,
-      { new: true }
-    );
+    const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });
     if (!partner) {
-      return res.status(404).json({
-        message: `Partner not found`,
-      });
+      return res.status(404).json({ message: `Partner not found` });
     }
 
-    res.status(200).json({
-      message: "Partner updated successfully!",
-      data: partner,
-    });
+    res.status(200).json({ message: "Partner updated successfully!", data: partner });
   } catch (error) {
     console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
+    res.status(500).json({ message: error.message });
   }
 };
 
-// Update a WhatsApp chat link
-export const updateWhatsappChatLink = async (req, res) => {
-  try {
-    const { url, partnerId } = req.body;
-
-    // Create an object with the field you want to update
-    const updateData = { whatsappChatLink: url }; // Update the field name accordingly
-
-    const partner = await PartnersModel.findByIdAndUpdate(
-      partnerId,
-      updateData,
-      { new: true }
-    );
-    if (!partner) {
-      return res.status(404).json({
-        message: `Partner not found`,
-      });
-    }
-
-    res.status(200).json({
-      message: "Partner updated successfully!",
-      data: partner,
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-// facebook page update
-export const updateFacebookPage = async (req, res) => {
-  try {
-    const { url, partnerId } = req.body;
-
-    // Create an object with the field you want to update
-    const updateData = { facebookPage: url }; // Update the field name accordingly
-
-    const partner = await PartnersModel.findByIdAndUpdate(
-      partnerId,
-      updateData,
-      { new: true }
-    );
-    if (!partner) {
-      return res.status(404).json({
-        message: `Partner not found`,
-      });
-    }
-
-    res.status(200).json({
-      message: "Partner updated successfully!",
-      data: partner,
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-// linkedin page update
-export const updateLinkedinPage = async (req, res) => {
-  try {
-    const { url, partnerId } = req.body;
-
-    // Create an object with the field you want to update
-    const updateData = { linkedinPage: url }; // Update the field name accordingly
-
-    const partner = await PartnersModel.findByIdAndUpdate(
-      partnerId,
-      updateData,
-      { new: true }
-    );
-    if (!partner) {
-      return res.status(404).json({
-        message: `Partner not found`,
-      });
-    }
-
-    res.status(200).json({
-      message: "Partner updated successfully!",
-      data: partner,
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-// youtube page update
-export const updateYoutubePage = async (req, res) => {
-  try {
-    const { url, partnerId } = req.body;
-
-    // Create an object with the field you want to update
-    const updateData = { youtubePage: url }; // Update the field name accordingly
-
-    const partner = await PartnersModel.findByIdAndUpdate(
-      partnerId,
-      updateData,
-      { new: true }
-    );
-    if (!partner) {
-      return res.status(404).json({
-        message: `Partner not found`,
-      });
-    }
-
-    res.status(200).json({
-      message: "Partner updated successfully!",
-      data: partner,
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-// instagram page update
-export const updateInstagramPage = async (req, res) => {
-  try {
-    const { url, partnerId } = req.body;
-
-    // Create an object with the field you want to update
-    const updateData = { instagramPage: url }; // Update the field name accordingly
-
-    const partner = await PartnersModel.findByIdAndUpdate(
-      partnerId,
-      updateData,
-      { new: true }
-    );
-    if (!partner) {
-      return res.status(404).json({
-        message: `Partner not found`,
-      });
-    }
-
-    res.status(200).json({
-      message: "Partner updated successfully!",
-      data: partner,
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-// tiktok page update
-export const tiktokPage = async (req, res) => {
-  try {
-    const { url, partnerId } = req.body;
-
-    // Create an object with the field you want to update
-    const updateData = { tiktokPage: url }; // Update the field name accordingly
-
-    const partner = await PartnersModel.findByIdAndUpdate(
-      partnerId,
-      updateData,
-      { new: true }
-    );
-    if (!partner) {
-      return res.status(404).json({
-        message: `Partner not found`,
-      });
-    }
-
-    res.status(200).json({
-      message: "Partner updated successfully!",
-      data: partner,
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-// twitter page update
-export const twitterPage = async (req, res) => {
-  try {
-    const { url, partnerId } = req.body;
-
-    // Create an object with the field you want to update
-    const updateData = { twitterPage: url }; // Update the field name accordingly
-
-    const partner = await PartnersModel.findByIdAndUpdate(
-      partnerId,
-      updateData,
-      { new: true }
-    );
-    if (!partner) {
-      return res.status(404).json({
-        message: `Partner not found`,
-      });
-    }
-
-    res.status(200).json({
-      message: "Partner updated successfully!",
-      data: partner,
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
+// Social media update handlers
+export const updateWhatsappGroupLink = (req, res) => updateSocialMediaLink(req, res, "whatsappGroupLink", "whatsappGroupLink");
+export const updateWhatsappChatLink = (req, res) => updateSocialMediaLink(req, res, "whatsappChatLink", "whatsappChatLink");
+export const updateFacebookPage = (req, res) => updateSocialMediaLink(req, res, "facebookPage", "facebookPage");
+export const updateLinkedinPage = (req, res) => updateSocialMediaLink(req, res, "linkedinPage", "linkedinPage");
+export const updateYoutubePage = (req, res) => updateSocialMediaLink(req, res, "youtubePage", "youtubePage");
+export const updateInstagramPage = (req, res) => updateSocialMediaLink(req, res, "instagramPage", "instagramPage");
+export const tiktokPage = (req, res) => updateSocialMediaLink(req, res, "tiktokPage", "tiktokPage");
+export const twitterPage = (req, res) => updateSocialMediaLink(req, res, "twitterPage", "twitterPage");
 
 // Update Testimonial
 export const updateTestimonial = async (req, res) => {
   try {
     const { testimonial, partnerId } = req.body;
 
-    // Create an object with the field you want to update
-    const updateData = { testimonial: testimonial }; // Update the field name accordingly
+    // Validate input
+    if (!testimonial || !partnerId) {
+      return res.status(400).json({
+        message: "Testimonial and partnerId are required.",
+      });
+    }
 
+    // Create an object with the field you want to update
+    const updateData = { testimonial };
+
+    // Update partner's testimonial
     const partner = await PartnersModel.findByIdAndUpdate(
       partnerId,
       updateData,
       { new: true }
     );
+
+    // Check if partner exists
     if (!partner) {
       return res.status(404).json({
-        message: `Partner not found`,
+        message: `Partner not found.`,
       });
     }
 
@@ -904,77 +556,175 @@ export const updateTestimonial = async (req, res) => {
       data: partner,
     });
   } catch (error) {
-    console.error(error.message);
+    console.error("Error updating testimonial:", error.message);
     res.status(500).json({
-      message: error.message,
+      message: "An error occurred while updating the testimonial.",
+      error: error.message,
     });
   }
 };
 
-// get all partners of a given partner user
+// Get all partners of a given partner user
 export const getPartnersOf = async (req, res) => {
-    try {
-      // Extract partnerId from request body
-      const { partnerId } = req.params; 
-  
-      // Validate if partnerId exists in the request body
-      if (!partnerId) {
-        return res.status(400).json({
-          message: "partnerId is required.",
-        });
-      }
-  
-      // Find all partners where partnerOf matches the provided partnerId
-      const partners = await PartnersModel.find({ partnerOf: partnerId }).exec();
-  
-      // Check if no partners are found
-      if (partners.length === 0) {
-        return res.status(404).json({
-          message: `No partners found for this partner.`,
-        });
-      }
-  
-      // Return success response with partner data
-      res.status(200).json(partners);
-  
-    } catch (error) {
-      console.error("Error fetching partners:", error);
-  
-      // Return a server error response
-      res.status(500).json({
-        message: "An error occurred while fetching partners.",
-        error: error.message,
+  try {
+    const { partnerId } = req.params;
+
+    // Validate partnerId
+    if (!partnerId) {
+      return res.status(400).json({
+        message: "partnerId is required.",
       });
     }
-  };
-  
 
-// get a partner by id
+    // Find all partners where partnerOf matches the provided partnerId
+    const partners = await PartnersModel.find({ partnerOf: partnerId }).exec();
+
+    // Check if no partners are found
+    if (partners.length === 0) {
+      return res.status(404).json({
+        message: `No partners found for this partner.`,
+      });
+    }
+
+    res.status(200).json({
+      message: "Partners retrieved successfully!",
+      data: partners,
+    });
+  } catch (error) {
+    console.error("Error fetching partners:", error);
+    res.status(500).json({
+      message: "An error occurred while fetching partners.",
+      error: error.message,
+    });
+  }
+};
+
+// Get a partner by ID
 export const getPartnerById = async (req, res) => {
-    try {
-      // Extract partnerId from request body
-      const { partnerId } = req.params; 
-  
-      // Validate if partnerId exists in the request body
-      // Step 1: Find the user and get username
+  try {
+    const { partnerId } = req.params;
+
+    // Validate partnerId
+    if (!partnerId) {
+      return res.status(400).json({
+        message: "partnerId is required.",
+      });
+    }
+
+    // Find the partner by ID
     const partner = await PartnersModel.findById(partnerId);
+
+    // Check if partner exists
     if (!partner) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        message: "Partner not found.",
+      });
     }
 
     res.status(200).json({
       message: "Partner retrieved successfully!",
       data: partner,
     });
-  
-    } catch (error) {
-      console.error("Error fetching partners:", error);
-  
-      // Return a server error response
-      res.status(500).json({
-        message: "An error occurred while fetching partners.",
-        error: error.message,
-      });
+  } catch (error) {
+    console.error("Error fetching partner:", error);
+    res.status(500).json({
+      message: "An error occurred while fetching the partner.",
+      error: error.message,
+    });
+  }
+};  
+
+
+// Reset password
+export const requestPasswordReset  = async (req, res) => {
+
+  try {
+
+    const { email } = req.body;
+    const SECRET_KEY = process.env.JWTTOKENSECRET;
+    const RESET_TOKEN_EXPIRY = '1h'; // Token expires in 1 hour
+
+    const partner = await PartnersModel.findOne({ email });
+    if (!partner) return res.status(404).send('Partner not found');
+
+    // Generate JWT token
+    const resetToken = jwt.sign({ email: partner.email }, SECRET_KEY, { expiresIn: RESET_TOKEN_EXPIRY });
+
+    // Store the token and expiration in the user's record
+    //partner.resetPasswordToken = resetToken;
+    //partner.resetPasswordExpires = RESET_TOKEN_EXPIRY;
+
+    // Save the updated user record
+    //await partner.save();
+
+    // Create reset URL
+    const resetUrl = `https://diamondprojectonline.com/partner/reset-password?token=${resetToken}`;
+
+    // Create a Nodemailer transporter
+    const transporter = nodemailer.createTransport({
+      host: 'async.ng',
+      secure: true,
+      port: 465,
+      auth: {
+        user: 'alex.i@async.ng', // replace with your email
+        pass: process.env.EMAILPASS, // replace with your password
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Password Reset Request",
+      html: `
+        <h2>Password Reset Request</h2>
+        <p>You requested to reset your password. Click the link below to reset it:</p>
+        <a href="${resetUrl}" target="_blank">${resetUrl}</a>
+        <p>This link will expire in 45 minutes.</p>
+        <p>If you did not request this, please ignore this email.</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({
+      message: "Password reset link sent to your email.",
+    });
+
+
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+        message: error.message
+    })
+  }
+
+}
+
+// Reset password
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    // Check if newPassword is provided
+    if (!newPassword) {
+      return res.status(400).json({ message: "New password is required." });
     }
-  };
-  
+
+    const decoded = jwt.verify(token, SECRET_KEY);
+    const partner = await PartnersModel.findOne({ email: decoded.email });
+    if (!partner) return res.status(404).send('Partner not found');
+
+    // Hash the new password
+    partner.password = await bcrypt.hash(newPassword, 10);
+    await partner.save();
+
+    res.send('Password successfully updated');
+
+  } catch (error) {
+    console.error("Error resetting password:", error);
+    res.status(500).json({
+      message: "An error occurred while resetting the password.",
+      error: error.message,
+    });
+  }
+};

@@ -110,6 +110,12 @@ const partnersSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Partner'
     }],
+    resetPasswordToken: {
+      type: String,
+    },
+    resetPasswordExpires: {
+      type: String,
+    },
   },
   {
     timestamps: true
