@@ -53,7 +53,7 @@ export const saveTicket = async (req, res) => {
             <p>Comment: ${req.body.comment}</p>
         `;
 
-        const emailsToSend = ['aleximenwo@gmail.com'];
+        const emailsToSend = ['ago.fnc@gmail.com'];
 
         for (const email of emailsToSend) {
             await sendEmail(email, emailSubject, emailMessage);

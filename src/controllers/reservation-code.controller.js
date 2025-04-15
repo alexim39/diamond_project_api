@@ -38,7 +38,7 @@ export const submitReservationCode = async (req, res) => {
         // Send email to form owner
         const ownerSubject = 'Activation Code Submission';
         const ownerMessage = ownerEmailTemplate(req.body);
-        const ownerEmails = ['ago.fnc@gmail.com', 'adeyemi.t@diamondprojectonline.com'];
+        const ownerEmails = ['ago.fnc@gmail.com'];
         for (const email of ownerEmails) {
             await sendEmail(email, ownerSubject, ownerMessage);
         }
@@ -90,7 +90,7 @@ export const activateNewPartnerCode = async (req, res) => {
          // Send email to form owner
          const ownerSubject = 'Activation Code Submission';
          const ownerMessage = ownerEmailTemplate(req.body);
-         const ownerEmails = ['ago.fnc@gmail.com', 'adeyemi.t@diamondprojectonline.com'];
+         const ownerEmails = ['ago.fnc@gmail.com'];
          for (const email of ownerEmails) {
              await sendEmail(email, ownerSubject, ownerMessage);
          } 

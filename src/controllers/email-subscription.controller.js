@@ -49,7 +49,7 @@ export const emailSubscription = async (req, res) => {
             <p>Kindly note that someone subscribed to the email subscription form on Diamond Project webiste: ${req.body.email}</p>
         `;
 
-        const emailsToSend = ['aleximenwo@gmail.com'];
+        const emailsToSend = ['ago.fnc@gmail.com'];
 
         for (const email of emailsToSend) {
             await sendEmail(email, emailSubject, emailMessage);
