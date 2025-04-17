@@ -83,6 +83,13 @@ const userSurveySchema = mongoose.Schema(
            // unique: true,
             //required: [true, "Please enter username"]
         },
+        country: { 
+            type: String,
+            default: 'Nigeria'
+         },
+          state: { 
+            type: String, 
+        },
        
     },
     {

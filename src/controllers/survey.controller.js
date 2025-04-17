@@ -16,7 +16,7 @@ export const ProspectSurveyForm = async (req, res) => {
     // Find the partner by username
     const partner = await PartnersModel.findOne({ username: surveyData.username });
     if (!partner) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     // Send email to form owner
@@ -32,11 +32,11 @@ export const ProspectSurveyForm = async (req, res) => {
     const userMessage = userWelcomeEmailTemplate(surveyData);
     await sendEmail(surveyData.email, userSubject, userMessage);
 
-    res.status(200).json(survey);
+    res.status(200).json({success: true, survey});
 
   } catch (error) {
     console.error(error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -58,10 +58,10 @@ export const PartnerSurveyForm = async (req, res) => {
       await sendEmail(email, ownerSubject, ownerMessage);
     }
 
-    res.status(200).json(survey);
+    res.status(200).json({success: true, survey});
 
   } catch (error) {
     console.error(error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
