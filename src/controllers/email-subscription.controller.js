@@ -34,7 +34,7 @@ const sendEmail = async (email, subject, message) => {
 export const emailSubscription = async (req, res) => {
     try {
 
-        //console.log('sent==',req.body);
+     // console.log('sent==',req.body);
 
         const emailSubscription = await EmailSubscriptionModel.create({
             email: req.body.email,
@@ -55,12 +55,17 @@ export const emailSubscription = async (req, res) => {
             await sendEmail(email, emailSubject, emailMessage);
         }
 
-        res.status(200).json(emailSubscription);
+        res.status(200).json({
+          success: true, 
+          message: "Thanks for subscribing. We will not spam your mailbox.",
+          emailSubscription
+        });
 
     } catch (error) {
         console.error(error.message);
         res.status(500).json({
-            message: error.message
+          success: false,
+          message: error.message
         })
     }
 }
