@@ -117,6 +117,14 @@ const partnersSchema = mongoose.Schema(
     resetPasswordExpires: {
       type: String,
     },
+    subscription: {
+      status: { 
+        type: String, 
+        required: true,
+        default: 'expired'
+      },//"active | cancelled | expired",
+      nextBillingDate: { type: Date },
+    }
   },
   {
     timestamps: true

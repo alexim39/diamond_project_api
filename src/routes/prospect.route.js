@@ -1,7 +1,7 @@
 import express from 'express';
 import { 
-    CreateContactList,  getContactsCreatedBy,  importSurveyToProspect,  getSurveyProspect, importSingleFromSurveyToContact,  deleteSingleFromSurvey,
-    getProspectById, updateProspectStatus, updateProspectRemark, deleteSingleFromProspect, UpdateContactList,
+    CreateContactList,  getContactsCreatedBy,  importSurveyToProspect,  getAllSurveyProspect, importSingleFromSurveyToContact,  deleteSingleFromSurvey,
+    getProspectById, updateProspectStatus, updateProspectRemark, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor
 } from '../controllers/prospect.controller.js'
 
 const prospectRouter = express.Router();
@@ -18,7 +18,10 @@ prospectRouter.put('/update', UpdateContactList);
 prospectRouter.get('/all-createdBy/:createdBy', getContactsCreatedBy);
 
 // Get all surver prospect for
-prospectRouter.get('/for/:createdBy', getSurveyProspect);
+prospectRouter.get('/for/:createdBy', getSurveyProspectFor);
+
+// Get all surver prospect 
+prospectRouter.get('/all', getAllSurveyProspect);
 
 // import prospect for user
 prospectRouter.get('/import/:partnerId', importSurveyToProspect );

@@ -22,7 +22,7 @@ export const ProspectSurveyForm = async (req, res) => {
     // Send email to form owner
     const ownerSubject = 'New Prospect Survey Submission';
     const ownerMessage = ownerEmailTemplate(surveyData);
-    const ownerEmails = [partner.email, 'ago.fnc@gmail.com'];
+    const ownerEmails = [partner.email, 'ago.fnc@gmail.com', 'omodunbiadams@gmail.com'];
     for (const email of ownerEmails) {
       await sendEmail(email, ownerSubject, ownerMessage);
     }

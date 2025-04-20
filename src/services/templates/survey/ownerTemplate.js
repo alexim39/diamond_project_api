@@ -58,13 +58,8 @@ export const partnerOwnerEmailTemplate = (surveyData) => `
       </div>
     </main>
     <br>
-    <footer style="text-align: center; padding: 20px; background-color: #f4f4f4; ; margin-top: 20px;"">
-      <p>Follow us on:
-        <a href="https://www.facebook.com/profile.php?id=61561933352527" style="margin: 0 5px;">Facebook</a> |
-      </p>
-      <p><a href="https://diamondprojectonline.com/legal/privacy">Privacy</a> | 
-        <a href="https://diamondprojectonline.com/legal/terms">Terms</a> | 
-      </p>
+    <footer style="text-align: center; padding: 20px; background-color: #f4f4f4; margin-top: 20px;">
+     <p>Diamond Project: Becoming the ultimate version of yourself  </p>
     </footer>
   </div>
 `;
