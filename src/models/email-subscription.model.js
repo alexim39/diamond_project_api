@@ -7,7 +7,7 @@ const emailSubscriptionSchema = mongoose.Schema(
     
         email: {
             type: String,
-            unique: true,
+            //unique: true,
             required: [true, "Please enter email address"]
         },
         status: {
