@@ -123,6 +123,11 @@ const partnersSchema = mongoose.Schema(
         required: true,
         default: 'expired'
       },//"active | cancelled | expired",
+      plan: { 
+        type: String, 
+        required: true,
+        default: 'Basic'
+      },//"Basic | Premium | Business",
       nextBillingDate: { type: Date },
     }
   },

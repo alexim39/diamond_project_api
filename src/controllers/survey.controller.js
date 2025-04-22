@@ -4,10 +4,16 @@ import { sendEmail } from '../services/emailService.js';
 import { ownerEmailTemplate, partnerOwnerEmailTemplate } from '../services/templates/survey/ownerTemplate.js';
 import { userWelcomeEmailTemplate } from '../services/templates/survey/userTemplate.js';
 
-// Prospect Survey form handler
 export const ProspectSurveyForm = async (req, res) => {
   try {
     const surveyData = req.body;
+
+    // Check if the phone number already exists in the database
+    const existingSurvey = await ProspectSurveyModel.findOne({ phoneNumber: surveyData.phoneNumber });
+
+    if (existingSurvey) {
+      return res.status(400).json({ success: false, message: 'You\'ve already taken our survey. Thanks for your interest!' });
+    }
 
     // Save the survey data to MongoDB
     const survey = new ProspectSurveyModel(surveyData);
@@ -32,7 +38,7 @@ export const ProspectSurveyForm = async (req, res) => {
     const userMessage = userWelcomeEmailTemplate(surveyData);
     await sendEmail(surveyData.email, userSubject, userMessage);
 
-    res.status(200).json({success: true, survey});
+    res.status(200).json({ success: true, message: 'Thank you for completing our survey, we will be in touch with you soon' });
 
   } catch (error) {
     console.error(error.message);

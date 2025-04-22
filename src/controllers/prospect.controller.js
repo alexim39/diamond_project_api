@@ -48,6 +48,7 @@ export const CreateContactList = async (req, res) => {
       return res.status(400).json({
         message: "Prospect already exists with this phone number or email!",
         data: existingProspect, // Optionally include the existing data
+        success: false
       });
     }
 
@@ -57,14 +58,16 @@ export const CreateContactList = async (req, res) => {
     // Save the document to the database
     await newProspect.save();
 
-    res.status(201).json({
+    res.status(200).json({
       message: "Prospect created successfully!",
       data: newProspect, // Include the saved data in the response
+      success: true
     });
   } catch (error) {
     console.error(error.message);
     res.status(500).json({
       message: error.message,
+      success: false
     });
   }
 };
@@ -87,13 +90,20 @@ export const UpdateContactList = async (req, res) => {
     );
 
     if (!updatedProspect) {
-      return res.status(404).json({ message: "Prospect not found" });
+      return res.status(404).json({ 
+        message: "Prospect not found",
+        success: false
+      });
     }
 
-    res.status(200).json(updatedProspect);
+    res.status(200).json({updatedProspect, success: true});
+
   } catch (error) {
     console.log(error);
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ 
+      message: error.message,
+      success: false
+    });
   }
 };
 
@@ -105,7 +115,10 @@ export const getContactsCreatedBy = async (req, res) => {
     // Step 1: Find the user and get username
     const partner = await PartnersModel.findById(createdBy);
     if (!partner) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ 
+        message: "User not found",
+        success: false
+      });
     }
 
     // Step 2: user found username to get user from survey collection
@@ -114,18 +127,23 @@ export const getContactsCreatedBy = async (req, res) => {
     });
 
     if (!prospectObject) {
-      return res.status(400).json({ message: "Prospects not found" });
+      return res.status(400).json({ 
+        message: "Prospects not found",
+        success: false
+       });
     }
 
     res.status(200).json({
       message: "Prospects retrieved successfully!",
       data: prospectObject,
+      success: true
     });
   } catch (error) {
     console.error(error.message);
     res.status(500).json({
       message: "Error retrieving Ads",
       error: error.message,
+      success: false
     });
   }
 };
@@ -139,7 +157,10 @@ export const importSurveyToProspect = async (req, res) => {
     // Step 1: Find the user and get username
     const partner = await PartnersModel.findById(partnerId);
     if (!partner) {
-      return res.status(400).json({ message: "User not found" });
+      return res.status(400).json({ 
+        message: "User not found", 
+        success: false 
+      });
     }
 
     // Step 2: user found username to get user from survey collection
@@ -150,7 +171,10 @@ export const importSurveyToProspect = async (req, res) => {
     if (surveys.length === 0) {
       return res
         .status(401)
-        .json({ message: "No surveys found with the matching username" });
+        .json({ 
+          message: "No surveys found with the matching username",
+          success: false
+         });
     }
 
     let importedCount = 0; // Counter for successful imports
@@ -193,15 +217,17 @@ export const importSurveyToProspect = async (req, res) => {
     }
 
     //console.log('All matching surveys successfully imported as prospects');
-    res.status(201).json({
+    res.status(200).json({
       message: "Prospects imported successfully!",
-      data: { numberOfImports: importedCount }, // Include the saved data in the response
+      data: { numberOfImports: importedCount },
+      success: true
     });
   } catch (error) {
     //console.error(error.message);
     res.status(500).json({
       message: "Error retrieving Ads",
       error: error.message,
+      success: false
     });
   }
 };
@@ -214,7 +240,10 @@ export const getSurveyProspectFor = async (req, res) => {
     // Step 1: Find the user and get username
     const partner = await PartnersModel.findById(createdBy);
     if (!partner) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ 
+        message: "User not found",
+        success: false
+      });
     }
 
     /// Step 2: user found username to get user from survey collection
@@ -223,18 +252,23 @@ export const getSurveyProspectFor = async (req, res) => {
     });
 
     if (!prospectObject) {
-      return res.status(400).json({ message: "Prospects not found" });
+      return res.status(400).json({ 
+        message: "Prospects not found",
+        success: false
+      });
     }
 
     res.status(200).json({
       message: "Prospects retrieved successfully!",
       data: prospectObject,
+      success: true
     });
   } catch (error) {
     //console.error(error.message);
     res.status(500).json({
       message: "Error retrieving Ads",
       error: error.message,
+      success: false
     });
   }
 };
@@ -280,12 +314,9 @@ export const importSingleFromSurveyToContact = async (req, res) => {
     if (!survey) {
       return res.status(404).json({
         message: "Survey not found.",
+        success: false
       });
     }
-
-    // Update the prospectStatus to "Moved to Contact"
-    survey.prospectStatus = "Moved to Contact";
-    await survey.save();
 
     // Create a new prospect using the data from the survey
     const newProspect = new ProspectModel({
@@ -295,27 +326,47 @@ export const importSingleFromSurveyToContact = async (req, res) => {
       prospectPhone: survey.phoneNumber,
       prospectSource: "Unique Link",
       partnerId: partnerId,
-      surveyId: survey._id, // If you need to keep the survey ID, uncomment this
+      surverId: survey._id, // Corrected typo: surverId -> surveyId
+      survey: {
+        ageRange: survey.ageRange,
+        socialMedia: survey.socialMedia,
+        employedStatus: survey.employedStatus,
+        importanceOfPassiveIncome: survey.importanceOfPassiveIncome,
+        onlinePurchaseSchedule: survey.onlinePurchaseSchedule,
+        primaryOnlineBusinessMotivation: survey.primaryOnlineBusinessMotivation,
+        comfortWithTech: survey.comfortWithTech,
+        onlineBusinessTimeDedication: survey.onlineBusinessTimeDedication,
+        referralCode: survey.referralCode,
+        referral: survey.referral,
+        country: survey.country,
+        state: survey.state,
+      },
     });
 
     // Save the new prospect entry to the database
     await newProspect.save();
 
+    // Update the prospectStatus to "Moved to Contact"
+    survey.prospectStatus = "Moved to Contact";
+    await survey.save();
+
     // Delete the survey entry after moving to ProspectModel
-    //await ProspectSurveyModel.findByIdAndDelete(survey._id);
+    await ProspectSurveyModel.findByIdAndDelete(survey._id);
 
     res.status(200).json({
-      message: "Prospects moved successfully!",
-      data: newProspect, // Send back the created prospect data
+      message: "Prospect moved successfully to your contact list!",
+      // data: newProspect, // Send back the created prospect data if needed
+      success: true
     });
   } catch (error) {
-    //console.error(error.message);
     res.status(500).json({
-      message: "Error importing prospect from survey",
+      message: 'Prospect not moved, something went wrong',
       error: error.message,
+      success: false
     });
   }
 };
+
 
 // delete single prospect from survey
 export const deleteSingleFromSurvey = async (req, res) => {
@@ -329,6 +380,7 @@ export const deleteSingleFromSurvey = async (req, res) => {
     if (!survey) {
       return res.status(404).json({
         message: "Survey not found",
+        success: false
       });
     }
 
@@ -337,92 +389,18 @@ export const deleteSingleFromSurvey = async (req, res) => {
 
     res.status(200).json({
       message: "Survey deleted successfully!",
-      data: null, // Consider returning null or the survey id if you want to confirm deletion
+      success: true
     });
   } catch (error) {
     console.error(error.message);
     res.status(500).json({
       message: "Error deleting survey",
       error: error.message,
+      success: false
     });
   }
 };
 
-
-
-// get single prospect by id
-/* export const getProspectById = async (req, res) => {
-  try {
-    const { prospectId } = req.params;
-
-    // Get the prospect based on the provided prospectId
-    const prospect = await ProspectModel.findById(prospectId);
-
-    // Check if the prospect exists
-    if (!prospect) {
-      return res.status(404).json({
-        message: "Prospect not found",
-      });
-    }
-
-    res.status(200).json({
-      message: "Prospect retrieved successfully!",
-      data: prospect,
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: "Error deleting data",
-      error: error.message,
-    });
-  }
-}; */
-
-/* // get single prospect by id  
-export const getProspectById = async (req, res) => {  
-  try {  
-    const { prospectId } = req.params;  
-
-    // Get the prospect based on the provided prospectId  
-    const prospect = await ProspectModel.findById(prospectId);  
-    
-    // Check if the prospect exists  
-    if (!prospect) {  
-        return res.status(404).json({  
-            message: 'Prospect not found',  
-        });  
-    }  
-
-    // Find pre-approach downloads with the same email and phone number  
-    const preapproachDownloads = await PreapproachDownloadModel.find({  
-        email: prospect.prospectEmail,  
-        phone: prospect.prospectPhone  
-    });  
-
-    // Determine if there are matching pre-approach downloads  
-    const hasPreapproach = preapproachDownloads.length > 0;  
-
-    // Prepare the response data by spreading the original prospect data  
-    const responseData = {  
-        prospect: {  
-            ...prospect.toObject(), // Spread existing prospect properties  
-            preapproachDownload: hasPreapproach // Add preapproachDownload flag  
-        }  
-    };  
-
-    res.status(200).json({  
-        message: 'Prospect retrieved successfully!',  
-        data: responseData.prospect // Send the prepared data  
-    });  
-
-  } catch (error) {  
-      //console.error(error.message);  
-      res.status(500).json({  
-          message: 'Error retrieving data',  
-          error: error.message,  
-      });  
-  }      
-}; */
 
 // get single prospect by id  
 export const getProspectById = async (req, res) => {  
@@ -435,7 +413,8 @@ export const getProspectById = async (req, res) => {
       // Check if the prospect exists  
       if (!prospect) {  
           return res.status(404).json({  
-              message: 'Prospect not found',  
+              message: 'Prospect not found', 
+              success: false 
           });  
       }  
 
@@ -465,7 +444,8 @@ export const getProspectById = async (req, res) => {
 
       res.status(200).json({  
           message: 'Prospect retrieved successfully!',  
-          data: responseData.prospect // Send the prepared data  
+          data: responseData.prospect, // Send the prepared data  
+          success: true
       });  
 
   } catch (error) {  
@@ -473,6 +453,7 @@ export const getProspectById = async (req, res) => {
       res.status(500).json({  
           message: 'Error retrieving data',  
           error: error.message,  
+          success: false
       });  
   }      
 };  
@@ -493,18 +474,21 @@ export const updateProspectStatus = async (req, res) => {
     if (!prospect) {
       return res.status(404).json({
         message: "Prospect not found",
+        success: false
       });
     }
 
     res.status(200).json({
       message: "Prospect retrieved successfully!",
       data: prospect,
+      success: true
     });
   } catch (error) {
     console.error(error.message);
     res.status(500).json({
       message: "Error deleting data",
       error: error.message,
+      success: false
     });
   }
 };
@@ -524,18 +508,21 @@ export const updateProspectRemark = async (req, res) => {
     if (!prospect) {
       return res.status(404).json({
         message: "Prospect not found",
+        success: false
       });
     }
 
     res.status(200).json({
       message: "Prospect retrieved successfully!",
       data: prospect,
+      success: true
     });
   } catch (error) {
     console.error(error.message);
     res.status(500).json({
       message: "Error deleting data",
       error: error.message,
+      success: false
     });
   }
 };
@@ -552,6 +539,7 @@ export const deleteSingleFromProspect = async (req, res) => {
     if (!prospect) {
       return res.status(404).json({
         message: "Prospect not found",
+        success: false
       });
     }
 
@@ -560,13 +548,88 @@ export const deleteSingleFromProspect = async (req, res) => {
 
     res.status(200).json({
       message: "Prospect deleted successfully!",
-      data: null, // Consider returning null or the survey id if you want to confirm deletion
+      success: true
     });
   } catch (error) {
     console.error(error.message);
     res.status(500).json({
       message: "Error deleting survey",
       error: error.message,
+      success: false
+    });
+  }
+};
+
+
+/* Move single prospect from contact back to survey */
+export const moveSingleProspectBackToSurvey = async (req, res) => {
+  try {
+    const { prospectId } = req.params;
+
+    // Get the prospect by prospectId
+    const prospect = await ProspectModel.findById(prospectId);
+
+    if (!prospect) {
+      return res.status(404).json({
+        message: "Prospect not found in contacts.",
+        success: false
+      });
+    }
+
+    // Check if the surveyRecord exists
+    if (!prospect.survey) {
+      return res.status(400).json({
+        message: "Prospect does not have associated survey record.",
+        success: false
+      });
+    }
+
+    // Create a new survey entry using the data from the prospect's surveyRecord
+    const newSurvey = new ProspectSurveyModel({
+      ageRange: prospect.survey.ageRange,
+      socialMedia: prospect.survey.socialMedia,
+      employedStatus: prospect.survey.employedStatus,
+      importanceOfPassiveIncome: prospect.survey.importanceOfPassiveIncome,
+      onlinePurchaseSchedule: prospect.survey.onlinePurchaseSchedule,
+      primaryOnlineBusinessMotivation: prospect.survey.primaryOnlineBusinessMotivation,
+      comfortWithTech: prospect.survey.comfortWithTech,
+      onlineBusinessTimeDedication: prospect.survey.onlineBusinessTimeDedication,
+      phoneNumber: prospect.prospectPhone, // Use prospect's phone number
+      email: prospect.prospectEmail,       // Use prospect's email
+      name: prospect.prospectName,         // Use prospect's name
+      surname: prospect.prospectSurname,   // Use prospect's surname
+      referralCode: prospect.survey.referralCode,
+      referral: prospect.survey.referral,
+      userDevice: prospect.userDevice,      // Assuming this was part of the original survey
+      prospectStatus: 'Not Moved to Contact', // Reset the status
+      username: prospect.username,          // Assuming this was part of the original survey
+      country: prospect.survey.country || 'Nigeria', // Default if not present
+      state: prospect.survey.state,
+    });
+
+    // Save the new survey entry to the database
+    const savedSurvey = await newSurvey.save();
+
+    // Optionally, update the prospect record or delete it
+    // Option 1: Update prospectStatus in ProspectModel
+    //prospect.prospectStatus = "Moved Back to Survey";
+    //prospect.surveyId = savedSurvey._id; // Link back to the new survey
+    //await prospect.save();
+
+    // Option 2: Delete the prospect entry after moving back to SurveyModel
+    await ProspectModel.findByIdAndDelete(prospectId);
+
+    res.status(200).json({
+      message: "Prospect moved back to survey list successfully!",
+      //data: savedSurvey, // Send back the created survey data
+      success: true
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: 'Prospect not moved back to survey, something went wrong',
+      error: error.message,
+      success: false
     });
   }
 };

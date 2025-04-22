@@ -32,6 +32,7 @@ app.use(cors({
     credentials: true,
     origin: [
         'http://localhost:4200', 
+        'http://localhost:4201', 
         'http://diamondprojectonline.com', 
         'http://partners.diamondprojectonline.com', 
         'https://diamondprojectonline.com', 

@@ -52,7 +52,45 @@ const prospectSchema = mongoose.Schema(
             default: 'User'
             //required: [true, "Please enter message"]
         },
-        
+        survey: {
+            ageRange: {
+                type: String,
+            },
+            socialMedia: { 
+                type: [String],     
+            },
+            employedStatus: {
+                type: String,
+            },
+            importanceOfPassiveIncome: {
+                type: String,
+            },
+            onlinePurchaseSchedule: {
+                type: String,
+            },
+            primaryOnlineBusinessMotivation: {
+                type: String,
+            },
+            comfortWithTech: {
+                type: String,
+            },
+            onlineBusinessTimeDedication: {
+                type: String,
+            },
+            referralCode: {
+                type: String,
+            },
+            referral: {
+                type: String,
+            },
+            country: { 
+                type: String,
+                default: 'Nigeria'
+             },
+              state: { 
+                type: String, 
+            },
+        },
        
     },
     {

@@ -13,8 +13,8 @@ export const ownerEmailTemplate = (surveyData) => `
       <ul>
         <li><strong>Name: </strong> ${surveyData.name.toUpperCase()}</ol>
         <li><strong>Surname: </strong> ${surveyData.surname.toUpperCase()}</li>
-        <li><strong>Email address: </strong> ${surveyData.email}</li>
-        <li><strong>Phone number: </strong> ${surveyData.phoneNumber}</li>
+        <li><strong>Country: </strong> ${surveyData.country}</li>
+        <li><strong>State: </strong> ${surveyData.state}</li>
       </ul>
 
       <br>
@@ -23,13 +23,8 @@ export const ownerEmailTemplate = (surveyData) => `
       </div>
     </main>
     <br>
-    <footer style="text-align: center; padding: 20px; background-color: #f4f4f4; ; margin-top: 20px;"">
-      <p>Follow us on:
-        <a href="https://www.facebook.com/profile.php?id=61561933352527" style="margin: 0 5px;">Facebook</a> |
-      </p>
-      <p><a href="https://diamondprojectonline.com/legal/privacy">Privacy</a> | 
-        <a href="https://diamondprojectonline.com/legal/terms">Terms</a> | 
-      </p>
+    <footer style="text-align: center; padding: 20px; background-color: #f4f4f4; margin-top: 20px;">
+     <p>Diamond Project: Becoming the ultimate version of yourself  </p>
     </footer>
   </div>
 `;
