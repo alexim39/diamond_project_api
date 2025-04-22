@@ -1,6 +1,6 @@
 import express from 'express';
 import { 
-    CreateContactList,  getContactsCreatedBy,  importSurveyToProspect,  getAllSurveyProspect, importSingleFromSurveyToContact,  deleteSingleFromSurvey,
+    CreateContactList,  getContactsCreatedBy,  importSurveyToProspect,  getAllSurveyProspect, getAllMySurveyProspect, importSingleFromSurveyToContact,
     getProspectById, updateProspectStatus, updateProspectRemark, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
 } from '../controllers/prospect.controller.js'
 
@@ -20,8 +20,11 @@ prospectRouter.get('/all-createdBy/:createdBy', getContactsCreatedBy);
 // Get all surver prospect for
 prospectRouter.get('/for/:createdBy', getSurveyProspectFor);
 
-// Get all surver prospect 
+// Get all surver prospect gotton by the system (Username = business)
 prospectRouter.get('/all', getAllSurveyProspect);
+
+// Get all surver prospect gotton by the system (Username !== business)
+prospectRouter.get('/my/:username', getAllMySurveyProspect);
 
 // import prospect for user
 prospectRouter.get('/import/:partnerId', importSurveyToProspect );
@@ -30,7 +33,7 @@ prospectRouter.get('/import/:partnerId', importSurveyToProspect );
 prospectRouter.get('/import-single/:partnerId/:prospectId', importSingleFromSurveyToContact );
 
 // delete signle prospect for user on survey model
-prospectRouter.get('/delete-single/:prospectId', deleteSingleFromSurvey );
+//prospectRouter.get('/delete-single/:prospectId', deleteSingleFromSurvey );
 
 // get signle prospect byid
 prospectRouter.get('/getById/:prospectId', getProspectById );

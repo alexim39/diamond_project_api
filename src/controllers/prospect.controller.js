@@ -274,16 +274,47 @@ export const getSurveyProspectFor = async (req, res) => {
 };
 
 
-// Get all survey prospect
+// Get all surver prospect gotton by the system (Username = business)
 export const getAllSurveyProspect = async (req, res) => {
   try {
 
     /// Step 1: user found username to get user from survey collection
-    const prospectObject = await ProspectSurveyModel.find({});
+    const prospectObject = await ProspectSurveyModel.find({ username: 'business' });
 
     if (!prospectObject) {
       return res.status(400).json({ 
-        message: "Prospects not found",
+        message: "System prospects not found",
+        success: false
+      });
+    }
+
+    res.status(200).json({
+      message: "Prospects retrieved successfully!",
+      data: prospectObject,
+      success: true
+    });
+  } catch (error) {
+    //console.error(error.message);
+    res.status(500).json({
+      message: "Error retrieving Ads",
+      error: error.message,
+      success: false
+    });
+  }
+};
+
+// Get all surver prospect gotton by the system (Username !== business)
+export const getAllMySurveyProspect = async (req, res) => {
+  try {
+
+    const { username } = req.params;
+
+    /// Step 1: user found username to get user from survey collection
+    const prospectObject = await ProspectSurveyModel.find({ username: username });
+
+    if (!prospectObject) {
+      return res.status(400).json({ 
+        message: "Partner prospects not found",
         success: false
       });
     }
@@ -369,7 +400,7 @@ export const importSingleFromSurveyToContact = async (req, res) => {
 
 
 // delete single prospect from survey
-export const deleteSingleFromSurvey = async (req, res) => {
+/* export const deleteSingleFromSurvey = async (req, res) => {
   try {
     const { prospectId } = req.params;
 
@@ -399,7 +430,7 @@ export const deleteSingleFromSurvey = async (req, res) => {
       success: false
     });
   }
-};
+}; */
 
 
 // get single prospect by id  
@@ -418,33 +449,9 @@ export const getProspectById = async (req, res) => {
           });  
       }  
 
-      // Find pre-approach downloads with the same email and phone number  
-      const preapproachDownloads = await PreapproachDownloadModel.find({  
-          email: prospect.prospectEmail,  
-          phone: prospect.prospectPhone  
-      });  
-
-      // Determine if there are matching pre-approach downloads  
-      const hasPreapproach = preapproachDownloads.length > 0;  
-
-      // Find survey with the same email and phone number  
-      const surveyData = await ProspectSurveyModel.findOne({  
-          email: prospect.prospectEmail,  
-          phoneNumber: prospect.prospectPhone  
-      }).lean();  // Use lean to return a plain JavaScript object  
-
-      // Prepare the response data by spreading the original prospect data  
-      const responseData = {  
-          prospect: {  
-              ...prospect.toObject(), // Spread existing prospect properties  
-              preapproachDownload: hasPreapproach, // Add preapproachDownload flag  
-              survey: surveyData || null // Add survey data, or null if not found  
-          }  
-      };  
-
       res.status(200).json({  
           message: 'Prospect retrieved successfully!',  
-          data: responseData.prospect, // Send the prepared data  
+          data: prospect, // Send the prepared data  
           success: true
       });  
 
