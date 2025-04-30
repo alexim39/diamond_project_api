@@ -1,5 +1,5 @@
 import {ParterEmailsModel} from '../models/emails.model.js';
-import {PartnersModel} from '../models/partner.model.js';
+import { PartnersModel } from '../apps/partner/models/partner.model.js';
 import nodemailer from 'nodemailer';
 
 

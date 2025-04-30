@@ -1,5 +1,5 @@
 import {ParterSMSModel} from '../models/sms.model.js';
-import {PartnersModel} from '../models/partner.model.js';
+import { PartnersModel } from '../apps/partner/models/partner.model.js';
 import {TransactionModel} from '../models/transaction.model.js';
 import nodemailer from 'nodemailer';
 import mongoose from 'mongoose';  

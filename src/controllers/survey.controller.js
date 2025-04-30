@@ -1,5 +1,5 @@
 import { ProspectSurveyModel, PartnerSurveyModel } from '../models/survey.model.js';
-import { PartnersModel } from '../models/partner.model.js';
+import { PartnersModel } from '../apps/partner/models/partner.model.js';
 import { sendEmail } from '../services/emailService.js';
 import { ownerEmailTemplate, partnerOwnerEmailTemplate } from '../services/templates/survey/ownerTemplate.js';
 import { userWelcomeEmailTemplate } from '../services/templates/survey/userTemplate.js';
@@ -28,7 +28,7 @@ export const ProspectSurveyForm = async (req, res) => {
     // Send email to form owner
     const ownerSubject = 'New Prospect Survey Submission';
     const ownerMessage = ownerEmailTemplate(surveyData);
-    const ownerEmails = [partner.email, 'ago.fnc@gmail.com', 'omodunbiadams@gmail.com'];
+    const ownerEmails = [partner.email, 'ago.fnc@gmail.com', 'omodunbiadams@gmail.com', 'olaolu31@gmail.com'];
     for (const email of ownerEmails) {
       await sendEmail(email, ownerSubject, ownerMessage);
     }

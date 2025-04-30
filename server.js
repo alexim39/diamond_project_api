@@ -6,10 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import userSurveyRouter from './src/routes/survey.route.js';
-import userBoookingRouter from './src/routes/booking.route.js';
 import emailSubscriptionRouter from './src/routes/email-subscription.route.js';
 import contactRouter from './src/routes/contact.route.js';
-import partnerRouter from './src/routes/partner.route.js';
 import campaignRouter from './src/routes/campaign.js';
 import productsRouter from './src/routes/product.route.js';
 import TransactionRouter from './src/routes/transaction.route.js';
@@ -20,6 +18,18 @@ import PartnerSMSRouter from './src/routes/sms.route.js';
 import ProfilePictureRouter from './src/routes/upload-profile-picture.js';
 import TicketRouter from './src/routes/ticket.route.js';
 import TeamRouter from './src/routes/team.route.js';
+
+
+
+
+
+/* New */
+import AuthRouter from './src/apps/auth/index.js';
+import PartnerRouter from './src/apps/partner/index.js';
+import BookingRouter from './src/apps/booking/index.js';
+
+
+
 
 
 const port = process.env.PORT || 3000;
@@ -52,10 +62,8 @@ app.use(cors({
 /* Routes */
 app.get('/', (req, res) => res.send('Node server is up and running'));
 app.use('/survey', userSurveyRouter);
-app.use('/booking', userBoookingRouter);
 app.use('/emailSubscription', emailSubscriptionRouter);
 app.use('/contact', contactRouter);
-app.use('/partners', partnerRouter);
 app.use('/campaign', campaignRouter);
 app.use('/products', productsRouter);
 app.use('/billing', TransactionRouter);
@@ -66,6 +74,23 @@ app.use('/sms', PartnerSMSRouter);
 app.use('/upload-profile-picture', ProfilePictureRouter);
 app.use('/ticket', TicketRouter);
 app.use('/team', TeamRouter);
+
+
+
+
+
+
+/* New */
+app.use('/auth', AuthRouter);
+app.use('/partners', PartnerRouter);
+app.use('/booking', BookingRouter);
+
+
+
+
+
+
+
 
 // Convert `import.meta.url` to `__dirname` equivalent
 const __filename = fileURLToPath(import.meta.url);

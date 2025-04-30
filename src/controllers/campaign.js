@@ -1,6 +1,6 @@
 import {CampaignModel} from '../models/campaign.js';
 import nodemailer from 'nodemailer';
-import {PartnersModel,} from '../models/partner.model.js';
+import { PartnersModel } from '../apps/partner/models/partner.model.js';
 import mongoose from 'mongoose';
 import {TransactionModel} from '../models/transaction.model.js';
 

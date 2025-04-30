@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { ProspectModel } from "../models/prospect.model.js";
 import { ProspectSurveyModel } from "../models/survey.model.js";
-import { PartnersModel } from "../models/partner.model.js";
+import { PartnersModel } from '../apps/partner/models/partner.model.js';
 import { PreapproachDownloadModel } from "../models/contact.model.js";
 
 // Create a Nodemailer transporter

@@ -5,7 +5,7 @@ export const ownerEmailTemplate = (surveyData) => `
     </header>
     <main style="padding: 20px;">
       <h2>Survey Submission</h2>
-      <p>A prospect named <strong>${surveyData.name.toUpperCase()} ${surveyData.surname.toUpperCase()}</strong> with phone number <strong>${surveyData.phoneNumber}</strong> just submitted the survey form from <a href="https://diamondprojectonline.com">Diamond Project Online</a>.</p>
+      <p>A prospect named <strong>${surveyData.name.toUpperCase()} ${surveyData.surname.toUpperCase()} just submitted the survey form from <a href="https://diamondprojectonline.com">Diamond Project Online</a>.</p>
       <p>You may need to follow up with the user via WhatsApp or phone call.</p>
 
       <h3>Prospect Contact Details</h3>
@@ -24,7 +24,7 @@ export const ownerEmailTemplate = (surveyData) => `
     </main>
     <br>
     <footer style="text-align: center; padding: 20px; background-color: #f4f4f4; margin-top: 20px;">
-     <p>Diamond Project: Becoming the ultimate version of yourself  </p>
+     <div>Diamond Project: Becoming the ultimate version of yourself  </div>
     </footer>
   </div>
 `;
@@ -54,7 +54,7 @@ export const partnerOwnerEmailTemplate = (surveyData) => `
     </main>
     <br>
     <footer style="text-align: center; padding: 20px; background-color: #f4f4f4; margin-top: 20px;">
-     <p>Diamond Project: Becoming the ultimate version of yourself  </p>
+     <div>Diamond Project: Becoming the ultimate version of yourself  </div>
     </footer>
   </div>
 `;

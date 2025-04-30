@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import multer from 'multer';
-import {PartnersModel} from '../models/partner.model.js';
+import { PartnersModel } from '../apps/partner/models/partner.model.js';
 
 const ProfilePictureRouter = express.Router();
 

@@ -1,7 +1,7 @@
 import {ProductModel, CartModel} from '../models/products.model.js';
 import nodemailer from 'nodemailer';
 import {TransactionModel} from '../models/transaction.model.js';
-import {PartnersModel,} from '../models/partner.model.js';
+import { PartnersModel } from '../apps/partner/models/partner.model.js';
 
 
 // Create a Nodemailer transporter

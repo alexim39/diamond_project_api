@@ -1,9 +1,9 @@
 import { BookingModel } from "../models/booking.model.js";
-import { sendEmail } from "../services/emailService.js";
-import { PartnersModel } from "../models/partner.model.js";
-import { EmailSubscriptionModel } from "../models/email-subscription.model.js";
-import { ownerEmailTemplate } from "../services/templates/session-booking/ownerTemplate.js";
-import { userNotificationEmailTemplate } from "../services/templates/session-booking/userTemplate.js";
+import { sendEmail } from "../../../services/emailService.js";
+import { PartnersModel } from './../../partner/models/partner.model.js';
+import { EmailSubscriptionModel } from "../../../models/email-subscription.model.js";
+import { ownerEmailTemplate } from "../services/email/ownerTemplate.js";
+import { userNotificationEmailTemplate } from "../services/email/userTemplate.js";
 
 // User survey form
 export const bookingForm = async (req, res) => {

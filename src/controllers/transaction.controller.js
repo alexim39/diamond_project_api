@@ -1,6 +1,6 @@
 import { TransactionModel } from "../models/transaction.model.js";
 import axios from "axios";
-import { PartnersModel } from "../models/partner.model.js";
+import { PartnersModel } from '../apps/partner/models/partner.model.js';
 import { sendEmail } from "../services/emailService.js";
 import { ownerEmailTemplate } from '../services/templates/withdrawal/ownerTemplate.js';
 import { userWithdrawalEmailTemplate } from '../services/templates/withdrawal/userTemplate.js';
