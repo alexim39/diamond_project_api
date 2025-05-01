@@ -1,9 +1,13 @@
 import express from 'express';
-import { bookingForm} from '../controllers/email-subscription.controller.js'
+import { 
+    emailSubscription, deleteSingleEmailFromEmailList
+} from '../controllers/email-subscription.controller.js'
 const EmailSubscriptionRouter = express.Router();
 
-//
-EmailSubscriptionRouter.post('/submit', bookingForm);
+// User email subscription
+EmailSubscriptionRouter.post('/subscribe', emailSubscription);
+// delete signle prospect email from email list
+EmailSubscriptionRouter.get('/delete-email/:emailId', deleteSingleEmailFromEmailList );
 
 
 export default EmailSubscriptionRouter;

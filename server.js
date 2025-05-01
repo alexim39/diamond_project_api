@@ -5,31 +5,22 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
-import userSurveyRouter from './src/routes/survey.route.js';
-import emailSubscriptionRouter from './src/routes/email-subscription.route.js';
-import contactRouter from './src/routes/contact.route.js';
-import campaignRouter from './src/routes/campaign.js';
-import productsRouter from './src/routes/product.route.js';
-import TransactionRouter from './src/routes/transaction.route.js';
-import prospectRouter from './src/routes/prospect.route.js';
-import reservationCodeRouter from './src/routes/reservation-code.route.js';
-import PartnerEmailsRouter from './src/routes/emails.route.js';
-import PartnerSMSRouter from './src/routes/sms.route.js';
-import ProfilePictureRouter from './src/routes/upload-profile-picture.js';
-import TicketRouter from './src/routes/ticket.route.js';
-import TeamRouter from './src/routes/team.route.js';
-
-
-
-
-
-/* New */
 import AuthRouter from './src/apps/auth/index.js';
 import PartnerRouter from './src/apps/partner/index.js';
 import BookingRouter from './src/apps/booking/index.js';
-
-
-
+import CampaignRouter from './src/apps/campaign/index.js';
+import ContactRouter from './src/apps/contact/index.js';
+import TransactionRouter from './src/apps/transaction/index.js';
+import ProspectRouter from './src/apps/prospect/index.js';
+import ProductRouter from './src/apps/product/index.js';
+import SurveyRouter from './src/apps/survey/index.js';
+import EmailSubscriptionRouter from './src/apps/email-subscription/index.js';
+import ReservationCodeRouter from './src/apps/reservation-code/index.js';
+import EmailRouter from './src/apps/email/index.js';
+import SmsRouter from './src/apps/sms/index.js';
+import ProfilePictureRouter from './src/services/upload-profile-picture.js';
+import TicketRouter from './src/apps/ticket/index.js';
+import TeamsRouter from './src/apps/teams/index.js';
 
 
 const port = process.env.PORT || 3000;
@@ -57,38 +48,24 @@ app.use(cors({
     ]
 }));
 
-
-
 /* Routes */
 app.get('/', (req, res) => res.send('Node server is up and running'));
-app.use('/survey', userSurveyRouter);
-app.use('/emailSubscription', emailSubscriptionRouter);
-app.use('/contact', contactRouter);
-app.use('/campaign', campaignRouter);
-app.use('/products', productsRouter);
-app.use('/billing', TransactionRouter);
-app.use('/prospect', prospectRouter);
-app.use('/emails', PartnerEmailsRouter);
-app.use('/reservationCode', reservationCodeRouter);
-app.use('/sms', PartnerSMSRouter);
-app.use('/upload-profile-picture', ProfilePictureRouter);
-app.use('/ticket', TicketRouter);
-app.use('/team', TeamRouter);
-
-
-
-
-
-
-/* New */
 app.use('/auth', AuthRouter);
 app.use('/partners', PartnerRouter);
 app.use('/booking', BookingRouter);
-
-
-
-
-
+app.use('/campaign', CampaignRouter);
+app.use('/contact', ContactRouter);
+app.use('/billing', TransactionRouter);
+app.use('/prospect', ProspectRouter);
+app.use('/products', ProductRouter);
+app.use('/survey', SurveyRouter);
+app.use('/emailSubscription', EmailSubscriptionRouter);
+app.use('/reservationCode', ReservationCodeRouter);
+app.use('/emails', EmailRouter);
+app.use('/sms', SmsRouter);
+app.use('/upload-profile-picture', ProfilePictureRouter);
+app.use('/ticket', TicketRouter);
+app.use('/team', TeamsRouter);
 
 
 

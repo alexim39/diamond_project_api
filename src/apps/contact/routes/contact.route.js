@@ -1,9 +1,11 @@
 import express from 'express';
-import { bookingForm} from '../controllers/contact.controller.js'
+import { ContactController, DownloadPreapproachController } from '../controllers/contact.controller.js'
 const ContactRouter = express.Router();
 
-//
-ContactRouter.post('/submit', bookingForm);
+// User contact
+ContactRouter.post('/submit', ContactController);
+// Download pre-approach
+ContactRouter.post('/pre-approach', DownloadPreapproachController);
 
 
 export default ContactRouter;

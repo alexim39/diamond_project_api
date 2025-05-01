@@ -1,7 +1,7 @@
 import { BookingModel } from "../models/booking.model.js";
 import { sendEmail } from "../../../services/emailService.js";
 import { PartnersModel } from './../../partner/models/partner.model.js';
-import { EmailSubscriptionModel } from "../../../models/email-subscription.model.js";
+import { EmailSubscriptionModel } from "../../email-subscription/models/email-subscription.model.js";
 import { ownerEmailTemplate } from "../services/email/ownerTemplate.js";
 import { userNotificationEmailTemplate } from "../services/email/userTemplate.js";
 
@@ -33,7 +33,10 @@ export const bookingForm = async (req, res) => {
     });
 
     if (!partner) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ 
+        message: "User not found",
+        success: false,
+       });
     }
 
     // Send email to owner
@@ -48,16 +51,19 @@ export const bookingForm = async (req, res) => {
     }
 
     // Send email to the user
-    const userSubject =
-      "Your One-on-One Session is Confirmed – Let’s Unlock Your Potential!";
+    const userSubject = "Your One-on-One Session is Confirmed – Let’s Unlock Your Potential!";
     const userMessage = userNotificationEmailTemplate(userBooking);
     await sendEmail(userBooking.email, userSubject, userMessage);
 
-    res.status(200).json(userBooking);
+    res.status(200).json({
+      userBooking, 
+      success: true
+    });
   } catch (error) {
-    console.error(error.message);
     res.status(500).json({
-      message: error.message,
+      error: error.message,
+      message: "Error creating booking",
+      success: false,
     });
   }
 };
@@ -70,7 +76,10 @@ export const getBookingsForPartner = async (req, res) => {
     // Step 1: Find the user and get username
     const partner = await PartnersModel.findById(createdBy);
     if (!partner) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ 
+        message: "User not found",
+        success: false,
+      });
     }
 
     /// Step 2: user found username to get user from BookingModel collection
@@ -79,18 +88,22 @@ export const getBookingsForPartner = async (req, res) => {
     });
 
     if (!prospectObject) {
-      return res.status(400).json({ message: "Prospects not found" });
+      return res.status(400).json({ 
+        message: "Prospects not found",
+        success: false,
+      });
     }
 
     res.status(200).json({
       message: "Prospects retrieved successfully!",
       data: prospectObject,
+      success: true,
     });
   } catch (error) {
-    //console.error(error.message);
     res.status(500).json({
       message: "Error retrieving Ads",
       error: error.message,
+      success: false,
     });
   }
 };
@@ -106,6 +119,7 @@ export const deleteBooking = async (req, res) => {
     if (!booking) {
       return res.status(404).json({
         message: "Booking not found",
+        success: false,
       });
     }
 
@@ -114,13 +128,13 @@ export const deleteBooking = async (req, res) => {
 
     res.status(200).json({
       message: "Booking deleted successfully!",
-      data: null, // Consider returning null or the survey id if you want to confirm deletion
+      success: true,
     });
   } catch (error) {
-    console.error(error.message);
     res.status(500).json({
       message: "Error deleting survey",
       error: error.message,
+      success: false,
     });
   }
 };
@@ -139,13 +153,21 @@ export const UpdateBooking = async (req, res) => {
       );
   
       if (!updatedBooking) {
-        return res.status(404).json({ message: "Booking not found" });
+        return res.status(404).json({ 
+          message: "Booking not found",
+          success: false,
+        });
       }
   
-      res.status(200).json(updatedBooking);
+      res.status(200).json({
+        updatedBooking, 
+        success: true
+      });
     } catch (error) {
-      console.log(error);
-      res.status(400).json({ message: error.message });
+      res.status(400).json({ 
+        message: error.message,
+        success: false,
+      });
     }
 };
 
@@ -157,7 +179,10 @@ export const getPartnerEmailList = async (req, res) => {
       // Step 1: Find the user and get username
       const partner = await PartnersModel.findById(createdBy);
       if (!partner) {
-        return res.status(404).json({ message: "User not found" });
+        return res.status(404).json({ 
+          message: "User not found",
+          success: false,
+        });
       }
   
       /// Step 2: user found username to get user from emailListObject collection
@@ -166,18 +191,22 @@ export const getPartnerEmailList = async (req, res) => {
       });
   
       if (!emailListObject) {
-        return res.status(400).json({ message: "Email list not found" });
+        return res.status(400).json({ 
+          message: "Email list not found",
+          success: false,
+        });
       }
   
       res.status(200).json({
         message: "Email list retrieved successfully!",
         data: emailListObject,
+        success: true,
       });
     } catch (error) {
-      //console.error(error.message);
       res.status(500).json({
         message: "Error retrieving Ads",
         error: error.message,
+        success: false,
       });
     }
   };

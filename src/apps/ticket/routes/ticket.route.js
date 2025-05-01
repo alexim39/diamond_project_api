@@ -1,9 +1,11 @@
 import express from 'express';
-import { bookingForm} from '../controllers/ticket.controller.js'
+import { 
+    saveTicket,
+} from '../controllers/ticket.controller.js'
 const TicketRouter = express.Router();
 
-// User booking
-TicketRouter.post('/submit', bookingForm);
+// submit sms
+TicketRouter.post('/submit', saveTicket);
 
 
 export default TicketRouter;

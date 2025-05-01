@@ -1,9 +1,38 @@
 import express from 'express';
-import { bookingForm} from '../controllers/prospect.controller.js'
+import { 
+    CreateContactList,  getContactsCreatedBy,  importSurveyToProspect,  getAllSurveyProspect, getAllMySurveyProspect, importSingleFromSurveyToContact,
+    getProspectById, updateProspectStatus, updateProspectRemark, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
+} from '../controllers/prospect.controller.js'
 const ProspectRouter = express.Router();
 
-// User booking
-ProspectRouter.post('/submit', bookingForm);
+// create
+ProspectRouter.post('/create', CreateContactList);
+// update
+ProspectRouter.put('/update', UpdateContactList);
+// Get all contacts createdBy
+ProspectRouter.get('/all-createdBy/:createdBy', getContactsCreatedBy);
+// Get all surver prospect for
+ProspectRouter.get('/for/:createdBy', getSurveyProspectFor);
+// Get all surver prospect gotton by the system (Username = business)
+ProspectRouter.get('/all', getAllSurveyProspect);
+// Get all surver prospect gotton by the system (Username !== business)
+ProspectRouter.get('/my/:username', getAllMySurveyProspect);
+// import prospect for user
+ProspectRouter.get('/import/:partnerId', importSurveyToProspect );
+// import signle prospect for user
+ProspectRouter.get('/import-single/:partnerId/:prospectId', importSingleFromSurveyToContact );
+// delete signle prospect for user on survey model
+//ProspectRouter.get('/delete-single/:prospectId', deleteSingleFromSurvey );
+// get signle prospect byid
+ProspectRouter.get('/getById/:prospectId', getProspectById );
+// update status
+ProspectRouter.post('/updateStatus', updateProspectStatus);
+// update status
+ProspectRouter.post('/updateRemark', updateProspectRemark);
+// delete signle prospect for user on prospect model
+ProspectRouter.get('/delete/:prospectId', deleteSingleFromProspect );
+// Move prospect back to survey list
+ProspectRouter.get('/move-back-to-survey/:prospectId', moveSingleProspectBackToSurvey );
 
 
 export default ProspectRouter;

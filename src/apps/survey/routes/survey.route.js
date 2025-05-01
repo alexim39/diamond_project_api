@@ -1,9 +1,14 @@
 import express from 'express';
-import { bookingForm} from '../controllers/survey.controller.js'
+import { 
+    ProspectSurveyForm,
+    PartnerSurveyForm
+} from '../controllers/survey.controller.js'
 const SurveyRouter = express.Router();
 
-// User booking
-SurveyRouter.post('/submit', bookingForm);
+// prospet user survey
+SurveyRouter.post('/submit', ProspectSurveyForm);
+// partner user survey
+SurveyRouter.post('/partners', PartnerSurveyForm);
 
 
 export default SurveyRouter;

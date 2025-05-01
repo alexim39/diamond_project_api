@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import jwt from "jsonwebtoken";
 import dotenv  from "dotenv"
 dotenv.config()
-import { ReservationCodeModel } from "../../../models/reservation-code.model.js";
+import { ReservationCodeModel } from "../../reservation-code/models/reservation-code.model.js";
 import { PartnersModel } from './../../partner/models/partner.model.js';
 
 

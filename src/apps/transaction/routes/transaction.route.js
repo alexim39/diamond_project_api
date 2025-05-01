@@ -1,9 +1,22 @@
 import express from 'express';
-import { bookingForm} from '../controllers/transaction.controller.js'
+import { 
+    confirmPayment,
+    getTransactions,
+    singleSMSCharge,
+    bulkSMSCharge, withdrawRequest
+} from '../controllers/transaction.controller.js'
 const TransactionRouter = express.Router();
 
-// User booking
-TransactionRouter.post('/submit', bookingForm);
+// confirm payment
+TransactionRouter.post('/confirm-payment', confirmPayment);
+// get transactions
+TransactionRouter.get('/transaction/:partnerId', getTransactions);
+// single sms charger
+TransactionRouter.get('/single-sms-charge/:partnerId', singleSMSCharge);
+// bulk sms charger
+TransactionRouter.post('/bulk-sms-charge', bulkSMSCharge);
+// confirm payment
+TransactionRouter.post('/withdraw-request', withdrawRequest);
 
 
 export default TransactionRouter;

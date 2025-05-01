@@ -1,14 +1,12 @@
 import { PartnersModel } from "../models/partner.model.js";
 import { BookingModel } from "./../../booking/models/booking.model.js";
-import { ProspectSurveyModel } from "../../../models/survey.model.js";
-import { ReservationCodeModel } from "../../../models/reservation-code.model.js";
+import { ProspectSurveyModel } from "../../survey/models/survey.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { sendEmail } from "../../../services/emailService.js";
 import { userWelcomeEmailTemplate } from "../../../services/templates/partner/signup.js";
 import dotenv  from "dotenv"
 dotenv.config()
-import nodemailer from 'nodemailer';
 
 
 
