@@ -16,7 +16,7 @@ export const saveTicket = async (req, res) => {
             <h1>Ticket Submission</h1>
             <p>Kindly note that someone submitted a ticket.</p>
              <br>
-            <h1>Complete Ticet Details</h1>
+            <h1>Complete Ticket Details</h1>
             <p>Subject: ${req.body.subject}</p>
             <p>Description: ${req.body.description}</p>
             <p>Date of submission: ${req.body.date}</p>
