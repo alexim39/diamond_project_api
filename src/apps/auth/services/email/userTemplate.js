@@ -1,14 +1,5 @@
-export const userNotificationEmailTemplate = (userBooking) => {  
-  // Create a new date object from the consultDate and add one day to it  
-  const bookingDate = new Date(userBooking.consultDate);  
-  bookingDate.setDate(bookingDate.getDate() + 1); // Add one day  
+export const userNotificationEmailTemplate = (newPartner) => {  
 
-  // Format the date to a user-friendly format  
-  const formattedDate = bookingDate.toLocaleDateString('en-US', {  
-    year: 'numeric',  
-    month: 'long',  
-    day: 'numeric'  
-  });  
 
   return `  
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">  
@@ -17,12 +8,11 @@ export const userNotificationEmailTemplate = (userBooking) => {
       </header>  
 
       <main style="padding: 20px;">  
-        <h2>Your One-on-One Session is Confirmed – Let’s Unlock Your Potential!</h2>  
 
-        <p>Hi <strong>${userBooking.name.toUpperCase()}</strong>,</p>  
+        <p>Hi <strong>${newPartner.name.toUpperCase()}</strong>,</p>  
 
         <p>  
-          Fantastic news! Your one-on-one session with Diamond Project Online has been successfully booked.   
+          Fantastic step! Your one-on-one session with Diamond Project Online has been successfully booked.   
           This is your chance to explore how our platform can help you achieve financial freedom and personal growth.  
         </p>  
 

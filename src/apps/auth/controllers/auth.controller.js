@@ -7,7 +7,7 @@ import dotenv  from "dotenv"
 dotenv.config()
 import { ReservationCodeModel } from "../../reservation-code/models/reservation-code.model.js";
 import { PartnersModel } from './../../partner/models/partner.model.js';
-
+import { userNotificationEmailTemplate } from "../services/email/userTemplate.js";
 
 
   
@@ -36,7 +36,7 @@ const generateUniqueUsername = async (name, surname) => {
 
 
 // Partner registration
-export const partnerSignup = async (req, res) => {
+export const signup = async (req, res) => {
   const { name, surname, email, password, reservationCode, tnc, phone } = req.body;
 
   // Validate reservation code
@@ -45,15 +45,24 @@ export const partnerSignup = async (req, res) => {
   }).collation({ locale: "en", strength: 2 });
 
   if (!reservation) {
-    return res.status(400).json({ message: "Invalid reservation code", success: false });
+    return res.status(400).json({ 
+      message: "The reservation code is invalid or does not exist", 
+      success: false 
+    });
   }
-  if (reservation.status === "Approved") {
-    return res.status(402).json({ message: "Reservation code is not approved yet", success: false });
+  if (reservation.status === "Pending") {
+    return res.status(402).json({ 
+      message: "Reservation code is pending approval", 
+      success: false 
+    });
   }
 
   const isCodeUsed = await PartnersModel.findOne({ reservationCode: reservationCode.trim() });
   if (isCodeUsed) {
-    return res.status(401).json({ message: "Reservation code already used", success: false });
+    return res.status(401).json({ 
+      message: "This reservation code has already been used", 
+      success: false 
+    });
   }
 
   // Hash password and generate username
@@ -76,7 +85,10 @@ export const partnerSignup = async (req, res) => {
   if (reservation.status === "Approved" && reservation.partnerId) {
     const uplinePartner = await PartnersModel.findById(reservation.partnerId);
     if (!uplinePartner) {
-      return res.status(404).json({ message: "Upline partner not found", success: false });
+      return res.status(404).json({ 
+        message: "Upline partner not found", 
+        success: false 
+      });
     }
     newPartner.partnerOf = reservation.partnerId;
   }
@@ -85,11 +97,15 @@ export const partnerSignup = async (req, res) => {
 
   // Send welcome email
   const userSubject = "Welcome to Diamond Project Online Partners Platform!";
-  const userMessage = userWelcomeEmailTemplate(newPartner);
+  const userMessage = userNotificationEmailTemplate(newPartner);
   await sendEmail(newPartner.email, userSubject, userMessage);
 
   const { password: _, ...userObject } = newPartner.toJSON();
-  res.status(200).json({userObject, message: "Registration successful", success: true });
+  res.status(200).json({
+    userObject, 
+    message: "Registration successful", 
+    success: true 
+  });
 };
 
 
@@ -118,7 +134,7 @@ export const getPartner = async (req, res) => {
 
 
 // Partner login
-export const partnerSignin = async (req, res) => {
+export const signin = async (req, res) => {
   const { email, password } = req.body;
   const user = await PartnersModel.findOne({ email });
 

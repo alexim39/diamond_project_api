@@ -4,7 +4,6 @@ import { ProspectSurveyModel } from "../../survey/models/survey.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { sendEmail } from "../../../services/emailService.js";
-import { userWelcomeEmailTemplate } from "../../../services/templates/partner/signup.js";
 import dotenv  from "dotenv"
 dotenv.config()
 
