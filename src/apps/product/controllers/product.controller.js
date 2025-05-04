@@ -173,7 +173,7 @@ export const GetAllCartsBy = async (req, res) => {
       });  
 
     res.status(200).json({
-        carts, 
+        data: carts, 
         message: 'Carts retrieved successfully', 
         success: true
     });  

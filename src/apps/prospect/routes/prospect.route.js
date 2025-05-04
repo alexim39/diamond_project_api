@@ -1,6 +1,6 @@
 import express from 'express';
 import { 
-    CreateContactList,  getContactsCreatedBy,  importSurveyToProspect,  getAllSurveyProspect, getAllMySurveyProspect, importSingleFromSurveyToContact,
+    CreateContactList,  getContactsCreatedBy,  importSurveyToContact,  getAllSurveyProspect, getAllMySurveyProspect, importSingleFromSurveyToContact,
     getProspectById, updateProspectStatus, updateProspectRemark, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
 } from '../controllers/prospect.controller.js'
 const ProspectRouter = express.Router();
@@ -18,7 +18,7 @@ ProspectRouter.get('/all', getAllSurveyProspect);
 // Get all surver prospect gotton by the system (Username !== business)
 ProspectRouter.get('/my/:username', getAllMySurveyProspect);
 // import prospect for user
-ProspectRouter.get('/import/:partnerId', importSurveyToProspect );
+ProspectRouter.get('/import/:partnerId', importSurveyToContact );
 // import signle prospect for user
 ProspectRouter.get('/import-single/:partnerId/:prospectId', importSingleFromSurveyToContact );
 // delete signle prospect for user on survey model

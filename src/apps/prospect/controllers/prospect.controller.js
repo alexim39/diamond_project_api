@@ -120,8 +120,8 @@ export const getContactsCreatedBy = async (req, res) => {
   }
 };
 
-// import contacts from survey
-export const importSurveyToProspect = async (req, res) => {
+// import survey list to contacts list
+export const importSurveyToContact = async (req, res) => {
   //(surveyId) {
   try {
     const { partnerId } = req.params;
@@ -190,14 +190,13 @@ export const importSurveyToProspect = async (req, res) => {
 
     //console.log('All matching surveys successfully imported as prospects');
     res.status(200).json({
-      message: "Prospects imported successfully!",
-      data: { numberOfImports: importedCount },
+      message: `${importedCount} Prospects imported successfully!`,
       success: true
     });
   } catch (error) {
     //console.error(error.message);
     res.status(500).json({
-      message: "Error retrieving Ads",
+      message: "Error importing surveys to contacts",
       error: error.message,
       success: false
     });
@@ -458,14 +457,14 @@ export const updateProspectStatus = async (req, res) => {
     }
 
     res.status(200).json({
-      message: "Prospect retrieved successfully!",
+      message: "Prospect status updated successfully!",
       data: prospect,
       success: true
     });
   } catch (error) {
     console.error(error.message);
     res.status(500).json({
-      message: "Error deleting data",
+      message: "Error updating data",
       error: error.message,
       success: false
     });
@@ -492,14 +491,14 @@ export const updateProspectRemark = async (req, res) => {
     }
 
     res.status(200).json({
-      message: "Prospect retrieved successfully!",
+      message: "Prospect record updated successfully!",
       data: prospect,
       success: true
     });
   } catch (error) {
     console.error(error.message);
     res.status(500).json({
-      message: "Error deleting data",
+      message: "Error updating data",
       error: error.message,
       success: false
     });

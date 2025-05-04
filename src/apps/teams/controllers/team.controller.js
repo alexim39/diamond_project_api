@@ -203,14 +203,12 @@ export const deleteTeamMember = async (req, res) => {
         if (updatedTeam.members.length === 0) {
             return res.status(200).json({ 
                 message: 'Team member deleted successfully! Team is now empty.', 
-                data: updatedTeam,
                 success: true
             });
         }
 
         res.status(200).json({
             message: 'Team member deleted successfully!',
-            data: updatedTeam,
             success: true
         });
 
