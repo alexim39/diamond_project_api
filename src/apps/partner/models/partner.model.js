@@ -17,7 +17,15 @@ const partnersSchema = mongoose.Schema(
       required: [true, "Please enter surname"]
     },
     address: {
-      type: String,
+      type: {
+        street: { type: String },
+        city: { type: String },
+        state: { type: String },
+        country: { 
+          type: String,
+          default: 'Nigeria'
+        },
+      },
     },
     email: {
       type: String,

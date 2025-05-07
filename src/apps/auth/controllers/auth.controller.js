@@ -139,7 +139,7 @@ export const signin = async (req, res) => {
   const user = await PartnersModel.findOne({ email });
 
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(400).json({ message: "Invalid email or password" });
+    return res.status(400).json({ message: "Wrong email or password", success: false });
   }
 
   const token = jwt.sign({ id: user._id }, process.env.JWTTOKENSECRET, {
@@ -153,7 +153,7 @@ export const signin = async (req, res) => {
     maxAge: 24 * 60 * 60 * 1000,
   });
 
-  res.json({ message: "Login successful" });
+  res.status(200).json({ message: "Login successful", success: true });
 };
 
 

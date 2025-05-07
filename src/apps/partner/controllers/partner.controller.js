@@ -2,10 +2,10 @@ import { PartnersModel } from "../models/partner.model.js";
 import { BookingModel } from "./../../booking/models/booking.model.js";
 import { ProspectSurveyModel } from "../../survey/models/survey.model.js";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { sendEmail } from "../../../services/emailService.js";
 import dotenv  from "dotenv"
 dotenv.config()
+import mongoose from 'mongoose';
 
 
 
@@ -43,6 +43,7 @@ export const updateProfile = async (req, res) => {
     if (!name || !surname || !email || !phone) {
       return res.status(400).json({
         message: "Name, surname, email, and phone are required.",
+        success: false
       });
     }
 
@@ -64,17 +65,19 @@ export const updateProfile = async (req, res) => {
     if (!partner) {
       return res.status(404).json({
         message: "Partner not found.",
+        success: false
       });
     }
 
     res.status(200).json({
       message: "Partner updated successfully!",
-      data: partner,
+      success: true
     });
   } catch (error) {
-    console.error(error.message);
     res.status(500).json({
-      message: error.message,
+      error: error.message,
+      message: "An error occurred while updating the profile.",
+      success: false
     });
   }
 };
@@ -87,6 +90,7 @@ export const updateProfession = async (req, res) => {
     if (!jobTitle || !educationBackground) {
       return res.status(400).json({
         message: "Job title and education background are required.",
+        success: false
       });
     }
 
@@ -99,106 +103,161 @@ export const updateProfession = async (req, res) => {
     if (!partner) {
       return res.status(404).json({
         message: "Partner not found.",
+        success: false
       });
     }
 
     res.status(200).json({
       message: "Partner's profession updated successfully!",
-      data: partner,
+      success: true
     });
   } catch (error) {
-    console.error(error.message);
     res.status(500).json({
-      message: error.message,
+      error: error.message,
+      message: "An error occurred while updating the profession.",
+      success: false
     });
   }
 };
 
+
+
+
+
+
 // Update a partner's username
 export const updateUsername = async (req, res) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
+    session.startTransaction();
+
     const { id, username } = req.body;
 
-    if (!username || !id) {
-      throw new Error("Username and ID are required.");
+    if (!id || !username) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        message: "Partner ID and username are required.",
+        success: false,
+      });
     }
 
     const usernameRegex = /^[a-zA-Z0-9_]+$/;
     if (!usernameRegex.test(username)) {
-      throw new Error(
-        "Username can only contain letters, numbers, and underscores."
-      );
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        message: "Username can only contain letters, numbers, and underscores.",
+        success: false,
+      });
     }
 
-    // Check if username already exists
     const existingPartner = await PartnersModel.findOne({ username }).session(
       session
     );
     if (existingPartner && existingPartner._id.toString() !== id) {
-      throw new Error("Username already in use by another partner.");
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(409).json({
+        message: "This username is already in use by another partner.",
+        success: false,
+      });
     }
 
     const partner = await PartnersModel.findById(id).session(session);
     if (!partner) {
-      throw new Error("Partner not found.");
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({
+        message: "Partner not found.",
+        success: false,
+      });
     }
 
     const oldUsername = partner.username;
+    const updates = {};
 
-    partner.username = username;
-    await partner.save({ session });
+    if (username !== partner.username) {
+      updates.username = username;
+    }
 
-    // Update related collections
-    await ProspectSurveyModel.updateMany(
-      { username: oldUsername },
-      { $set: { username } },
-      { session }
-    );
+    // Only update if there are changes
+    if (Object.keys(updates).length > 0) {
+      const updateResult = await PartnersModel.updateOne(
+        { _id: id },
+        { $set: updates },
+        { session }
+      );
+      //console.log("Partner Update Result:", updateResult);
 
-    await BookingModel.updateMany(
-      { username: oldUsername },
-      { $set: { username } },
-      { session }
-    );
+      // Update related collections only if the username has changed
+      if (oldUsername !== username) {
+        const [prospectResult, bookingResult] = await Promise.all([
+          ProspectSurveyModel.updateMany(
+            { username: oldUsername },
+            { $set: { username } },
+            { session }
+          ),
+          BookingModel.updateMany(
+            { username: oldUsername },
+            { $set: { username } },
+            { session }
+          ),
+        ]);
+        //console.log("Prospect Survey Updates:", prospectResult);
+        //console.log("Booking Updates:", bookingResult);
+      }
+    } else {
+      //console.log("No changes to the username detected.");
+    }
 
     await session.commitTransaction();
     session.endSession();
 
     res.status(200).json({
       message: "Username updated successfully!",
-      data: partner,
+      success: true,
     });
   } catch (error) {
+    //console.error("Error updating username:", error);
     await session.abortTransaction();
     session.endSession();
     res.status(500).json({
-      message: error.message,
+      error: error.message,
+      message: "An error occurred while updating the username.",
+      success: false,
     });
   }
 };
+
+
+
+
+
 
 // Change a partner's password
 export const changePassword = async (req, res) => {
   const { id, currentPassword, newPassword } = req.body;
 
-  if (!currentPassword || !newPassword) {
+  if (!id || !currentPassword || !newPassword) {
     return res.status(400).json({
-      message: "Current password and new password are required.",
+      message: "Partner ID, current password, and new password are required.",
+      success: false,
     });
   }
 
   if (newPassword.length < 8) {
     return res.status(400).json({
       message: "New password must be at least 8 characters long.",
+      success: false,
     });
   }
 
   if (currentPassword === newPassword) {
     return res.status(400).json({
       message: "Current password and new password cannot be the same.",
+      success: false,
     });
   }
 
@@ -207,6 +266,7 @@ export const changePassword = async (req, res) => {
     if (!partner) {
       return res.status(404).json({
         message: "Partner not found.",
+        success: false,
       });
     }
 
@@ -214,25 +274,49 @@ export const changePassword = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         message: "Current password is incorrect.",
+        success: false,
       });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedNewPassword = await bcrypt.hash(newPassword, salt);
 
-    partner.password = hashedNewPassword;
-    await partner.save();
+    const updates = {};
+    if (hashedNewPassword !== partner.password) {
+      updates.password = hashedNewPassword;
+    }
 
-    res.status(200).json({
-      message: "Password changed successfully!",
-    });
+    // Only update if there are changes
+    if (Object.keys(updates).length > 0) {
+      const updateResult = await PartnersModel.updateOne(
+        { _id: id },
+        { $set: updates }
+      );
+      //console.log("Password Update Result:", updateResult);
+
+      res.status(200).json({
+        message: "Password changed successfully!",
+        success: true,
+      });
+    } else {
+      //console.log("New password is the same as the current password (after hashing). No update needed.");
+      res.status(200).json({
+        message: "Password changed successfully!", // Still report success as the intent was met
+        success: true,
+      });
+    }
   } catch (error) {
-    console.error(error.message);
+    //console.error("Error changing password:", error);
     res.status(500).json({
-      message: error.message,
+      error: error.message,
+      message: "An error occurred while changing the password.",
+      success: false,
     });
   }
 };
+
+
+
 
 // Get all partners in the database
 export const getAllUsers = async (req, res) => {
@@ -241,8 +325,10 @@ export const getAllUsers = async (req, res) => {
     const sanitizedResult = JSON.stringify(partners).replace(/\s+/g, ""); // Remove all whitespace
     res.status(200).json(JSON.parse(sanitizedResult)); // Parse back to JSON
   } catch (error) {
-    console.error("Error fetching partners:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ 
+      message: "Internal server error",
+      success: false
+    });
   }
 };
 
@@ -260,15 +346,21 @@ export const getPartnerByNames = async (req, res) => {
     const partners = await PartnersModel.find(query);
 
     if (!partners || partners.length === 0) {
-      return res.status(404).json({ message: "Partner not found" });
+      return res.status(404).json({ 
+        message: "Partner not found",
+        success: false
+      });
     }
     res.status(200).json({
       message: "Partner(s) found",
       data: partners,
+      success: true
     });
   } catch (error) {
-    console.error("Error fetching partner:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ 
+      message: "Internal server error",
+      success: false 
+    });
   }
 };
 
@@ -280,22 +372,25 @@ export const getPartnerByName = async (req, res) => {
     const capitalizedTrimmedName = trimmedName.charAt(0).toUpperCase() + trimmedName.slice(1);
 
     if (!capitalizedTrimmedName) {
-      return res.status(400).json({ message: "Name is required." });
+      return res.status(400).json({ 
+        message: "Name is required.",
+        success: false 
+      });
     }
 
     const query = { $or: [{ name: capitalizedTrimmedName }, { surname: capitalizedTrimmedName }] };
     const partners = await PartnersModel.find(query);
 
     if (!partners || partners.length === 0) {
-      return res.status(404).json({ message: "Partner not found" });
+      return res.status(404).json({ message: "Partner not found", success: false });
     }
     res.status(200).json({
       message: "Partner(s) found",
       data: partners,
+      success: true
     });
   } catch (error) {
-    console.error("Error fetching partner:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error", success: false });
   }
 };
 
@@ -306,24 +401,23 @@ export const followPartner = async (req, res) => {
     const partnerId = req.body.partnerId;
 
     if (!searchPartnerId) {
-      return res.status(400).json({ message: "Missing required parameter: searchPartnerId" });
+      return res.status(400).json({ message: "Missing required parameter: searchPartnerId", success: false });
     }
 
     const partnerToFollow = await PartnersModel.findById(searchPartnerId);
     if (!partnerToFollow) {
-      return res.status(404).json({ message: "Partner not found" });
+      return res.status(404).json({ message: "Partner not found", success: false });
     }
 
     if (!partnerToFollow.followers.includes(partnerId)) {
       partnerToFollow.followers.push(partnerId);
       await partnerToFollow.save();
-      return res.status(200).json({ message: "Successfully followed the partner" });
+      return res.status(200).json({ message: "Successfully followed the partner", success: true });
     }
 
-    return res.status(400).json({ message: "You are already following this partner" });
+    return res.status(400).json({ message: "You are already following this partner", success: false });
   } catch (error) {
-    console.error("Error following partner:", error);
-    res.status(500).json({ message: "Server error", error });
+    res.status(500).json({ message: "Server error", error: error.message, success: false });
   }
 };
 
@@ -334,12 +428,12 @@ export const unfollowPartner = async (req, res) => {
     const partnerId = req.body.partnerId;
 
     if (!searchPartnerId || !partnerId) {
-      return res.status(400).json({ message: "Missing required parameters" });
+      return res.status(400).json({ message: "Missing required parameters", success: false });
     }
 
     const partnerToUnfollow = await PartnersModel.findById(searchPartnerId);
     if (!partnerToUnfollow) {
-      return res.status(404).json({ message: "Partner not found" });
+      return res.status(404).json({ message: "Partner not found", success: false });
     }
 
     if (partnerToUnfollow.followers.includes(partnerId)) {
@@ -347,13 +441,12 @@ export const unfollowPartner = async (req, res) => {
         (followerId) => followerId.toString() !== partnerId.toString()
       );
       await partnerToUnfollow.save();
-      return res.status(200).json({ message: "Successfully unfollowed the partner" });
+      return res.status(200).json({ message: "Successfully unfollowed the partner", success: true });
     }
 
-    return res.status(400).json({ message: "You are not following this partner" });
+    return res.status(400).json({ message: "You are not following this partner", success: false });
   } catch (error) {
-    console.error("Error unfollowing partner:", error);
-    res.status(500).json({ message: "Server error", error });
+    res.status(500).json({ message: "Server error", error: error.message, success: false });
   }
 };
 
@@ -363,20 +456,19 @@ export const checkFollowStatus = async (req, res) => {
     const { searchPartnerId, partnerId } = req.params;
 
     if (!searchPartnerId || !partnerId) {
-      return res.status(400).json({ message: "Missing required parameters" });
+      return res.status(400).json({ message: "Missing required parameters", success: false });
     }
 
     const partner = await PartnersModel.findById(searchPartnerId);
     if (!partner) {
-      return res.status(404).json({ message: "Partner not found" });
+      return res.status(404).json({ message: "Partner not found", success: false });
     }
 
     const isFollowing = partner.followers.includes(partnerId);
 
-    return res.status(200).json({ isFollowing });
+    return res.status(200).json({ isFollowing, success: true });
   } catch (error) {
-    console.error("Error checking follow status:", error);
-    res.status(500).json({ message: "Server error", error });
+    res.status(500).json({ message: "Server error", error: error.message, success: false });
   }
 };
 
@@ -388,13 +480,12 @@ const updateSocialMediaLink = async (req, res, platform, field) => {
 
     const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });
     if (!partner) {
-      return res.status(404).json({ message: `Partner not found` });
+      return res.status(404).json({ message: `Partner not found`, success: false });
     }
 
-    res.status(200).json({ message: "Partner updated successfully!", data: partner });
+    res.status(200).json({ message: "Partner updated successfully!", data: partner, success: true });
   } catch (error) {
-    console.error(error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ error: error.message, message: "Error updating social link", success: false });
   }
 };
 
@@ -417,6 +508,7 @@ export const updateTestimonial = async (req, res) => {
     if (!testimonial || !partnerId) {
       return res.status(400).json({
         message: "Testimonial and partnerId are required.",
+        success: false
       });
     }
 
@@ -434,18 +526,20 @@ export const updateTestimonial = async (req, res) => {
     if (!partner) {
       return res.status(404).json({
         message: `Partner not found.`,
+        success: false
       });
     }
 
     res.status(200).json({
       message: "Partner updated successfully!",
       data: partner,
+      success: true
     });
   } catch (error) {
-    console.error("Error updating testimonial:", error.message);
     res.status(500).json({
       message: "An error occurred while updating the testimonial.",
       error: error.message,
+      success: false
     });
   }
 };
@@ -459,6 +553,7 @@ export const getPartnersOf = async (req, res) => {
     if (!partnerId) {
       return res.status(400).json({
         message: "partnerId is required.",
+        success: false
       });
     }
 
@@ -469,18 +564,20 @@ export const getPartnersOf = async (req, res) => {
     if (partners.length === 0) {
       return res.status(404).json({
         message: `No partners found for this partner.`,
+        success: false
       });
     }
 
     res.status(200).json({
       message: "Partners retrieved successfully!",
       data: partners,
+      success: true
     });
   } catch (error) {
-    console.error("Error fetching partners:", error);
     res.status(500).json({
       message: "An error occurred while fetching partners.",
       error: error.message,
+      success: false
     });
   }
 };
@@ -494,6 +591,7 @@ export const getPartnerById = async (req, res) => {
     if (!partnerId) {
       return res.status(400).json({
         message: "partnerId is required.",
+        success: false
       });
     }
 
@@ -504,18 +602,20 @@ export const getPartnerById = async (req, res) => {
     if (!partner) {
       return res.status(404).json({
         message: "Partner not found.",
+        success: false
       });
     }
 
     res.status(200).json({
       message: "Partner retrieved successfully!",
       data: partner,
+      success: true
     });
   } catch (error) {
-    console.error("Error fetching partner:", error);
     res.status(500).json({
       message: "An error occurred while fetching the partner.",
       error: error.message,
+      success: false
     });
   }
 };  

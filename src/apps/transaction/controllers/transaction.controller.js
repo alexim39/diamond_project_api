@@ -202,7 +202,6 @@ export const bulkSMSCharge = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error(error.message);
     res.status(500).json({
       message: "An error occurred while processing the charge.",
       error: error.message,

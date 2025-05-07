@@ -1,7 +1,7 @@
 import express from 'express';
 import { 
     SendSingleEmailsToProspect, deleteEmail,
-    SendBulkEmailsToProspect,
+    SendEmailsToProspect,
     getEmailsCreatedBy
 } from '../controllers/email.controller.js'
 const EmailRouter = express.Router();
@@ -9,7 +9,7 @@ const EmailRouter = express.Router();
 // Single email
 EmailRouter.post('/send-emails', SendSingleEmailsToProspect);
 // builk email
-EmailRouter.post('/send-bulk-email', SendBulkEmailsToProspect);
+EmailRouter.post('/send-email', SendEmailsToProspect);
 // get email
 EmailRouter.get('/getById/:partnerId', getEmailsCreatedBy);
 // delete email

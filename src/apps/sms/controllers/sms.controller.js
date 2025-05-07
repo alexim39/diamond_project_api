@@ -49,8 +49,8 @@ export const saveSMSDetails = async (req, res) => {
 
         // Return response  
         res.status(200).json({
-            saveSMS,
-            message: 'SMS details saved successfully!',
+            data: saveSMS,
+            message: 'SMS record saved successfully!',
             sucess: true,
         });  
 

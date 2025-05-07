@@ -18,8 +18,7 @@ export const CreateContactList = async (req, res) => {
 
     if (existingProspect) {
       return res.status(400).json({
-        message: "Prospect already exists with this phone number or email!",
-        data: existingProspect, // Optionally include the existing data
+        message: "Prospect with this phone number or email already exist!",
         success: false
       });
     }
@@ -31,12 +30,10 @@ export const CreateContactList = async (req, res) => {
     await newProspect.save();
 
     res.status(200).json({
-      message: "Prospect created successfully!",
-      data: newProspect, // Include the saved data in the response
+      message: "Contact created successfully!",
       success: true
     });
   } catch (error) {
-    console.error(error.message);
     res.status(500).json({
       message: error.message,
       success: false

@@ -43,7 +43,7 @@ export const SendSingleEmailsToProspect = async (req, res) => {
 }
 
 // send bulck email to prospectgetEmailsCreatedBy
-export const SendBulkEmailsToProspect = async (req, res) => {
+export const SendEmailsToProspect = async (req, res) => {
 
     // Function to format email data into a string array
     function formatEmailData(emailData) {
@@ -64,21 +64,21 @@ export const SendBulkEmailsToProspect = async (req, res) => {
         // Step 1: Find the user
         const partner = await PartnersModel.findById(partnerId);
         if (!partner) {
-        return res.status(404).json({ 
-            message: 'User not found',
-            success: false,
-        });
+            return res.status(404).json({ 
+                message: 'Partner not found',
+                success: false,
+            });
         }
 
         // formated emails
-        const formattedEmails = formatEmailData(prospects);
+        const formattedEmails = formatEmailData(prospects); // Format the email data: prospects == emails
 
         for (const email of formattedEmails) {
             await sendEmail(email, emailSubject, emailBody);
         }
 
         
-        const saveEmail = await ParterEmailsModel.create({
+        await ParterEmailsModel.create({
             emailSubject,
             emailBody,
             partnerId,
@@ -86,15 +86,11 @@ export const SendBulkEmailsToProspect = async (req, res) => {
         });
 
         res.status(200).json({
-            message: 'Prospects retrieved successfully!',
-            data: saveEmail,
+            message: 'Email sent successfully!',
             success: true,
         });
     
-
-  
     } catch (error) {
-        console.error(error.message);
         res.status(500).json({
             error: error.message,
             message: 'Error sending email',
@@ -113,7 +109,7 @@ export const getEmailsCreatedBy = async (req, res) => {
         const partner = await PartnersModel.findById(partnerId);  
         if (!partner) {  
             return res.status(404).json({ 
-                message: 'User not found',
+                message: 'Partner not found',
                 success: false,
             });  
         }  
@@ -125,7 +121,7 @@ export const getEmailsCreatedBy = async (req, res) => {
   
         if (!emailObject || emailObject.length === 0) {  
             return res.status(400).json({ 
-                message: 'SMS not found',
+                message: 'Email not found',
                 success: false,
             });  
         } 
@@ -138,7 +134,7 @@ export const getEmailsCreatedBy = async (req, res) => {
 
     } catch (error) {  
         res.status(500).json({  
-            message: 'Error retrieving SMS and transactions',  
+            message: 'Error retrieving Emails',  
             error: error.message,  
             success: false,
         });  
