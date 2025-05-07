@@ -3,7 +3,6 @@ import { PartnersModel } from './../../partner/models/partner.model.js';
 import mongoose from 'mongoose';
 import {TransactionModel} from '../../transaction/models/transaction.model.js';
 
-
 // facebook campaign/ads
 export const createFacebookCampaign = async (req, res) => {
   const MIN_CHARGE = 6500; // Define the Facebook minimum charge amount  
@@ -250,64 +249,77 @@ export const getCampaignsCreatedBy = async (req, res) => {
 
 
 
-// Record visits
+
 export const recordVisits = async (req, res) => {
   try {
     const { username, channel } = req.body;
 
-    if (!username || !channel) {
-      return res.status(400).json({ message: 'Username and channel are required' });
+    // Input validation
+    if (!username) {
+      return res.status(400).json({ message: 'Username is required', success: false });
     }
 
     // Step 1: Find the partner's ObjectId by username
-    const partner = await PartnersModel.findOne({ username: username });
+    const partner = await PartnersModel.findOne({ username });
     if (!partner) {
-      return res.status(401).json({ 
-        message: 'No partner found',
-        success: false,
-    });
+      return res.status(404).json({ message: 'Partner not found', success: false });
     }
 
-    // Step 2: Check if the channel is a valid ObjectId
-    if (!mongoose.Types.ObjectId.isValid(channel)) {
-      // If channel is not a valid ObjectId, increment visits in the PartnersModel
-      partner.visits = (partner.visits || 0) + 1;
-      await partner.save();
-      return res.status(200).json({
-        message: 'Partner visit updated due to invalid channel',
-        data: partner,
-        success: true,
-      });
-    }
+    // Step 2: Handle the channel
+    if (!channel || channel === 'unknown' || !mongoose.Types.ObjectId.isValid(channel)) {
+      // If channel is not provided or not a valid ObjectId, increment visits in the PartnersModel
+      const updatedPartner = await PartnersModel.findOneAndUpdate(
+        { _id: partner._id },
+        { $inc: { visits: 1 } },
+        { new: true }
+      );
 
-    // Step 3: Check if the channel exists in the CampaignModel
-    const campaign = await CampaignModel.findOne({ _id: channel, createdBy: partner._id });
-
-    if (campaign) {
-      // If campaign exists, increment visits in the CampaignModel
-      campaign.visits = (campaign.visits || 0) + 1;
-      await campaign.save();
-      return res.status(200).json({
-        message: 'Campaign visit updated',
-        data: campaign,
-        success: true,
-      });
+      if (updatedPartner) {
+        return res.status(200).json({
+          message: 'Partner visit recorded successfully',
+          success: true,
+          partner: updatedPartner,
+        });
+      } else {
+        // This should ideally not happen if the partner was found, but handle defensively
+        return res.status(500).json({
+          message: 'Error updating partner visits',
+          success: false,
+        });
+      }
     } else {
-      // If campaign does not exist, increment visits in the PartnersModel
-      partner.visits = (partner.visits || 0) + 1;
-      await partner.save();
-      return res.status(200).json({
-        message: 'Partner visit updated',
-        data: partner,
-        success: true,
-      });
-    }
+      // Step 3: Check if the channel exists in the CampaignModel and belongs to the partner
+      const updatedCampaign = await CampaignModel.findOneAndUpdate(
+        { _id: channel, createdBy: partner._id },
+        { $inc: { visits: 1 } },
+        { new: true }
+      );
 
+      if (updatedCampaign) {
+        return res.status(200).json({
+          message: 'Campaign visit recorded successfully',
+          success: true,
+          campaign: updatedCampaign,
+        });
+      } else {
+        // If campaign does not exist, increment visits in the PartnersModel
+        const updatedPartner = await PartnersModel.findOneAndUpdate(
+          { _id: partner._id },
+          { $inc: { visits: 1 } },
+          { new: true }
+        );
+        return res.status(200).json({
+          message: 'Partner visit recorded successfully',
+          success: true,
+          partner: updatedPartner,
+        });
+      }
+    }
   } catch (error) {
     return res.status(500).json({
-        error: error.message,
-        message: 'Error recording visits',
-        success: false,
+      error: error.message,
+      message: 'Failed to record visit',
+      success: false,
     });
   }
 }
