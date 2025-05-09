@@ -455,11 +455,9 @@ export const updateProspectStatus = async (req, res) => {
 
     res.status(200).json({
       message: "Prospect status updated successfully!",
-      data: prospect,
       success: true
     });
   } catch (error) {
-    console.error(error.message);
     res.status(500).json({
       message: "Error updating data",
       error: error.message,
@@ -489,11 +487,9 @@ export const updateProspectRemark = async (req, res) => {
 
     res.status(200).json({
       message: "Prospect record updated successfully!",
-      data: prospect,
       success: true
     });
   } catch (error) {
-    console.error(error.message);
     res.status(500).json({
       message: "Error updating data",
       error: error.message,
@@ -526,7 +522,6 @@ export const deleteSingleFromProspect = async (req, res) => {
       success: true
     });
   } catch (error) {
-    console.error(error.message);
     res.status(500).json({
       message: "Error deleting survey",
       error: error.message,

@@ -28,7 +28,6 @@ export const SendSingleEmailsToProspect = async (req, res) => {
         }
   
         res.status(200).json({
-            saveEmail,
             message: 'Email sent successfully!',
             success: true,
         });
