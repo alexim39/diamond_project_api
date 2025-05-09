@@ -5,7 +5,7 @@ import fs from 'fs';
 import multer from 'multer';
 import { PartnersModel } from '../apps/partner/models/partner.model.js';
 
-const ProfilePictureRouter = express.Router();
+const ProfileImageRouter = express.Router();
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -19,11 +19,14 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // upload profile picture
-ProfilePictureRouter.post('/image/:userId', upload.single('profilePicture'), async (req, res) => {
+ProfileImageRouter.post('/profile/:userId', upload.single('profilePicture'), async (req, res) => {
     const userId = req.params.userId; // Get user ID from the request parameters
 
     if (!req.file) {
-      return res.status(400).send('No file uploaded.');
+      return res.status(400).json({
+        message: 'No file uploaded. Please upload a profile picture.',
+        success: false
+      });
     }
 
     try {
@@ -31,7 +34,10 @@ ProfilePictureRouter.post('/image/:userId', upload.single('profilePicture'), asy
         // Find the current user and check if they already have a profile image
         const currentUser = await PartnersModel.findById(userId);
         if (!currentUser) {
-            return res.status(404).send('User not found.');
+            return res.status(404).json({
+                message: 'User not found.',
+                success: false
+            });
         }
 
         // If the user has a current profile image, delete the old image file
@@ -68,18 +74,26 @@ ProfilePictureRouter.post('/image/:userId', upload.single('profilePicture'), asy
         );
 
         if (!updatedPartner) {
-            return res.status(404).send('User not found.');
+            return res.status(404).json({
+                message: 'User not found.',
+                success: false
+            });
         }
 
         res.status(200).json({
             message: 'Profile picture updated successfully.',
-            profileImageName: updatedPartner.profileImage
+            //profileImageName: updatedPartner.profileImage
+            success: true,
+            //profileImage: `http://localhost:3000/uploads/${updatedPartner.profileImage}` // Adjust the URL as needed
         });
     } catch (error) {
-        res.status(500).json({ error: `Failed to update profile picture: ${error.message}` });
+        res.status(500).json({ 
+            message: `Failed to update profile picture: ${error.message}`,
+            success: false
+        });
     }
 
 });
 
 
-export default ProfilePictureRouter;
+export default ProfileImageRouter;

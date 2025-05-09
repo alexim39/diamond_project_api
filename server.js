@@ -18,7 +18,7 @@ import EmailSubscriptionRouter from './src/apps/email-subscription/index.js';
 import ReservationCodeRouter from './src/apps/reservation-code/index.js';
 import EmailRouter from './src/apps/email/index.js';
 import SmsRouter from './src/apps/sms/index.js';
-import ProfilePictureRouter from './src/services/upload-profile-picture.js';
+import ProfileImageRouter from './src/services/upload-profile-picture.js';
 import TicketRouter from './src/apps/ticket/index.js';
 import TeamsRouter from './src/apps/teams/index.js';
 
@@ -63,7 +63,7 @@ app.use('/emailSubscription', EmailSubscriptionRouter);
 app.use('/reservationCode', ReservationCodeRouter);
 app.use('/emails', EmailRouter);
 app.use('/sms', SmsRouter);
-app.use('/upload-profile-picture', ProfilePictureRouter);
+app.use('/image', ProfileImageRouter);
 app.use('/ticket', TicketRouter);
 app.use('/team', TeamsRouter);
 
