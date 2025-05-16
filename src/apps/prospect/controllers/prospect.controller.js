@@ -506,7 +506,7 @@ export const moveSingleProspectBackToSurvey = async (req, res) => {
       referralCode: prospect.survey.referralCode,
       referral: prospect.survey.referral,
       userDevice: prospect.userDevice,      // Assuming this was part of the original survey
-      prospectStatus: 'Not Moved to Contact', // Reset the status
+      prospectStatus: 'Returned from contact List', // Reset the status
       username: prospect.username,          // Assuming this was part of the original survey
       country: prospect.survey.country || 'Nigeria', // Default if not present
       state: prospect.survey.state,
