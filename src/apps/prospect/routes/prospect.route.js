@@ -1,8 +1,9 @@
 import express from 'express';
 import { 
     CreateContactList,  getContactsCreatedBy,  importSurveyToContact,  getAllSurveyProspect, getAllMySurveyProspect, importSingleFromSurveyToContact,
-    getProspectById, updateProspectStatus, updateProspectRemark, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
+    getProspectById, updateProspectStatus, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
 } from '../controllers/prospect.controller.js'
+import { UpdateProspectCommunications, DeleteProspectCommunication} from '../controllers/communictions.controller.js'
 const ProspectRouter = express.Router();
 
 // create
@@ -27,10 +28,12 @@ ProspectRouter.get('/import-single/:partnerId/:prospectId', importSingleFromSurv
 ProspectRouter.get('/getById/:prospectId', getProspectById );
 // update status
 ProspectRouter.post('/updateStatus', updateProspectStatus);
-// update status
-ProspectRouter.post('/updateRemark', updateProspectRemark);
 // delete signle prospect for user on prospect model
 ProspectRouter.get('/delete/:prospectId', deleteSingleFromProspect );
+// update prospect communications
+ProspectRouter.post('/communications', UpdateProspectCommunications);
+// delete communication entry from array
+ProspectRouter.delete('/communications/:prospectId/:communicationId', DeleteProspectCommunication );
 // Move prospect back to survey list
 ProspectRouter.get('/move-back-to-survey/:prospectId', moveSingleProspectBackToSurvey );
 

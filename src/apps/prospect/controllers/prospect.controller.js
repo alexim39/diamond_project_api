@@ -68,9 +68,9 @@ export const UpdateContactList = async (req, res) => {
     res.status(200).json({updatedProspect, success: true});
 
   } catch (error) {
-    console.log(error);
     res.status(400).json({ 
-      message: error.message,
+      message: 'Error updating contact list',
+      error: error.message,
       success: false
     });
   }
@@ -366,41 +366,6 @@ export const importSingleFromSurveyToContact = async (req, res) => {
   }
 };
 
-
-// delete single prospect from survey
-/* export const deleteSingleFromSurvey = async (req, res) => {
-  try {
-    const { prospectId } = req.params;
-
-    // Get the survey based on the provided prospectId
-    const survey = await ProspectSurveyModel.findById(prospectId);
-
-    // Check if the survey exists
-    if (!survey) {
-      return res.status(404).json({
-        message: "Survey not found",
-        success: false
-      });
-    }
-
-    // Here we delete the survey entry
-    await ProspectSurveyModel.findByIdAndDelete(prospectId);
-
-    res.status(200).json({
-      message: "Survey deleted successfully!",
-      success: true
-    });
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({
-      message: "Error deleting survey",
-      error: error.message,
-      success: false
-    });
-  }
-}; */
-
-
 // get single prospect by id  
 export const getProspectById = async (req, res) => {  
   try {  
@@ -466,37 +431,7 @@ export const updateProspectStatus = async (req, res) => {
   }
 };
 
-// get remark
-export const updateProspectRemark = async (req, res) => {
-  try {
-    const { remark, prospectId } = req.body;
 
-    // Update the status of the prospect with the provided id
-    const prospect = await ProspectModel.findByIdAndUpdate(
-      prospectId,
-      { prospectRemark: remark }, // Update only the status field
-      { new: true, runValidators: true }
-    );
-
-    if (!prospect) {
-      return res.status(404).json({
-        message: "Prospect not found",
-        success: false
-      });
-    }
-
-    res.status(200).json({
-      message: "Prospect record updated successfully!",
-      success: true
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Error updating data",
-      error: error.message,
-      success: false
-    });
-  }
-};
 
 // delete single prospect from prospect
 export const deleteSingleFromProspect = async (req, res) => {

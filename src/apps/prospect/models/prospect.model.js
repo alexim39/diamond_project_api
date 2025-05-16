@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { CommunicationSchema } from "./communications.schema.js";
 
 
 /* Schema*/
@@ -28,11 +29,10 @@ const prospectSchema = mongoose.Schema(
             type: String,
             required: [true, "Please enter source"]
         },
-        prospectRemark: {
+       /*  prospectRemark: {
             type: String,
-            //unique: true,
-            //required: [true, "Please enter message"]
-        },
+        }, */
+        communications: [CommunicationSchema],// Replacing prospectRemark
         partnerId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'partner',

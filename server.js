@@ -21,7 +21,8 @@ import SmsRouter from './src/apps/sms/index.js';
 import ProfileImageRouter from './src/services/upload-profile-picture.js';
 import TicketRouter from './src/apps/ticket/index.js';
 import TeamsRouter from './src/apps/teams/index.js';
-
+// Import the birthday notification service
+import './src/apps/partner/services/dob.notification.js';
 
 const port = process.env.PORT || 3000;
 const app = express();

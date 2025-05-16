@@ -96,9 +96,9 @@ export const signup = async (req, res) => {
   await newPartner.save();
 
   // Send welcome email
-  const userSubject = "Welcome to Diamond Project Online Partners Platform!";
-  const userMessage = userNotificationEmailTemplate(newPartner);
-  await sendEmail(newPartner.email, userSubject, userMessage);
+  //const userSubject = "Welcome to Diamond Project Online Partners Platform!";
+  //const userMessage = userNotificationEmailTemplate(newPartner);
+  //await sendEmail(newPartner.email, userSubject, userMessage);
 
   const { password: _, ...userObject } = newPartner.toJSON();
   res.status(200).json({
