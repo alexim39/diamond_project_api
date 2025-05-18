@@ -400,14 +400,34 @@ export const getProspectById = async (req, res) => {
 
 
 // get status
-export const updateProspectStatus = async (req, res) => {
+export const UpdateProspectStatus = async (req, res) => {
   try {
-    const { status, prospectId } = req.body;
+    const {
+      prospectId,
+      status: {
+        name,
+        note,
+        paydayDate,
+        expectedDecisionDate,
+        onboardingDate
+      }
+    } = req.body;
 
-    // Update the status of the prospect with the provided id
+    // Build status update object
+    const statusUpdate = {
+      name,
+      note,
+      updatedAt: new Date()
+    };
+
+    if (paydayDate) statusUpdate.paydayDate = new Date(paydayDate);
+    if (expectedDecisionDate) statusUpdate.expectedDecisionDate = new Date(expectedDecisionDate);
+    if (onboardingDate) statusUpdate.onboardingDate = new Date(onboardingDate);
+
+    // Update the prospect's status
     const prospect = await ProspectModel.findByIdAndUpdate(
       prospectId,
-      { status: status }, // Update only the status field
+      { status: statusUpdate },
       { new: true, runValidators: true }
     );
 
@@ -420,16 +440,18 @@ export const updateProspectStatus = async (req, res) => {
 
     res.status(200).json({
       message: "Prospect status updated successfully!",
-      success: true
+      success: true,
+      data: prospect.status
     });
   } catch (error) {
     res.status(500).json({
-      message: "Error updating data",
+      message: "Error updating prospect status",
       error: error.message,
       success: false
     });
   }
 };
+
 
 
 

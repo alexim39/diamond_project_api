@@ -88,6 +88,10 @@ const partnersSchema = mongoose.Schema(
     skill: {
       type: String,
     },
+    role: {
+      type: String,
+      default: 'User'
+    },
     whatsappGroupLink: {
       type: String,
     },
@@ -137,6 +141,14 @@ const partnersSchema = mongoose.Schema(
         default: 'Basic'
       },//"Basic | Premium | Business",
       nextBillingDate: { type: Date },
+    },
+    settings: {
+      notification: { 
+        type: String, 
+        required: true,
+        default: 'email'
+      },//"email | sms | both",
+    
     }
   },
   {

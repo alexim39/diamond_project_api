@@ -141,7 +141,6 @@ export const Savecart = async (req, res) => {
 
       res.status(200).json({ 
         message: 'Cart saved successfully', 
-        cart,
         success: true,
     });   
 

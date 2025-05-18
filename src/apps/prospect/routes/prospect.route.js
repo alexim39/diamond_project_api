@@ -1,7 +1,7 @@
 import express from 'express';
 import { 
     CreateContactList,  getContactsCreatedBy,  importSurveyToContact,  getAllSurveyProspect, getAllMySurveyProspect, importSingleFromSurveyToContact,
-    getProspectById, updateProspectStatus, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
+    getProspectById, UpdateProspectStatus, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
 } from '../controllers/prospect.controller.js'
 import { UpdateProspectCommunications, DeleteProspectCommunication} from '../controllers/communictions.controller.js'
 const ProspectRouter = express.Router();
@@ -27,7 +27,7 @@ ProspectRouter.get('/import-single/:partnerId/:prospectId', importSingleFromSurv
 // get signle prospect byid
 ProspectRouter.get('/getById/:prospectId', getProspectById );
 // update status
-ProspectRouter.post('/updateStatus', updateProspectStatus);
+ProspectRouter.post('/updateStatus', UpdateProspectStatus);
 // delete signle prospect for user on prospect model
 ProspectRouter.get('/delete/:prospectId', deleteSingleFromProspect );
 // update prospect communications

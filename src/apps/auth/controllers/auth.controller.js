@@ -10,10 +10,6 @@ import { PartnersModel } from './../../partner/models/partner.model.js';
 import { userNotificationEmailTemplate } from "../services/email/userTemplate.js";
 
 
-  
-
-
-
 // Generate a unique username
 const generateUniqueUsername = async (name, surname) => {
   if (!name || !surname) {
@@ -30,10 +26,6 @@ const generateUniqueUsername = async (name, surname) => {
     candidateUsername = `${baseUsername}${counter++}`;
   }
 };
-
-
-
-
 
 // Partner registration
 export const signup = async (req, res) => {
@@ -108,30 +100,19 @@ export const signup = async (req, res) => {
   });
 };
 
-
-
-
-
-
-
-// Get partner details
+// Get current signed in user
 export const getPartner = async (req, res) => {
   const token = req.cookies["jwt"];
   const claims = jwt.verify(token, process.env.JWTTOKENSECRET);
 
   if (!claims) {
-    return res.status(401).json({ message: "User unauthenticated" });
+    return res.status(401).json({ message: "User unauthenticated", success: false });
   }
 
   const user = await PartnersModel.findById(claims.id);
   const { password: _, ...userObject } = user.toJSON();
-  res.status(200).json(userObject);
+  res.status(200).json({data: userObject, message: 'User authenticated', success: true});
 };
-
-
-
-
-
 
 // Partner login
 export const signin = async (req, res) => {

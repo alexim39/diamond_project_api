@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { CommunicationSchema } from "./communications.schema.js";
+import { StatusSchema } from "./status.schema.js";
 
 
 /* Schema*/
@@ -42,11 +43,11 @@ const prospectSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Survey',
         },
-        status: {
+       /*  status: {
             type: String,
             default: 'New Prospect'
-            //required: [true, "Please enter message"]
-        },
+        }, */
+        status: StatusSchema,
         role: {
             type: String,
             default: 'User'

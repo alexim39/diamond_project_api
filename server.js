@@ -21,6 +21,7 @@ import SmsRouter from './src/apps/sms/index.js';
 import ProfileImageRouter from './src/services/upload-profile-picture.js';
 import TicketRouter from './src/apps/ticket/index.js';
 import TeamsRouter from './src/apps/teams/index.js';
+import SettingsRouter from './src/apps/settings/index.js';
 // Import the birthday notification service
 import './src/apps/partner/services/dob.notification.js';
 
@@ -67,6 +68,7 @@ app.use('/sms', SmsRouter);
 app.use('/image', ProfileImageRouter);
 app.use('/ticket', TicketRouter);
 app.use('/team', TeamsRouter);
+app.use('/settings', SettingsRouter);
 
 
 
