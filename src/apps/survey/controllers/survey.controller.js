@@ -11,7 +11,6 @@ export const ProspectSurveyForm = async (req, res) => {
 
     // Check if the phone number already exists in the database
     const existingSurvey = await ProspectSurveyModel.findOne({ phoneNumber: surveyData.phoneNumber });
-
     if (existingSurvey) {
       return res.status(400).json({ 
         success: false, 
@@ -32,20 +31,19 @@ export const ProspectSurveyForm = async (req, res) => {
     // Find the referring partner
     const referringPartner = await PartnersModel.findOne({ username: surveyData.username });
 
-    // Case: Partner found and username is not "business"
+    // Case 1: Send to referring partner if found and not 'business'
     if (referringPartner && referringPartner.username !== 'business') {
       await sendEmail(referringPartner.email, ownerSubject, ownerMessage);
     } else {
-      // Find partners with matching state
-      let statePartners = await PartnersModel.find({ state: surveyData.state });
+      // Case 2: Try to send to partners in the same state as the prospect
+      const statePartners = await PartnersModel.find({ 'address.state': surveyData.state });
 
       if (statePartners.length > 0) {
-        // Send to partners in the same state
         for (const partner of statePartners) {
           await sendEmail(partner.email, ownerSubject, ownerMessage);
         }
       } else {
-        // No matching state partners, send to all partners
+        // Case 3: Fallback – send to all partners
         const allPartners = await PartnersModel.find({});
         for (const partner of allPartners) {
           await sendEmail(partner.email, ownerSubject, ownerMessage);
@@ -69,6 +67,7 @@ export const ProspectSurveyForm = async (req, res) => {
     });
   }
 };
+
 
 // Partner Survey form handler
 export const PartnerSurveyForm = async (req, res) => {
