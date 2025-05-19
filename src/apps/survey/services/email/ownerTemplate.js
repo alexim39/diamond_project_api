@@ -4,7 +4,7 @@ export const ownerEmailTemplate = (surveyData) => `
       <span style="font-family: sans-serif; font-size: 20px; font-weight: bold; color: #0e0d17;">Diamond Project Online</span>
     </header>
     <main style="padding: 20px;">
-      <h2>Survey Submission</h2>
+      Hi,
       <p>A prospect named <strong>${surveyData.name.toUpperCase()} ${surveyData.surname.toUpperCase()} just submitted the survey form from <a href="https://diamondprojectonline.com">Diamond Project Online</a>.</p>
       <p>You may need to follow up with the user via WhatsApp or phone call.</p>
 
