@@ -8,13 +8,10 @@ const prospectSchema = mongoose.Schema(
     {
         prospectName: {
             type: String,
-            //unique: true,
             required: [true, "Please enter name"]
         },
         prospectSurname: {
             type: String,
-            //unique: true,
-           // required: [true, "Please enter surname"]
         },
         prospectPhone: {
             type: String,
@@ -23,17 +20,12 @@ const prospectSchema = mongoose.Schema(
         },
         prospectEmail: {
             type: String,
-            //unique: true,
-            //required: [true, "Please enter email address"]
         },
         prospectSource: {
             type: String,
             required: [true, "Please enter source"]
         },
-       /*  prospectRemark: {
-            type: String,
-        }, */
-        communications: [CommunicationSchema],// Replacing prospectRemark
+        communications: [CommunicationSchema],
         partnerId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'partner',
@@ -43,15 +35,10 @@ const prospectSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Survey',
         },
-       /*  status: {
-            type: String,
-            default: 'New Prospect'
-        }, */
         status: StatusSchema,
         role: {
             type: String,
             default: 'User'
-            //required: [true, "Please enter message"]
         },
         survey: {
             ageRange: {

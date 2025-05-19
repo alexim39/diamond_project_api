@@ -27,11 +27,6 @@ export const CommunicationSchema = new mongoose.Schema(
         type: String,
         default: 'To be determined',
     },
-   /*  videoWatchedPercentage: {
-        type: Number,
-        min: 0,
-        max: 100,
-    }, */
     topicsDiscussed: {
         type: [String],
         default: [],

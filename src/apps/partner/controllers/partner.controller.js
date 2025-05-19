@@ -8,9 +8,6 @@ dotenv.config()
 import mongoose from 'mongoose';
 
 
-
-
-
 // Check if a partner exists
 export const checkPartnerUsername = async (req, res) => {
   const { username } = req.params;
@@ -26,11 +23,6 @@ export const checkPartnerUsername = async (req, res) => {
     success: false
   });
 };
-
-
-
-
-
 
 
 // Update a partner's profile
