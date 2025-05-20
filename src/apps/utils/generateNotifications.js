@@ -9,7 +9,7 @@ export async function GeneratePartnerNotifications(partnerId) {
   const prospects = await ProspectModel.find({ partnerId });
 
   for (const prospect of prospects) {
-    const fullName = `${prospect.prospectName} ${prospect.prospectSurname || ''}`.trim();
+    const fullName = `${capitalizeFirstLetter(prospect.prospectName)} ${capitalizeFirstLetter(prospect.prospectSurname) || ''}`.trim();
 
     // 1. URGENT: Expected Decision Today
     if (prospect.status?.expectedDecisionDate) {

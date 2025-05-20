@@ -40,6 +40,11 @@ export const CommunicationSchema = new mongoose.Schema(
         enum: ['hot', 'warm', 'cold'],
         default: 'warm',
     },
+    status: {
+        type: String,
+        default: 'Open', 
+        // Closed - When not needed anymore!
+    }
 
   },
   {
