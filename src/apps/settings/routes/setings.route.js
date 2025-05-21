@@ -1,6 +1,6 @@
 import express from 'express';
 import { 
-    UpdateNotification, getNotifications
+    UpdateNotification, GetNotifications, MarkAsReadNotifications
 } from '../controllers/setings.controller.js'
 const SettingsRouter = express.Router();
 
@@ -8,7 +8,10 @@ const SettingsRouter = express.Router();
 SettingsRouter.put('/notification', UpdateNotification);
 
 // get partner notifications by id
-SettingsRouter.get('/notification/getById/:partnerId', getNotifications);
+SettingsRouter.get('/notification/getById/:partnerId', GetNotifications);
+
+// Delete partner notification by id
+SettingsRouter.get('/notification/delete/:prospectId/:notificationId', MarkAsReadNotifications);
 
 
 export default SettingsRouter;

@@ -303,7 +303,7 @@ export const getAllMySurveyProspect = async (req, res) => {
 };
 
 /* Import single prospect from survey to contact */
-export const importSingleFromSurveyToContact = async (req, res) => {
+export const ImportSingleProspectFromSurveyToContact = async (req, res) => {
   try {
     const { partnerId, prospectId } = req.params;
 
@@ -354,7 +354,6 @@ export const importSingleFromSurveyToContact = async (req, res) => {
 
     res.status(200).json({
       message: "Prospect moved successfully to your contact list!",
-      // data: newProspect, // Send back the created prospect data if needed
       success: true
     });
   } catch (error) {

@@ -1,6 +1,6 @@
 import express from 'express';
 import { 
-    CreateContactList,  getContactsCreatedBy,  importSurveyToContact,  getAllSurveyProspect, getAllMySurveyProspect, importSingleFromSurveyToContact,
+    CreateContactList,  getContactsCreatedBy,  importSurveyToContact,  getAllSurveyProspect, getAllMySurveyProspect, ImportSingleProspectFromSurveyToContact,
     getProspectById, UpdateProspectStatus, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
 } from '../controllers/prospect.controller.js'
 import { UpdateProspectCommunications, DeleteProspectCommunication} from '../controllers/communictions.controller.js'
@@ -21,7 +21,7 @@ ProspectRouter.get('/my/:username', getAllMySurveyProspect);
 // import prospect for user
 ProspectRouter.get('/import/:partnerId', importSurveyToContact );
 // import signle prospect for user
-ProspectRouter.get('/import-single/:partnerId/:prospectId', importSingleFromSurveyToContact );
+ProspectRouter.get('/import-single/:partnerId/:prospectId', ImportSingleProspectFromSurveyToContact );
 // delete signle prospect for user on survey model
 //ProspectRouter.get('/delete-single/:prospectId', deleteSingleFromSurvey );
 // get signle prospect byid
