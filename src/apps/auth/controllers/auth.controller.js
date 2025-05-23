@@ -102,50 +102,81 @@ export const signup = async (req, res) => {
 
 // Get current signed in user
 export const getPartner = async (req, res) => {
-  const token = req.cookies["jwt"];
-  const claims = jwt.verify(token, process.env.JWTTOKENSECRET);
+  try {
+    const token = req.cookies["jwt"];
+    if (!token) {
+      return res.status(401).json({ message: "No authentication token provided", success: false });
+    }
 
-  if (!claims) {
-    return res.status(401).json({ message: "User unauthenticated", success: false });
+    let claims;
+    try {
+      claims = jwt.verify(token, process.env.JWTTOKENSECRET);
+    } catch (err) {
+      return res.status(401).json({ message: "Invalid or expired token", success: false });
+    }
+
+    if (!claims || !claims.id) {
+      return res.status(401).json({ message: "User unauthenticated", success: false });
+    }
+
+    const user = await PartnersModel.findById(claims.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found", success: false });
+    }
+
+    const { password: _, ...userObject } = user.toJSON();
+    res.status(200).json({ data: userObject, message: 'User authenticated', success: true });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message, success: false });
   }
-
-  const user = await PartnersModel.findById(claims.id);
-  const { password: _, ...userObject } = user.toJSON();
-  res.status(200).json({data: userObject, message: 'User authenticated', success: true});
 };
 
 // Partner login
 export const signin = async (req, res) => {
-  const { email, password } = req.body;
-  const user = await PartnersModel.findOne({ email });
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required", success: false });
+    }
 
-  if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(400).json({ message: "Wrong email or password", success: false });
+    const user = await PartnersModel.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: "Wrong email or password", success: false });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Wrong email or password", success: false });
+    }
+
+    const token = jwt.sign({ id: user._id }, process.env.JWTTOKENSECRET, {
+      expiresIn: "1d",
+    });
+
+    res.cookie("jwt", token, {
+      httpOnly: true,
+      sameSite: "none",
+      secure: true,
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    // Optionally, return user info (excluding password)
+    //const { password: _, ...userObject } = user.toJSON();
+
+    res.status(200).json({ message: "Login successful", success: true });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message, success: false });
   }
-
-  const token = jwt.sign({ id: user._id }, process.env.JWTTOKENSECRET, {
-    expiresIn: "1d",
-  });
-
-  res.cookie("jwt", token, {
-    httpOnly: true,
-    sameSite: "none",
-    secure: true,
-    maxAge: 24 * 60 * 60 * 1000,
-  });
-
-  res.status(200).json({ message: "Login successful", success: true });
 };
-
-
-
-
-
 
 // Logout
 export const partnerSignout = async (req, res) => {
-  res.cookie("jwt", "", { maxAge: 0 });
-  res.json({ message: "Logged out successfully" });
+  try {
+    res.cookie("jwt", "", { maxAge: 0, httpOnly: true, sameSite: "none", secure: true });
+    res.status(200).json({ message: "Logged out successfully", success: true });
+  } catch (error) {
+    res.status(500).json({ message: "Logout failed", error: error.message, success: false });
+  }
 };
 
 

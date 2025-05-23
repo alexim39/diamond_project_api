@@ -77,7 +77,7 @@ export const UpdateContactList = async (req, res) => {
 };
 
 // Route handler to fetch all contacts by createdBy
-export const getContactsCreatedBy = async (req, res) => {
+export const GetContactsCreatedBy = async (req, res) => {
   try {
     const { createdBy } = req.params;
 
@@ -85,7 +85,7 @@ export const getContactsCreatedBy = async (req, res) => {
     const partner = await PartnersModel.findById(createdBy);
     if (!partner) {
       return res.status(404).json({ 
-        message: "User not found",
+        message: "Partner not found",
         success: false
       });
     }

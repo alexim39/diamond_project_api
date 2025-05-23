@@ -1,6 +1,6 @@
 import express from 'express';
 import { 
-    CreateContactList,  getContactsCreatedBy,  importSurveyToContact,  getAllSurveyProspect, getAllMySurveyProspect, ImportSingleProspectFromSurveyToContact,
+    CreateContactList,  GetContactsCreatedBy,  importSurveyToContact,  getAllSurveyProspect, getAllMySurveyProspect, ImportSingleProspectFromSurveyToContact,
     getProspectById, UpdateProspectStatus, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
 } from '../controllers/prospect.controller.js'
 import { UpdateProspectCommunications, DeleteProspectCommunication} from '../controllers/communictions.controller.js'
@@ -11,7 +11,7 @@ ProspectRouter.post('/create', CreateContactList);
 // update
 ProspectRouter.put('/update', UpdateContactList);
 // Get all contacts createdBy
-ProspectRouter.get('/all-createdBy/:createdBy', getContactsCreatedBy);
+ProspectRouter.get('/all-createdBy/:createdBy', GetContactsCreatedBy);
 // Get all surver prospect for
 ProspectRouter.get('/for/:createdBy', getSurveyProspectFor);
 // Get all surver prospect gotton by the system (Username = business)
