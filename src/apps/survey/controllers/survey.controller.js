@@ -4,17 +4,23 @@ import { sendEmail } from "../../../services/emailService.js";
 import { ownerEmailTemplate, partnerOwnerEmailTemplate } from '../services/email/ownerTemplate.js';
 import { userWelcomeEmailTemplate } from '../services/email/userTemplate.js';
 
-
+// Prospect survey form handler
 export const ProspectSurveyForm = async (req, res) => {
   try {
     const surveyData = req.body;
 
-    // Check if the phone number already exists in the database
-    const existingSurvey = await ProspectSurveyModel.findOne({ phoneNumber: surveyData.phoneNumber });
+    // Check if the phone number or email already exists in the database
+    const existingSurvey = await ProspectSurveyModel.findOne({
+      $or: [
+        { phoneNumber: surveyData.phoneNumber },
+        { email: surveyData.email }
+      ]
+    });
+
     if (existingSurvey) {
       return res.status(400).json({ 
         success: false, 
-        message: 'You\'ve already taken our survey. Thanks for your interest!' 
+        message: 'You\'ve already taken our survey with this email or phone. Thanks for your interest!' 
       });
     }
 
@@ -56,14 +62,14 @@ export const ProspectSurveyForm = async (req, res) => {
 
     res.status(200).json({ 
       success: true, 
-      message: 'Thank you for completing our survey, we will be in touch with you soon.' 
+      message: 'Thank you for completing our survey, someone will be in touch with you soon.' 
     });
 
   } catch (error) {
     res.status(500).json({ 
       success: false, 
       error: error.message,
-      message: 'An error occurred while processing your request. Please try again later.'
+      message: 'An error occurred while saving your survey. Please try again later.'
     });
   }
 };

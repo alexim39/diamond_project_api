@@ -303,9 +303,9 @@ export const getAllMySurveyProspect = async (req, res) => {
 };
 
 /* Import single prospect from survey to contact */
-export const ImportSingleProspectFromSurveyToContact = async (req, res) => {
+/* export const ImportSingleProspectFromSurveyToContact = async (req, res) => {
   try {
-    const { partnerId, prospectId } = req.params;
+    const { partnerId, prospectId, source } = req.params;
 
     // Get the user survey by prospectId
     const survey = await ProspectSurveyModel.findById(prospectId);
@@ -317,15 +317,124 @@ export const ImportSingleProspectFromSurveyToContact = async (req, res) => {
       });
     }
 
+    let prospectSource = 'Website'
+    if (source === 'website') {
+      prospectSource = "Website";
+    } else if (source === 'link') {
+      prospectSource = "Unique Link";
+    }
+
     // Create a new prospect using the data from the survey
     const newProspect = new ProspectModel({
       prospectName: survey.name,
       prospectSurname: survey.surname,
       prospectEmail: survey.email,
       prospectPhone: survey.phoneNumber,
-      prospectSource: "Unique Link",
+      prospectSource: prospectSource,
       partnerId: partnerId,
       surverId: survey._id, // Corrected typo: surverId -> surveyId
+      survey: {
+        ageRange: survey.ageRange,
+        socialMedia: survey.socialMedia,
+        employedStatus: survey.employedStatus,
+        importanceOfPassiveIncome: survey.importanceOfPassiveIncome,
+        onlinePurchaseSchedule: survey.onlinePurchaseSchedule,
+        primaryOnlineBusinessMotivation: survey.primaryOnlineBusinessMotivation,
+        comfortWithTech: survey.comfortWithTech,
+        onlineBusinessTimeDedication: survey.onlineBusinessTimeDedication,
+        referralCode: survey.referralCode,
+        referral: survey.referral,
+        country: survey.country,
+        state: survey.state,
+      },
+    });
+
+    // Save the new prospect entry to the database
+    await newProspect.save();
+
+    // Update the prospectStatus to "Moved to Contact"
+    survey.prospectStatus = "Moved to Contact";
+    await survey.save();
+
+    // Delete the survey entry after moving to ProspectModel
+    await ProspectSurveyModel.findByIdAndDelete(survey._id);
+
+    res.status(200).json({
+      message: "Prospect moved successfully to your contact list!",
+      success: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Prospect not moved, something went wrong',
+      error: error.message,
+      success: false
+    });
+  }
+}; */
+
+/* Import single prospect from survey to contact */
+export const ImportSingleProspectFromSurveyToContact = async (req, res) => {
+  try {
+    const { partnerId, prospectId, source } = req.params;
+
+    // Validate required params
+    if (!partnerId || !prospectId) {
+      return res.status(400).json({
+        message: "Missing required parameters.",
+        success: false
+      });
+    }
+
+    // Get the user survey by prospectId
+    const survey = await ProspectSurveyModel.findById(prospectId);
+
+    if (!survey) {
+      return res.status(404).json({
+        message: "Survey not found.",
+        success: false
+      });
+    }
+
+    // Check if this survey has already been moved
+    if (survey.prospectStatus === "Moved to Contact") {
+      return res.status(400).json({
+        message: "This survey has already been moved to contacts.",
+        success: false
+      });
+    }
+
+    // Check for duplicate prospect (by email or phone)
+    const existingProspect = await ProspectModel.findOne({
+      $or: [
+        { prospectEmail: survey.email },
+        { prospectPhone: survey.phoneNumber }
+      ],
+      partnerId: partnerId
+    });
+
+    if (existingProspect) {
+      return res.status(409).json({
+        message: "Prospect with this email or phone already exists in your contacts.",
+        success: false
+      });
+    }
+
+    let prospectSource = 'Website';
+    if (source === 'website') {
+      prospectSource = "Website";
+    } else if (source === 'link') {
+      prospectSource = "Unique Link";
+    }
+
+    // Create a new prospect using the data from the survey
+    const newProspect = new ProspectModel({
+      prospectName: survey.name,
+      prospectSurname: survey.surname,
+      prospectEmail: survey.email,
+      prospectPhone: survey.phoneNumber,
+      prospectSource: prospectSource,
+      partnerId: partnerId,
+      surverId: survey._id, // Typo kept for backward compatibility
       survey: {
         ageRange: survey.ageRange,
         socialMedia: survey.socialMedia,

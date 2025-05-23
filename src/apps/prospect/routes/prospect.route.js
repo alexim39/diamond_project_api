@@ -21,7 +21,7 @@ ProspectRouter.get('/my/:username', getAllMySurveyProspect);
 // import prospect for user
 ProspectRouter.get('/import/:partnerId', importSurveyToContact );
 // import signle prospect for user
-ProspectRouter.get('/import-single/:partnerId/:prospectId', ImportSingleProspectFromSurveyToContact );
+ProspectRouter.get('/import-single/:partnerId/:prospectId/:source', ImportSingleProspectFromSurveyToContact );
 // delete signle prospect for user on survey model
 //ProspectRouter.get('/delete-single/:prospectId', deleteSingleFromSurvey );
 // get signle prospect byid
