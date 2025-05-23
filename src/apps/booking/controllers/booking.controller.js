@@ -6,64 +6,96 @@ import { ownerEmailTemplate } from "../services/email/ownerTemplate.js";
 import { userNotificationEmailTemplate } from "../services/email/userTemplate.js";
 
 // User survey form
-export const bookingForm = async (req, res) => {
+export const SessionBookingController = async (req, res) => {
   try {
-    //console.log('sent==',req.body);
+    const {
+      reason,
+      description,
+      referralCode,
+      consultDate,
+      consultTime,
+      contactMethod,
+      referral,
+      phone,
+      email,
+      name,
+      surname,
+      userDevice,
+      username
+    } = req.body;
 
+    // Check for required fields
+    if (!consultDate || !consultTime || !email || !phone || !username) {
+      return res.status(400).json({
+        message: "Missing required booking information.",
+        success: false
+      });
+    }
+
+    // Prevent duplicate booking for the same user (by email or phone) at the same date/time
+    const existingBooking = await BookingModel.findOne({
+      $or: [
+        { email: email },
+        { phone: phone }
+      ],
+      consultDate: consultDate,
+      consultTime: consultTime
+    });
+
+    if (existingBooking) {
+      return res.status(400).json({
+        message: "You have already booked a session for this date and time.",
+        success: false
+      });
+    }
+
+    // Create the booking
     const userBooking = await BookingModel.create({
-      reason: req.body.reason,
-      description: req.body.description,
-      referralCode: req.body.referralCode,
-      consultDate: req.body.consultDate,
-      consultTime: req.body.consultTime,
-      contactMethod: req.body.contactMethod,
-      referral: req.body.referral,
-      phone: req.body.phone,
-      email: req.body.email,
-      name: req.body.name,
-      surname: req.body.surname,
-      userDevice: req.body.userDevice,
-      username: req.body.username,
-      //status: 'Scheduled',
+      reason,
+      description,
+      referralCode,
+      consultDate,
+      consultTime,
+      contactMethod,
+      referral,
+      phone,
+      email,
+      name,
+      surname,
+      userDevice,
+      username
+      // status: 'Scheduled',
     });
 
     // Find the user by username
-    const partner = await PartnersModel.findOne({
-      username: req.body.username,
-    });
-
+    const partner = await PartnersModel.findOne({ username });
     if (!partner) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         message: "User not found",
-        success: false,
-       });
+        success: false
+      });
     }
 
     // Send email to owner
-    const ownerSubject = "Notification for One-on-One Booking Session";
+    const ownerSubject = "Notification for One-on-One Session Booking";
     const ownerMessage = ownerEmailTemplate(userBooking);
-    const ownerEmails = [
-      partner.email,
-      "ago.fnc@gmail.com",
-    ];
-    for (const email of ownerEmails) {
-      await sendEmail(email, ownerSubject, ownerMessage);
-    }
+    await sendEmail(partner.email, ownerSubject, ownerMessage);
 
     // Send email to the user
-    const userSubject = "Your One-on-One Session is Confirmed – Let’s Unlock Your Potential!";
+    const userSubject = "Your Session Booking is Confirmed – Let’s Talk Business!";
     const userMessage = userNotificationEmailTemplate(userBooking);
     await sendEmail(userBooking.email, userSubject, userMessage);
 
     res.status(200).json({
-      userBooking, 
+      message: 'Session has been successfully booked. Ensure to meet with prospect on time!',
       success: true
     });
   } catch (error) {
+    console.log(error);
     res.status(500).json({
       error: error.message,
       message: "Error creating booking",
-      success: false,
+      success: false
     });
   }
 };

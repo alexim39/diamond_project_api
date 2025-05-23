@@ -65,7 +65,10 @@ export const UpdateContactList = async (req, res) => {
       });
     }
 
-    res.status(200).json({updatedProspect, success: true});
+    res.status(200).json({
+      message: "Prospect has been updated successfully",
+      success: true
+    });
 
   } catch (error) {
     res.status(400).json({ 
@@ -484,10 +487,10 @@ export const getProspectById = async (req, res) => {
       
       // Check if the prospect exists  
       if (!prospect) {  
-          return res.status(404).json({  
-              message: 'Prospect not found', 
-              success: false 
-          });  
+        return res.status(404).json({  
+          message: 'Prospect not found', 
+          success: false 
+        });  
       }  
 
       res.status(200).json({  
@@ -497,12 +500,11 @@ export const getProspectById = async (req, res) => {
       });  
 
   } catch (error) {  
-      console.error(error.message);  
-      res.status(500).json({  
-          message: 'Error retrieving data',  
-          error: error.message,  
-          success: false
-      });  
+    res.status(500).json({  
+        message: 'Error retrieving prospect data',  
+        error: error.message,  
+        success: false
+    });  
   }      
 };  
 
