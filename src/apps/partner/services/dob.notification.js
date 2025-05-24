@@ -25,10 +25,20 @@ cron.schedule('0 8 * * *', async () => {
 
     const users = await PartnersModel.find({ dobDatePicker: { $ne: null } }); // Find users with a recorded DoB
 
-    for (const user of users) {
+   /*  for (const user of users) {
       const dob = new Date(user.dobDatePicker); // Convert DoB to a Date object
       if (!isNaN(dob) && dob.getMonth() === todayMonth && dob.getDate() === todayDate) {
         await sendBirthdayNotification(user);
+      }
+    } */
+
+    for (const user of users) {
+      if (!user.dobDatePicker) continue;
+      const dob = new Date(user.dobDatePicker);
+      if (dob instanceof Date && !isNaN(dob.getTime())) {
+        if (dob.getMonth() === todayMonth && dob.getDate() === todayDate) {
+          await sendBirthdayNotification(user);
+        }
       }
     }
 
