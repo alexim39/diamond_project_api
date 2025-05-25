@@ -143,13 +143,21 @@ const partnersSchema = mongoose.Schema(
       nextBillingDate: { type: Date },
     },
     settings: {
-      notification: { 
-        type: String, 
-        required: true,
-        default: 'email'
-      },//"email | sms | both",
-    
-    }
+      notification: {
+        send: {
+          type: String,
+          required: true,
+          default: 'email', // "email" | "sms" | "both"
+          enum: ['email', 'sms', 'both', 'off']
+        },
+        receive: {
+          type: String,
+          required: true,
+          default: 'email', // "email" | "sms" | "both"
+          enum: ['email', 'sms', 'both', 'off']
+        }
+      }
+    },
   },
   {
     timestamps: true

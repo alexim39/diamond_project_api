@@ -1,11 +1,13 @@
 import express from 'express';
 import { 
-    UpdateNotification, GetNotifications, MarkAsReadNotifications
+    UpdateSendNotification, UpdateReceiveNotification, GetNotifications, MarkAsReadNotifications
 } from '../controllers/setings.controller.js'
 const SettingsRouter = express.Router();
 
-// submit sms
-SettingsRouter.put('/notification', UpdateNotification);
+// Sending notification settings
+SettingsRouter.put('/notification/send', UpdateSendNotification);
+// Receiving notification settings
+SettingsRouter.put('/notification/receive', UpdateReceiveNotification);
 
 // get partner notifications by id
 SettingsRouter.get('/notification/getById/:partnerId', GetNotifications);

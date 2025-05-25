@@ -37,21 +37,40 @@ export const ProspectSurveyForm = async (req, res) => {
     // Find the referring partner
     const referringPartner = await PartnersModel.findOne({ username: surveyData.username });
 
-    // Case 1: Send to referring partner if found and not 'business'
-    if (referringPartner && referringPartner.username !== 'business') {
+    // Case 1: Send to referring partner if found, not 'business', and receive notification is not 'off'
+    if (
+      referringPartner &&
+      referringPartner.username !== 'business' &&
+      (!referringPartner.settings ||
+        !referringPartner.settings.notification ||
+        referringPartner.settings.notification.receive !== 'off')
+    ) {
       await sendEmail(referringPartner.email, ownerSubject, ownerMessage);
     } else {
-      // Case 2: Try to send to partners in the same state as the prospect
+      // Case 2: Try to send to partners in the same state as the prospect, but only if receive notification is not 'off'
       const statePartners = await PartnersModel.find({ 'address.state': surveyData.state });
 
-      if (statePartners.length > 0) {
-        for (const partner of statePartners) {
+      const eligibleStatePartners = statePartners.filter(
+        partner =>
+          !partner.settings ||
+          !partner.settings.notification ||
+          partner.settings.notification.receive !== 'off'
+      );
+
+      if (eligibleStatePartners.length > 0) {
+        for (const partner of eligibleStatePartners) {
           await sendEmail(partner.email, ownerSubject, ownerMessage);
         }
       } else {
-        // Case 3: Fallback – send to all partners
+        // Case 3: Fallback – send to all partners, but only if receive notification is not 'off'
         const allPartners = await PartnersModel.find({});
-        for (const partner of allPartners) {
+        const eligiblePartners = allPartners.filter(
+          partner =>
+            !partner.settings ||
+            !partner.settings.notification ||
+            partner.settings.notification.receive !== 'off'
+        );
+        for (const partner of eligiblePartners) {
           await sendEmail(partner.email, ownerSubject, ownerMessage);
         }
       }

@@ -3,16 +3,17 @@ import { PartnersModel } from './../../partner/models/partner.model.js';
 import { ProspectModel } from './../../prospect/models/prospect.model.js';
 import { GeneratePartnerNotifications } from './../../utils/generateNotifications.js'
 
-// Save notification settings
-export const UpdateNotification = async (req, res) => {
+// Save send notification settings
+export const UpdateSendNotification = async (req, res) => {
   try {
     const { value, partnerId } = req.body;
+    // value should be a string: 'email' | 'sms' | 'both' | 'off'
 
-    // Find the partner by ID and update their settings
+    // Update only the 'send' field inside settings.notification
     const updatedPartner = await PartnersModel.findByIdAndUpdate(
       partnerId,
-      { 'settings.notification': value },
-      { new: true, runValidators: true } // 'new: true' returns the updated document
+      { 'settings.notification.send': value },
+      { new: true, runValidators: true }
     );
 
     if (!updatedPartner) {
@@ -23,7 +24,41 @@ export const UpdateNotification = async (req, res) => {
     }
 
     res.status(200).json({
-      message: 'Notification settings updated successfully',
+      message: 'Send notification setting updated successfully',
+      success: true
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: 'There was an error updating your settings',
+      error: error.message,
+      success: false
+    });
+  }
+};
+
+// Save receive notification settings
+export const UpdateReceiveNotification = async (req, res) => {
+  try {
+    const { value, partnerId } = req.body;
+    // value should be a string: 'email' | 'sms' | 'both' | 'off'
+
+    // Update only the 'receive' field inside settings.notification
+    const updatedPartner = await PartnersModel.findByIdAndUpdate(
+      partnerId,
+      { 'settings.notification.receive': value },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedPartner) {
+      return res.status(404).json({
+        message: 'Partner not found',
+        success: false
+      });
+    }
+
+    res.status(200).json({
+      message: 'Receive notification setting updated successfully',
       success: true
     });
 
