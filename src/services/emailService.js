@@ -2,6 +2,15 @@ import nodemailer from 'nodemailer';
 
 // Create Nodemailer transporter
 const transporter = nodemailer.createTransport({
+  host: 'diamondprojectonline.com',
+  secure: true,
+  port: 465,
+  auth: {
+    user: 'alex.i@diamondprojectonline.com', // your email
+    pass: process.env.EMAILPASS, // stored in environment variables
+  },
+});
+/* const transporter = nodemailer.createTransport({
   host: 'async.ng',
   secure: true,
   port: 465,
@@ -9,7 +18,7 @@ const transporter = nodemailer.createTransport({
     user: 'alex.i@async.ng', // your email
     pass: process.env.EMAILPASS, // stored in environment variables
   },
-});
+}); */
 
 /* const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -23,7 +32,7 @@ const transporter = nodemailer.createTransport({
 export const sendEmail = async (email, subject, htmlContent) => {
   try {
     await transporter.sendMail({
-      from: 'noreply@async.ng', // Sender email
+      from: 'noreply@diamondprojectonline.com', // Sender email
       to: email,
       subject: subject,
       html: htmlContent,
