@@ -20,7 +20,7 @@ export const ownerEmailTemplate = (surveyData) => {
         A prospect named <strong>${name} ${surname}</strong> just visited the Diamond Project Online website and submitted contact details.
       </p>
 
-      <p style="font-size: 16px; line-height: 1.6;">You may need to sign into the application platform to move this prospect in your contact list for further engagement.</p>
+      <p style="font-size: 16px; line-height: 1.6;">You may need to sign into the application platform to move this prospect into your contact list for further engagement.</p>
 
       <h4 style="font-size: 18px; color: #0e0d17; margin-top: 30px;">Prospect Information</h4>
       <table style="width: 100%; font-size: 16px; margin-top: 10px;">
