@@ -1,60 +1,61 @@
-export const userWelcomeEmailTemplate = (surveyData) => `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+export const userWelcomeEmailTemplate = (surveyData) => {
+  const capitalize = (str) =>
+    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-    <header style="text-align: center; padding: 10px; background-color: #f4f4f4;">
-      <span style="font-family: sans-serif; font-size: 20px; font-weight: bold; color: #0e0d17;">Diamond Project Online</span>
+  const name = capitalize(surveyData.name);
+
+  return `
+  <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);">
+    <header style="background-color: #f4f4f4; padding: 20px; text-align: center;">
+      <h1 style="margin: 0; font-size: 24px; color: #0e0d17;">Diamond Project Online</h1>
     </header>
 
-    <main style="padding: 20px;">
+    <main style="padding: 24px; color: #333;">
+      <p style="font-size: 16px;">Hi ${name},</p>
 
-      <p>Hi ${surveyData.name.toUpperCase()},</p>
-
-      <p>
-      Thank you for taking the time to visit Diamond Project Online and completing our survey. 
-      We're excited to introduce you to a unique opportunity that could transform your life.
+      <p style="font-size: 16px; line-height: 1.6;">
+        Thank you for taking the time to visit Diamond Project Online and completing our survey.
+        We're excited to introduce you to a unique opportunity that could transform your life.
       </p>
 
-      <p>
-      Diamond Project is more than just a project - it's your gateway to freedom in the digital world. 
-      We've combined the power of digital marketing with dynamic online partnership programs to create a system that empowers people like you.
+      <p style="font-size: 16px; line-height: 1.6;">
+        Diamond Project is more than just a project—it's your gateway to freedom in the digital world.
+        We've combined the power of digital marketing with dynamic online partnership programs to create a system that empowers people like you.
       </p>
 
-      <p>
-      Here's what makes Diamond Project Online special:
+      <p style="font-size: 16px; line-height: 1.6; margin-bottom: 10px;">
+        Here's what makes Diamond Project Online special:
       </p>
 
-      <ul>
-      <ol><strong>Global Reach: </strong> Connect with partners worldwide, all from the comfort of your home.</ol>
-      <ol><strong>Passive Income Potential: </strong> Build residual income streams that work for you 24/7.</ol>
-      <ol><strong>Personal Branding: </strong> Establish your authority and grow your influence online.</ol>
-      <ol><strong>Scalability: </strong>Expand your business without limits.</ol>
-      <ol><strong>Expert Mentorship: </strong> Benefit from our comprehensive training programs and step-by-step guidance.</ol>
+      <ul style="font-size: 16px; padding-left: 20px; line-height: 1.8;">
+        <li><strong>Global Reach:</strong> Connect with partners worldwide, all from the comfort of your home.</li>
+        <li><strong>Passive Income Potential:</strong> Build residual income streams that work for you 24/7.</li>
+        <li><strong>Personal Branding:</strong> Establish your authority and grow your influence online.</li>
+        <li><strong>Scalability:</strong> Expand your business without limits.</li>
+        <li><strong>Expert Mentorship:</strong> Benefit from our comprehensive training programs and step-by-step guidance.</li>
       </ul>
 
-      <p>
-      When you join us, you'll receive a personalized link and access to our advanced online platform, making it effortless to promote, manage, and grow your business.
+      <p style="font-size: 16px; line-height: 1.6;">
+        When you join us, you'll receive a personalized link and access to our advanced online platform, making it effortless to promote, manage, and grow your business.
       </p>
 
-      <p>
-      If you have further questions, kindly reach out to us at contacts@diamondprojectonline.com
+      <p style="font-size: 16px; line-height: 1.6;">
+        If you have further questions, kindly reach out to us at 
+        <a href="mailto:contacts@diamondprojectonline.com" style="color: #007BFF;">contacts@diamondprojectonline.com</a>
       </p>
 
-      <p>
-      Let's build your digital legacy together!
-      </p>
+      <p style="font-size: 16px; line-height: 1.6;">Let's build your digital legacy together!</p>
 
-      <p>
-      Best regards,
-      <br>
-      Alex Imenwo
-      <br>
-      <strong>Diamond Project Online Team</strong>
+      <p style="font-size: 16px; line-height: 1.6;">
+        Best regards,<br>
+        Alex Imenwo<br>
+        <strong>Diamond Project Online Team</strong>
       </p>
-
     </main>
-    <br>
-    <footer style="text-align: center; padding: 20px; background-color: #f4f4f4; margin-top: 20px;">
-     <p>Diamond Project: Becoming the ultimate version of yourself  </p>
+
+    <footer style="background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 14px; color: #666;">
+      Diamond Project: Becoming the ultimate version of yourself
     </footer>
   </div>
 `;
+};

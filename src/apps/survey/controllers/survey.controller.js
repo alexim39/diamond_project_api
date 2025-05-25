@@ -29,7 +29,7 @@ export const ProspectSurveyForm = async (req, res) => {
     await survey.save();
 
     // Prepare email templates
-    const ownerSubject = 'New Prospect Survey Submission';
+    const ownerSubject = 'New Prospect Notification - Diamond Project';
     const ownerMessage = ownerEmailTemplate(surveyData);
     const userSubject = 'Welcome to Diamond Project';
     const userMessage = userWelcomeEmailTemplate(surveyData);
