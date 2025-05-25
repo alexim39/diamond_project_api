@@ -254,7 +254,7 @@ export const getAllSurveyProspect = async (req, res) => {
 
     if (!prospectObject) {
       return res.status(400).json({ 
-        message: "System prospects not found",
+        message: "Platform prospects not found",
         success: false
       });
     }
@@ -267,7 +267,7 @@ export const getAllSurveyProspect = async (req, res) => {
   } catch (error) {
     //console.error(error.message);
     res.status(500).json({
-      message: "Error retrieving Ads",
+      message: "Error retrieving prospects",
       error: error.message,
       success: false
     });

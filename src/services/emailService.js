@@ -1,12 +1,21 @@
 import nodemailer from 'nodemailer';
 
 // Create Nodemailer transporter
-const transporter = nodemailer.createTransport({
+/* const transporter = nodemailer.createTransport({
   host: 'async.ng',
   secure: true,
   port: 465,
   auth: {
+    //user: 'alex.i@async.ng', // your email
     user: 'alex.i@async.ng', // your email
+    pass: process.env.EMAILPASS, // stored in environment variables
+  },
+}); */
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+     user: 'ago.fnc@gmail.com', // your email
     pass: process.env.EMAILPASS, // stored in environment variables
   },
 });
