@@ -1,8 +1,14 @@
 export const userWelcomeEmailTemplate = (surveyData) => {
-  const capitalize = (str) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
+    const capitalizeWords = (str) =>
+    str
+      ? str
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ')
+      : "";
 
-  const name = capitalize(surveyData.name);
+  const name = capitalizeWords(surveyData.name);
+
 
   return `
   <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);">
