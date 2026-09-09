@@ -34,6 +34,20 @@ export class MongoCommissionLedger {
     return { items: items.map((d) => ({ ...d, id: oid(d._id) })), total };
   }
 
+  /** Recent releases for the notification feed (bounded lookback). */
+  async findReleasedSince(partnerId, lookbackDays = 30) {
+    const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
+    const docs = await CommissionModel.find({
+      earnerId: partnerId,
+      status: 'Released',
+      $or: [{ releasedAt: { $gte: since } }, { releasedAt: null, createdAt: { $gte: since } }],
+    })
+      .sort({ releasedAt: -1, createdAt: -1 })
+      .limit(20)
+      .lean();
+    return docs.map((d) => ({ ...d, id: oid(d._id) }));
+  }
+
   async sumByEarner(partnerId) {
     const rows = await CommissionModel.aggregate([
       { $match: { earnerId: objectId(partnerId) } },
