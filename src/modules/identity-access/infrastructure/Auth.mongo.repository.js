@@ -24,8 +24,7 @@ export class MongoPartnerRepository {
     const [doc] = await PartnersModel.create([data], opts(session));
     return doc.toObject();
   }
-  async updateById(id, patch, { session } = {}) {
-    // Strip `undefined` so clearing resetPasswordToken works via $unset-safe set
+  async updateById(id, patch, { session } = {}) {    // Strip `undefined` so clearing resetPasswordToken works via $unset-safe set
     const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
     const unset = Object.fromEntries(
       Object.entries(patch).filter(([, v]) => v === undefined).map(([k]) => [k, '']),
@@ -33,6 +32,26 @@ export class MongoPartnerRepository {
     const update = { ...(Object.keys(clean).length ? { $set: clean } : {}) };
     if (Object.keys(unset).length) update.$unset = unset;
     return PartnersModel.findByIdAndUpdate(id, update, { new: true, ...opts(session) }).lean();
+  }
+  /** Case-insensitive role count (absorbs legacy 'User'/'admin' casing). */
+  async countByRole(role) {
+    return PartnersModel.find({ role: String(role) })
+      .collation({ locale: 'en', strength: 2 })
+      .countDocuments();
+  }
+  /** Admin directory listing — lean, paginated, safe fields projected upstream. */
+  async listPartners({ limit = 25, skip = 0, q = '' }) {
+    const filter = {};
+    if (q) {
+      const escaped = String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(escaped, 'i');
+      filter.$or = [{ name: re }, { surname: re }, { username: re }, { email: re }];
+    }
+    const [items, total] = await Promise.all([
+      PartnersModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      PartnersModel.countDocuments(filter),
+    ]);
+    return { items, total };
   }
 }
 

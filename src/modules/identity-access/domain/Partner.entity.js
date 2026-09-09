@@ -1,4 +1,5 @@
 import { ValidationException } from '../../../shared/domain/AppError.js';
+import { lenientRole } from './PartnerRole.js';
 
 const text = (value, field, { min = 2, max = 80 } = {}) => {
   const v = String(value ?? '').trim();
@@ -61,5 +62,7 @@ export const toSafePartner = (doc) => {
   delete o.resetPasswordToken;
   delete o.resetPasswordExpires;
   if (o._id) o.id = String(o._id);
+  // Canonical role casing (absorbs legacy 'User'/'admin' free-text).
+  o.role = lenientRole(o.role);
   return o;
 };

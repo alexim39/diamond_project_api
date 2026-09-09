@@ -26,7 +26,7 @@ import SettingsRouter from './src/apps/settings/index.js';
 import './src/apps/partner/services/dob.notification.js';
 // Strangler Fig: DDD slices (new) mounted alongside legacy routers
 import TicketV1Router from './src/modules/support-ticketing/index.js';
-import AuthV1Router from './src/modules/identity-access/index.js';
+import AuthV1Router, { AdminRouter } from './src/modules/identity-access/index.js';
 import ProspectV1Router from './src/modules/crm/index.js';
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 
@@ -78,6 +78,7 @@ app.use('/settings', SettingsRouter);
 app.use('/v1/tickets', TicketV1Router);
 app.use('/v1/auth', AuthV1Router);
 app.use('/v1/prospects', ProspectV1Router);
+app.use('/v1/admin', AdminRouter);
 
 
 
