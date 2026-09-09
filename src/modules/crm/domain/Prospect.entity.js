@@ -83,6 +83,20 @@ export const createCommunicationEntity = (input) => {
 export const PROSPECT_STATUSES = ['Open', 'Closed'];
 
 /**
+ * Canonical pipeline (Phase A lead management). Stored as `status.stage`
+ * alongside the legacy free-text `status.name` — old documents simply
+ * have no stage until advanced. Terminal: Converted | Closed.
+ */
+export const PROSPECT_STAGES = [
+  'New',
+  'Contacted',
+  'Interested',
+  'In Negotiation',
+  'Converted',
+  'Closed',
+];
+
+/**
  * Value Object: status overlay — only provided keys change (dotted $set).
  * Legacy REPLACED the whole subdoc, silently dropping `status: Open/Closed`.
  */
@@ -98,6 +112,10 @@ export const createStatusOverlay = (input) => {
   if (input.status !== undefined) {
     if (!PROSPECT_STATUSES.includes(input.status)) throw new ValidationException('Invalid status flag');
     overlay.status = input.status;
+  }
+  if (input.stage !== undefined) {
+    if (!PROSPECT_STAGES.includes(input.stage)) throw new ValidationException('Invalid pipeline stage');
+    overlay.stage = input.stage;
   }
   if (Object.keys(overlay).length === 0) throw new ValidationException('Nothing to update');
   return overlay;

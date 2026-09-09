@@ -65,4 +65,13 @@ export const makeProspectController = (uc) => ({
     const data = await uc.notifications.execute({ partnerId });
     res.status(200).json({ message: 'Notifications built successfully!', data, success: true });
   }),
+
+  convert: asyncHandler(async (req, res) => {
+    const data = await uc.convert.execute({ prospectId: pid(req) });
+    res.status(200).json({
+      message: 'Enrollment code issued. Share it with the prospect to complete signup.',
+      data,
+      success: true,
+    });
+  }),
 });

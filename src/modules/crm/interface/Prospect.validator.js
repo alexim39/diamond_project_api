@@ -34,6 +34,8 @@ export const UpdateStatusSchema = z.object({
   expectedDecisionDate: z.coerce.date().optional(),
   onboardingDate: z.coerce.date().optional(),
   status: z.enum(['Open', 'Closed']).optional(),
+  // Canonical pipeline stage (Phase A). Legacy free-text `name` still accepted.
+  stage: z.enum(['New', 'Contacted', 'Interested', 'In Negotiation', 'Converted', 'Closed']).optional(),
 });
 
 export const LogCommunicationSchema = z.object({

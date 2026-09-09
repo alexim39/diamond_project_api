@@ -12,7 +12,8 @@ import { LogCommunicationUseCase, RemoveCommunicationUseCase } from '../applicat
 import {
   GetProspectByIdUseCase, GetProspectsByPartnerUseCase, GetProspectNotificationsUseCase,
 } from '../application/Prospect.queries.js';
-import { MongoProspectRepository, MongoPartnerLookup } from '../infrastructure/Prospect.mongo.repository.js';
+import { MongoProspectRepository, MongoPartnerLookup, MongoReservationCodes } from '../infrastructure/Prospect.mongo.repository.js';
+import { ConvertProspectToPartnerUseCase } from '../application/Prospect.convert.js';
 
 /**
  * Manual wiring — explicit for onboarding; pass fakes in tests.
@@ -26,6 +27,7 @@ import { MongoProspectRepository, MongoPartnerLookup } from '../infrastructure/P
 export const buildProspectRouter = (deps = {}) => {
   const prospects = deps.prospects ?? new MongoProspectRepository();
   const partners = deps.partners ?? new MongoPartnerLookup();
+  const reservations = deps.reservations ?? new MongoReservationCodes();
 
   const c = makeProspectController({
     create: new CreateProspectUseCase({ prospects }),
@@ -37,6 +39,7 @@ export const buildProspectRouter = (deps = {}) => {
     logCommunication: new LogCommunicationUseCase({ prospects }),
     removeCommunication: new RemoveCommunicationUseCase({ prospects }),
     notifications: new GetProspectNotificationsUseCase({ prospects }),
+    convert: new ConvertProspectToPartnerUseCase({ prospects, reservations }),
   });
 
   const router = express.Router();
@@ -58,6 +61,8 @@ export const buildProspectRouter = (deps = {}) => {
 
   router.post('/:prospectId/status', validate({ params: ProspectIdParam, body: UpdateStatusSchema }), c.updateStatus);
   router.post('/updateStatus', validate({ body: UpdateStatusSchema }), c.updateStatus);
+
+  router.post('/:prospectId/convert', validate({ params: ProspectIdParam }), c.convert);
 
   router.post('/:prospectId/communications', validate({ params: ProspectIdParam, body: LogCommunicationSchema }), c.logCommunication);
   router.post('/communications', validate({ body: LogCommunicationSchema }), c.logCommunication);

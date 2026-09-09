@@ -1,4 +1,4 @@
-import { ProspectModel, PartnersModel } from './Prospect.models.js';
+import { ProspectModel, PartnersModel, ReservationCodeModel } from './Prospect.models.js';
 import { ProspectMapper } from './Prospect.mapper.js';
 
 /** Mongo implementation of the crm repository contracts. Reads use `.lean()`. */
@@ -76,5 +76,26 @@ export class MongoProspectRepository {
 export class MongoPartnerLookup {
   async exists(partnerId) {
     return (await PartnersModel.exists({ _id: partnerId })) !== null;
+  }
+}
+
+/**
+ * Minimal reservation-code writer for prospect conversion.
+ * Issues partner-approved codes (upline converts own prospect, so no
+ * Pending round-trip). Same `reservation-codes` collection as legacy.
+ */
+export class MongoReservationCodes {
+  async existsByCode(code) {
+    return (await ReservationCodeModel.exists({ code })) !== null;
+  }
+
+  async createApproved({ code, partnerId, prospectId }) {
+    const doc = await ReservationCodeModel.create({
+      code,
+      partnerId,
+      prospectId,
+      status: 'Approved',
+    });
+    return { id: String(doc._id), code: doc.code, status: doc.status };
   }
 }
