@@ -1,0 +1,9 @@
+/**
+ * Public entry for the identity-access slice.
+ * Default export is the mounted router (note: named + default both exposed —
+ * see support-ticketing fix where a named-only barrel broke `server.js`).
+ */
+export { default, buildAuthRouter } from './interface/Auth.routes.js';
+export { SignupUseCase } from './application/Signup.usecase.js';
+export { SigninUseCase } from './application/Signin.usecase.js';
+export { sessionCookieFlags } from './interface/Auth.controller.js';

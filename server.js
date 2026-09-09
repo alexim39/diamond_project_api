@@ -24,8 +24,13 @@ import TeamsRouter from './src/apps/teams/index.js';
 import SettingsRouter from './src/apps/settings/index.js';
 // Import the birthday notification service
 import './src/apps/partner/services/dob.notification.js';
+// Strangler Fig: DDD slices (new) mounted alongside legacy routers
+import TicketV1Router from './src/modules/support-ticketing/index.js';
+import AuthV1Router from './src/modules/identity-access/index.js';
+import ProspectV1Router from './src/modules/crm/index.js';
+import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8080;
 const app = express();
 app.use(express.json()); // Use json middleware
 app.use(express.urlencoded({extended: false})); // Use formdata middleware
@@ -69,6 +74,10 @@ app.use('/image', ProfileImageRouter);
 app.use('/ticket', TicketRouter);
 app.use('/team', TeamsRouter);
 app.use('/settings', SettingsRouter);
+/* DDD v1 (new, strangler) — same data, validated boundary */
+app.use('/v1/tickets', TicketV1Router);
+app.use('/v1/auth', AuthV1Router);
+app.use('/v1/prospects', ProspectV1Router);
 
 
 
@@ -77,6 +86,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // Serve static files from the "uploads" directory
 app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads')));
+
+/* Central domain-error map for v1 slices (legacy routes keep their own try/catch) */
+app.use(errorMiddleware);
 
 /* DB connection */
 mongoose.connect(`mongodb+srv://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@cluster0.buvy2cx.mongodb.net/${process.env.MONGODB_DATABASE}?retryWrites=true&w=majority`)

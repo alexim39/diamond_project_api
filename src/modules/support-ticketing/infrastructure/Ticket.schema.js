@@ -1,0 +1,31 @@
+import mongoose from 'mongoose';
+
+/**
+ * Infrastructure: Mongoose schema for tickets.
+ * Points at the SAME `tickets` collection as legacy `Ticket` model
+ * so the strangler reads/writes identical data.
+ * Reuses the compiled model when legacy is also loaded to avoid
+ * `OverwriteModelError` in a shared process.
+ */
+const ticketSchema = new mongoose.Schema(
+  {
+    subject: { type: String, required: true, trim: true, maxlength: 200 },
+    description: { type: String, required: true, trim: true, maxlength: 5000 },
+    date: { type: Date, required: true },
+    category: { type: String, required: true, trim: true, maxlength: 120 },
+    priority: { type: String, required: true, trim: true, maxlength: 40 },
+    comment: { type: String, default: '', trim: true, maxlength: 5000 },
+    partnerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Partner',
+      required: true,
+      index: true,
+    },
+  },
+  { timestamps: true },
+);
+
+ticketSchema.index({ partnerId: 1, createdAt: -1 });
+
+export const TicketMongooseModel =
+  mongoose.models.Ticket ?? mongoose.model('Ticket', ticketSchema);

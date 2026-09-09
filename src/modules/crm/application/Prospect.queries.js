@@ -1,0 +1,49 @@
+import { NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
+import { PartnerId } from '../domain/Prospect.entity.js';
+import { buildProspectNotifications } from '../domain/Prospect.notifications.js';
+
+const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
+const idOrThrow = (value, field) => {
+  const v = String(value ?? '').trim();
+  if (!OBJECT_ID_RE.test(v)) throw new ValidationException(`Invalid ${field}`);
+  return v;
+};
+
+/** GET /v1/prospects/:id */
+export class GetProspectByIdUseCase {
+  /** @param {{prospects}} deps */
+  constructor({ prospects }) { this.prospects = prospects; }
+  async execute({ prospectId }) {
+    const found = await this.prospects.findById(idOrThrow(prospectId, 'prospectId'));
+    if (!found) throw new NotFoundException('Prospect not found');
+    return found;
+  }
+}
+
+/**
+ * GET /v1/prospects/by-partner/:partnerId — paginated (legacy: unbounded
+ * `find`, a load bomb on large contact lists). Partner-existence 404
+ * preserved via read-only PartnerLookup.
+ */
+export class GetProspectsByPartnerUseCase {
+  /** @param {{prospects, partners}} deps */
+  constructor({ prospects, partners }) { this.prospects = prospects; this.partners = partners; }
+  async execute({ partnerId, limit = 100, skip = 0 }) {
+    const pid = PartnerId.create(partnerId);
+    if (!(await this.partners.exists(pid))) throw new NotFoundException('Partner not found');
+    const lim = Math.min(Math.max(Number(limit) || 100, 1), 500);
+    const sk = Math.max(Number(skip) || 0, 0);
+    return this.prospects.findByPartnerId(pid, { limit: lim, skip: sk });
+  }
+}
+
+/** GET /v1/prospects/notifications/:partnerId — ported util, now an endpoint. */
+export class GetProspectNotificationsUseCase {
+  /** @param {{prospects}} deps */
+  constructor({ prospects }) { this.prospects = prospects; }
+  async execute({ partnerId, now }) {
+    const pid = PartnerId.create(partnerId);
+    const { items } = await this.prospects.findByPartnerId(pid, { limit: 500, skip: 0 });
+    return buildProspectNotifications(items, now);
+  }
+}
