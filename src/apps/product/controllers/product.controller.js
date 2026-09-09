@@ -139,10 +139,13 @@ export const Savecart = async (req, res) => {
           await sendEmail(email, emailSubject, emailMessage);
       }
 
-      res.status(200).json({ 
-        message: 'Cart saved successfully', 
-        success: true,
-    });   
+        res.status(200).json({ 
+            message: 'Cart saved successfully', 
+            success: true,
+            // Phase D glue: expose the order id so clients can accrue
+            // commissions idempotently via POST /v1/billing/accrue/:cartId.
+            data: { cartId: cart._id },
+        });   
 
     } else {  
       return res.status(401).json({  

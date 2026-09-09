@@ -1,0 +1,43 @@
+import { asyncHandler } from '../../../shared/http/asyncHandler.js';
+
+const param = (req, key) => req.validated?.params?.[key] ?? req.params[key];
+
+/** Interface: HTTP adapters for billing. Envelopes match house style. */
+export const makeBillingController = (uc) => ({
+  mine: asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const data = await uc.mine.execute({
+      partnerId: req.auth?.partnerId,
+      limit: q?.limit,
+      skip: q?.skip,
+      status: q?.status,
+    });
+    res.status(200).json({ message: 'Commissions retrieved successfully', data, success: true });
+  }),
+
+  summary: asyncHandler(async (req, res) => {
+    const data = await uc.performance.execute({ partnerId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Performance retrieved successfully', data, success: true });
+  }),
+
+  accrue: asyncHandler(async (req, res) => {
+    const data = await uc.accrue.execute({ cartId: param(req, 'cartId') });
+    res.status(200).json({ message: 'Commissions accrued successfully', data, success: true });
+  }),
+
+  pendingCarts: asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const data = await uc.pendingCarts.execute({ limit: q?.limit, skip: q?.skip });
+    res.status(200).json({ message: 'Pending release queue retrieved successfully', data, success: true });
+  }),
+
+  release: asyncHandler(async (req, res) => {
+    const data = await uc.release.execute({ cartId: param(req, 'cartId'), releasedBy: req.auth?.partnerId });
+    res.status(200).json({ message: 'Commissions released successfully', data, success: true });
+  }),
+
+  void: asyncHandler(async (req, res) => {
+    const data = await uc.void.execute({ cartId: param(req, 'cartId'), releasedBy: req.auth?.partnerId });
+    res.status(200).json({ message: 'Order commissions voided successfully', data, success: true });
+  }),
+});
