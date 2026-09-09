@@ -20,6 +20,19 @@ export class MongoProspectRepository {
     return { items: items.map(ProspectMapper.toDomain), total };
   }
 
+  /** Goal-engine counters: created + converted within a window. */
+  async countCreated(partnerId, start, end) {
+    return ProspectModel.countDocuments({ partnerId, createdAt: { $gte: start, $lte: end } });
+  }
+
+  async countConverted(partnerId, start, end) {
+    return ProspectModel.countDocuments({
+      partnerId,
+      'status.stage': 'Converted',
+      updatedAt: { $gte: start, $lte: end },
+    });
+  }
+
   async findDuplicate(partnerId, { phone, email }) {
     const or = [];
     if (phone) or.push({ prospectPhone: phone });

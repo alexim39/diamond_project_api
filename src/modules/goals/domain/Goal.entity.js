@@ -1,0 +1,64 @@
+import { ValidationException } from '../../../shared/domain/AppError.js';
+
+export const GOAL_KINDS = ['sales', 'recruitment', 'team_volume', 'conversion'];
+export const GOAL_KIND_LABELS = {
+  sales: 'Personal sales',
+  recruitment: 'Recruitment',
+  team_volume: 'Team volume',
+  conversion: 'Conversions',
+};
+
+/** @param {unknown} value */
+export const assertGoalKind = (value) => {
+  if (!GOAL_KINDS.includes(value)) {
+    throw new ValidationException(`Invalid goal kind (expected one of: ${GOAL_KINDS.join(', ')})`);
+  }
+  return value;
+};
+
+const asDate = (value, field) => {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) throw new ValidationException(`Invalid ${field}`);
+  return d;
+};
+
+/**
+ * @param {{title,kind,target,startDate,endDate}} input (Zod-whitelisted)
+ */
+export const createGoalEntity = (input) => {
+  const target = Number(input.target);
+  if (!Number.isFinite(target) || target <= 0) throw new ValidationException('Target must be a positive number');
+  const startDate = asDate(input.startDate, 'startDate');
+  const endDate = asDate(input.endDate, 'endDate');
+  if (endDate <= startDate) throw new ValidationException('End date must be after start date');
+  return {
+    title: String(input.title ?? '').trim().slice(0, 120) || GOAL_KIND_LABELS[input.kind] || 'Goal',
+    kind: assertGoalKind(input.kind),
+    target,
+    startDate,
+    endDate,
+  };
+};
+
+/**
+ * Pure progress math — unit-testable without Mongo.
+ * @returns {{current,percent,remaining,daysLeft,daysTotal,onTrack,complete}}
+ */
+export const computeProgress = (current, target, startDate, endDate, now = new Date()) => {
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime();
+  const t = Math.min(Math.max(new Date(now).getTime(), start), end);
+  const daysTotal = Math.max(1, Math.ceil((end - start) / 86400000));
+  const elapsed = Math.max(0, t - start);
+  const expected = target * (elapsed / (end - start || 1));
+  const percent = target > 0 ? Math.min(100, Math.round((current / target) * 1000) / 10) : 0;
+  return {
+    current,
+    percent,
+    remaining: Math.max(0, Math.round((target - current) * 100) / 100),
+    daysLeft: Math.max(0, Math.ceil((end - new Date(now).getTime()) / 86400000)),
+    daysTotal,
+    onTrack: current >= expected,
+    complete: current >= target,
+  };
+};
