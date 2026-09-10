@@ -30,6 +30,7 @@ import AuthV1Router, { AdminRouter } from './src/modules/identity-access/index.j
 import NetworkRouter from './src/modules/network/index.js';
 import BillingRouter from './src/modules/billing/index.js';
 import NotificationsRouter from './src/modules/notifications/index.js';
+import GoalsRouter from './src/modules/goals/index.js';
 import ProspectV1Router from './src/modules/crm/index.js';
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 
@@ -85,6 +86,7 @@ app.use('/v1/admin', AdminRouter);
 app.use('/v1/network', NetworkRouter);
 app.use('/v1/billing', BillingRouter);
 app.use('/v1/notifications', NotificationsRouter);
+app.use('/v1/goals', GoalsRouter);
 
 
 

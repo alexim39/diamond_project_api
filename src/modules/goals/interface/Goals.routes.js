@@ -16,18 +16,26 @@ const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 const GoalIdParam = z.object({ goalId: objectId });
 const isoDate = z.coerce.date();
 
-const GoalSchema = z.object({
+const GoalFields = {
   title: z.string().trim().max(120).optional().default(''),
   kind: z.enum(GOAL_KINDS),
   target: z.coerce.number().positive().max(1000000000),
   startDate: isoDate,
   endDate: isoDate,
-}).refine((g) => new Date(g.endDate) > new Date(g.startDate), {
+};
+
+const GoalSchema = z.object(GoalFields).refine((g) => new Date(g.endDate) > new Date(g.startDate), {
   message: 'End date must be after start date',
   path: ['endDate'],
 });
 
-const UpdateGoalSchema = GoalSchema.partial();
+// Zod v4 forbids .partial() on refined schemas — refine the partial instead.
+const UpdateGoalSchema = z.object(
+  Object.fromEntries(Object.entries(GoalFields).map(([k, s]) => [k, s.optional()])),
+).refine(
+  (g) => g.startDate === undefined || g.endDate === undefined || new Date(g.endDate) > new Date(g.startDate),
+  { message: 'End date must be after start date', path: ['endDate'] },
+);
 const TrendsQuery = z.object({
   months: z.coerce.number().int().min(2).max(12).optional().default(6),
 });
