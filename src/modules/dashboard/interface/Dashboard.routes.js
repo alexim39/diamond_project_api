@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
-import { GetOverviewUseCase } from '../application/Dashboard.usecases.js';
+import { GetOverviewUseCase, resolveOverviewTarget } from '../application/Dashboard.usecases.js';
 import { MongoProspectRepository } from '../../crm/infrastructure/Prospect.mongo.repository.js';
 import { MongoOrderReader, MongoCommissionLedger } from '../../billing/infrastructure/Billing.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -15,6 +15,8 @@ import { GetActionsUseCase, GetFunnelUseCase, GetTeamUseCase } from '../../analy
 
 const OverviewQuery = z.object({
   days: z.coerce.number().int().min(7).max(365).optional().default(30),
+  // Optional upline-scoped read: leader views a downline partner's overview.
+  for: z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id').optional(),
 });
 
 /** Manual wiring — same composition graph as the analytics slice. */
@@ -40,7 +42,12 @@ export const buildDashboardRouter = (deps = {}) => {
 
   router.get('/overview', validate({ query: OverviewQuery }), asyncHandler(async (req, res) => {
     const q = req.validated?.query ?? req.query;
-    const data = await overview.execute({ partnerId: req.auth?.partnerId, days: q?.days });
+    const targetId = await resolveOverviewTarget({
+      requesterId: req.auth?.partnerId,
+      forId: q?.for,
+      network,
+    });
+    const data = await overview.execute({ partnerId: targetId, days: q?.days });
     res.status(200).json({ message: 'Dashboard overview retrieved successfully', data, success: true });
   }));
 

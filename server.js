@@ -33,6 +33,7 @@ import NotificationsRouter from './src/modules/notifications/index.js';
 import GoalsRouter from './src/modules/goals/index.js';
 import AnalyticsRouter from './src/modules/analytics/index.js';
 import DashboardRouter from './src/modules/dashboard/index.js';
+import ReportsRouter from './src/modules/reports/index.js';
 import ProspectV1Router from './src/modules/crm/index.js';
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 
@@ -91,6 +92,7 @@ app.use('/v1/notifications', NotificationsRouter);
 app.use('/v1/goals', GoalsRouter);
 app.use('/v1/analytics', AnalyticsRouter);
 app.use('/v1/dashboard', DashboardRouter);
+app.use('/v1/reports', ReportsRouter);
 
 
 

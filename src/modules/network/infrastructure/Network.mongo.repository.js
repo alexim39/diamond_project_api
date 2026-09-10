@@ -32,8 +32,7 @@ export class MongoNetworkRepository {  async findNode(id) {
  * one implementation, not three copies.
  * @returns {{ids: string[], total: number, capped: boolean}}
  */
-export async function collectDownlineIds(networkRepo, rootId, { maxDepth = 10, cap = 5000 } = {}) {
-  const visited = new Set([String(rootId)]);
+export async function collectDownlineIds(networkRepo, rootId, { maxDepth = 10, cap = 5000 } = {}) {  const visited = new Set([String(rootId)]);
   const ids = [];
   let capped = false;
   let frontier = [String(rootId)];
@@ -51,4 +50,24 @@ export async function collectDownlineIds(networkRepo, rootId, { maxDepth = 10, c
     frontier = fresh;
   }
   return { ids, total: ids.length, capped };
+}
+
+/**
+ * Ancestor check by walking parent links (bounded, cycle-safe).
+ * Authorizes upline-scoped reads: requests, team reports, downline overview.
+ */
+export async function isAncestor(networkRepo, ancestorId, descendantId, maxDepth = 10) {
+  const target = String(ancestorId);
+  let current = String(descendantId);
+  const seen = new Set([current]);
+  for (let d = 0; d < maxDepth && current; d++) {
+    const node = await networkRepo.findNode(current);
+    const parent = node?.parentId ? String(node.parentId) : null;
+    if (!parent) return false;
+    if (parent === target) return true;
+    if (seen.has(parent)) return false;
+    seen.add(parent);
+    current = parent;
+  }
+  return false;
 }
