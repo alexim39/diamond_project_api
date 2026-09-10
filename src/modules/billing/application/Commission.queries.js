@@ -1,8 +1,7 @@
 import { NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 
 /** Earner's own ledger page. */
-export class GetMyCommissionsUseCase {
-  /** @param {{ledger}} deps */
+export class GetMyCommissionsUseCase {  /** @param {{ledger}} deps */
   constructor({ ledger }) {
     this.ledger = ledger;
   }
@@ -22,8 +21,7 @@ export class GetMyCommissionsUseCase {
   }
 }
 
-/** Admin release queue: carts with Pending entries. */
-export class GetPendingCartsUseCase {
+/** Admin release queue: carts with Pending entries. */export class GetPendingCartsUseCase {
   /** @param {{ledger}} deps */
   constructor({ ledger }) {
     this.ledger = ledger;
@@ -33,6 +31,18 @@ export class GetPendingCartsUseCase {
     const lim = Math.min(Math.max(Number(limit) || 25, 1), 100);
     const sk = Math.max(Number(skip) || 0, 0);
     return this.ledger.pendingCarts({ limit: lim, skip: sk });
+  }
+}
+
+/** Monthly released-earnings trend for the earner's charts. */
+export class GetEarningsTrendUseCase {
+  /** @param {{ledger}} deps */
+  constructor({ ledger }) {
+    this.ledger = ledger;
+  }
+
+  async execute({ partnerId, months = 6 }) {
+    return this.ledger.releasedByMonth(partnerId, months);
   }
 }
 

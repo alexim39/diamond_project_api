@@ -8,7 +8,7 @@ import {
   AccrueCommissionsUseCase, ReleaseCartCommissionsUseCase, VoidCartCommissionsUseCase,
 } from '../application/Commission.commands.js';
 import {
-  GetMyCommissionsUseCase, GetPendingCartsUseCase, GetPerformanceUseCase,
+  GetEarningsTrendUseCase, GetMyCommissionsUseCase, GetPendingCartsUseCase, GetPerformanceUseCase,
 } from '../application/Commission.queries.js';
 import { MongoCommissionLedger, MongoOrderReader } from '../infrastructure/Billing.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -21,6 +21,9 @@ const PageQuery = z.object({
   skip: z.coerce.number().int().min(0).optional().default(0),
   status: z.enum(['Pending', 'Released', 'Voided', 'Reversed']).optional(),
 });
+const TrendsQuery = z.object({
+  months: z.coerce.number().int().min(2).max(12).optional().default(6),
+});
 
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
 export const buildBillingRouter = (deps = {}) => {
@@ -32,6 +35,7 @@ export const buildBillingRouter = (deps = {}) => {
   const c = makeBillingController({
     mine: new GetMyCommissionsUseCase({ ledger }),
     performance: new GetPerformanceUseCase({ ledger, orders, network, partners }),
+    trends: new GetEarningsTrendUseCase({ ledger }),
     accrue: new AccrueCommissionsUseCase({ ledger, orders, network }),
     pendingCarts: new GetPendingCartsUseCase({ ledger }),
     release: new ReleaseCartCommissionsUseCase({ ledger, orders }),
@@ -44,6 +48,7 @@ export const buildBillingRouter = (deps = {}) => {
   // Earner self-service (own session identity — no :partnerId to tamper with).
   router.get('/mine', validate({ query: PageQuery }), c.mine);
   router.get('/performance', validate({ query: z.object({}) }), c.summary);
+  router.get('/trends', validate({ query: TrendsQuery }), c.trends);
   // Called by checkout after legacy order success (idempotent on retry).
   router.post('/accrue/:cartId', validate({ params: CartIdParam }), c.accrue);
 

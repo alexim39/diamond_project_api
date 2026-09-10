@@ -63,6 +63,49 @@ export class MongoCommissionLedger {
     return out;
   }
 
+  /** Monthly released-earnings buckets (oldest → newest) for trend charts. */
+  async releasedByMonth(partnerId, months = 6) {
+    const m = Math.min(Math.max(Number(months) || 6, 2), 12);
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    start.setMonth(start.getMonth() - (m - 1));
+    const rows = await CommissionModel.aggregate([
+      {
+        $match: {
+          earnerId: objectId(partnerId),
+          status: 'Released',
+          $or: [{ releasedAt: { $gte: start } }, { releasedAt: null, createdAt: { $gte: start } }],
+        },
+      },
+      {
+        $group: {
+          _id: {
+            y: { $year: { $ifNull: ['$releasedAt', '$createdAt'] } },
+            m: { $month: { $ifNull: ['$releasedAt', '$createdAt'] } },
+          },
+          total: { $sum: '$amount' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.y': 1, '_id.m': 1 } },
+    ]);
+    const buckets = [];
+    const cursor = new Date(start);
+    for (let i = 0; i < m; i++) {
+      const y = cursor.getFullYear();
+      const mon = cursor.getMonth() + 1;
+      const found = rows.find((r) => r._id.y === y && r._id.m === mon);
+      buckets.push({
+        label: cursor.toLocaleString('en', { month: 'short' }),
+        total: Math.round((found?.total ?? 0) * 100) / 100,
+        count: found?.count ?? 0,
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return { months: m, buckets };
+  }
+
   async pendingCarts({ limit = 25, skip = 0 } = {}) {
     const rows = await CommissionModel.aggregate([
       { $match: { status: 'Pending' } },

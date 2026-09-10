@@ -20,6 +20,12 @@ export const makeBillingController = (uc) => ({
     res.status(200).json({ message: 'Performance retrieved successfully', data, success: true });
   }),
 
+  trends: asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const data = await uc.trends.execute({ partnerId: req.auth?.partnerId, months: q?.months });
+    res.status(200).json({ message: 'Earnings trend retrieved successfully', data, success: true });
+  }),
+
   accrue: asyncHandler(async (req, res) => {
     const data = await uc.accrue.execute({ cartId: param(req, 'cartId') });
     res.status(200).json({ message: 'Commissions accrued successfully', data, success: true });
