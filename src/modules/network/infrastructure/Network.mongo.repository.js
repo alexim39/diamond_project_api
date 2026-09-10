@@ -24,6 +24,16 @@ export class MongoNetworkRepository {  async findNode(id) {
       .lean();
     return docs.map(project);
   }
+
+  /** Bulk directory-safe fetch for rosters/exports (capped). */
+  async findNodesByIds(ids, limit = 5000) {
+    if (ids.length === 0) return [];
+    const docs = await PartnersModel.find({ _id: { $in: ids } })
+      .sort({ username: 1 })
+      .limit(Math.min(Math.max(Number(limit) || 5000, 1), 5000))
+      .lean();
+    return docs.map(project);
+  }
 }
 
 /**

@@ -34,6 +34,7 @@ import GoalsRouter from './src/modules/goals/index.js';
 import AnalyticsRouter from './src/modules/analytics/index.js';
 import DashboardRouter from './src/modules/dashboard/index.js';
 import ReportsRouter from './src/modules/reports/index.js';
+import ExportsRouter from './src/modules/exports/index.js';
 import ProspectV1Router from './src/modules/crm/index.js';
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 
@@ -93,6 +94,7 @@ app.use('/v1/goals', GoalsRouter);
 app.use('/v1/analytics', AnalyticsRouter);
 app.use('/v1/dashboard', DashboardRouter);
 app.use('/v1/reports', ReportsRouter);
+app.use('/v1/exports', ExportsRouter);
 
 
 
