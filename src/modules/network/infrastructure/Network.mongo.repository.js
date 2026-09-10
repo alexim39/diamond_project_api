@@ -12,8 +12,7 @@ const project = (doc) => {
 };
 
 /** Mongo implementation of the network read contracts. All reads `.lean()`. */
-export class MongoNetworkRepository {
-  async findNode(id) {
+export class MongoNetworkRepository {  async findNode(id) {
     return project(await PartnersModel.findById(id).lean());
   }
 
@@ -25,4 +24,31 @@ export class MongoNetworkRepository {
       .lean();
     return docs.map(project);
   }
+}
+
+/**
+ * Shared bounded downline-id collection (BFS, depth + cap, cycle-safe).
+ * Used by billing performance, goals progress and analytics team health —
+ * one implementation, not three copies.
+ * @returns {{ids: string[], total: number, capped: boolean}}
+ */
+export async function collectDownlineIds(networkRepo, rootId, { maxDepth = 10, cap = 5000 } = {}) {
+  const visited = new Set([String(rootId)]);
+  const ids = [];
+  let capped = false;
+  let frontier = [String(rootId)];
+  for (let d = 0; d < maxDepth && frontier.length > 0; d++) {
+    const children = await networkRepo.findChildren(frontier, 500);
+    const fresh = [];
+    for (const c of children) {
+      if (visited.has(c.id)) continue;
+      visited.add(c.id);
+      if (ids.length >= cap) { capped = true; break; }
+      ids.push(c.id);
+      fresh.push(c.id);
+    }
+    if (capped) break;
+    frontier = fresh;
+  }
+  return { ids, total: ids.length, capped };
 }

@@ -254,4 +254,22 @@ export class MongoOrderReader {
   async recruitsBetween(partnerId, start, end) {
     return PartnersModel.countDocuments({ partnerOf: partnerId, createdAt: { $gte: start, $lte: end } });
   }
+
+  /** Team activation: distinct members with a non-voided order in-window. */
+  async activeMemberCount(partnerIds, start, end) {
+    if (partnerIds.length === 0) return 0;
+    const ids = partnerIds.map(objectId);
+    const rows = await CartModel.aggregate([
+      {
+        $match: {
+          partner: { $in: ids },
+          orderStatus: { $ne: 'Voided' },
+          createdAt: { $gte: start, $lte: end },
+        },
+      },
+      { $group: { _id: '$partner' } },
+      { $count: 'active' },
+    ]);
+    return rows[0]?.active ?? 0;
+  }
 }

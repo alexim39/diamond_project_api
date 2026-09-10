@@ -1,5 +1,6 @@
 import { ForbiddenException, NotFoundException } from '../../../shared/domain/AppError.js';
 import { computeProgress, createGoalEntity } from '../domain/Goal.entity.js';
+import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
 
 const samePartner = (docPartnerId, requesterId) => String(docPartnerId) === String(requesterId);
 const assertOwner = (doc, requesterId, what = 'Goal') => {
@@ -24,25 +25,6 @@ async function currentValue(kind, partnerId, start, end, { orders, prospects, ne
     default:
       return 0;
   }
-}
-
-/** Bounded downline id collection (depth 10, cycle-safe). */
-async function collectDownlineIds(network, rootId, maxDepth = 10) {
-  const visited = new Set([String(rootId)]);
-  const ids = [];
-  let frontier = [String(rootId)];
-  for (let d = 0; d < maxDepth && frontier.length > 0; d++) {
-    const children = await network.findChildren(frontier, 500);
-    const fresh = [];
-    for (const c of children) {
-      if (visited.has(c.id)) continue;
-      visited.add(c.id);
-      ids.push(c.id);
-      fresh.push(c.id);
-    }
-    frontier = fresh;
-  }
-  return { ids, total: ids.length };
 }
 
 export class CreateGoalUseCase {

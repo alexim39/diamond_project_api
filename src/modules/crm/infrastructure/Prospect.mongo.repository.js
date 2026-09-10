@@ -33,6 +33,27 @@ export class MongoProspectRepository {
     });
   }
 
+  /**
+   * Cohort funnel: prospects created in-window grouped by current stage.
+   * Documents without a stage overlay (legacy) count as 'New'.
+   */
+  async stageDistribution(partnerId, start, end) {
+    const rows = await ProspectModel.aggregate([
+      { $match: { partnerId, createdAt: { $gte: start, $lte: end } } },
+      { $group: { _id: { $ifNull: ['$status.stage', 'New'] }, count: { $sum: 1 } } },
+    ]);
+    return Object.fromEntries(rows.map((r) => [r._id, r.count]));
+  }
+
+  /** Hottest pipeline: currently in negotiation, most recently touched first. */
+  async findReadyToConvert(partnerId, limit = 5) {
+    const docs = await ProspectModel.find({ partnerId, 'status.stage': 'In Negotiation' })
+      .sort({ updatedAt: -1 })
+      .limit(limit)
+      .lean();
+    return docs.map(ProspectMapper.toDomain);
+  }
+
   async findDuplicate(partnerId, { phone, email }) {
     const or = [];
     if (phone) or.push({ prospectPhone: phone });
