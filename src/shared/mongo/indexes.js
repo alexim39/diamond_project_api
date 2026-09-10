@@ -21,6 +21,8 @@ export const INDEXES = [
   { collection: 'carts', keys: { partner: 1, orderStatus: 1, createdAt: -1 }, options: {} },
   { collection: 'commissions', keys: { earnerId: 1, status: 1, releasedAt: -1 }, options: {} },
   { collection: 'goals', keys: { partnerId: 1, endDate: 1 }, options: {} },
+  { collection: 'messages', keys: { recipientId: 1, createdAt: -1 }, options: {} },
+  { collection: 'messages', keys: { senderId: 1, createdAt: -1 }, options: {} },
 ];
 
 /**
