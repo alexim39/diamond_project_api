@@ -12,7 +12,7 @@ import { MongoNotificationStore } from '../../notifications/infrastructure/Notif
 import { GetNotificationFeedUseCase } from '../../notifications/application/Notifications.usecases.js';
 import { ListGoalsUseCase } from '../../goals/application/Goals.usecases.js';
 import { GetActionsUseCase, GetFunnelUseCase, GetTeamUseCase } from '../../analytics/application/Analytics.usecases.js';
-
+import { GetStuckProspectsUseCase } from '../../crm/application/Prospect.queries.js';
 const OverviewQuery = z.object({
   days: z.coerce.number().int().min(7).max(365).optional().default(30),
   // Optional upline-scoped read: leader views a downline partner's overview.
@@ -30,7 +30,8 @@ export const buildDashboardRouter = (deps = {}) => {
 
   const feed = deps.feed ?? new GetNotificationFeedUseCase({ prospects, ledger, reads });
   const goals = deps.goals ?? new ListGoalsUseCase({ goals: goalStore, orders, prospects, network });
-  const actions = deps.actions ?? new GetActionsUseCase({ feed, goals, prospects });
+  const stuck = deps.stuck ?? new GetStuckProspectsUseCase({ prospects });
+  const actions = deps.actions ?? new GetActionsUseCase({ feed, goals, prospects, stuck });
   const funnel = deps.funnel ?? new GetFunnelUseCase({ prospects });
   const team = deps.team ?? new GetTeamUseCase({
     orders, network, prospects, goalProgress: (pid) => goals.execute({ partnerId: pid }),

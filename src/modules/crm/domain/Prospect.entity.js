@@ -99,8 +99,9 @@ export const PROSPECT_STAGES = [
 /**
  * Value Object: status overlay — only provided keys change (dotted $set).
  * Legacy REPLACED the whole subdoc, silently dropping `status: Open/Closed`.
+ * Every stage advance stamps `stageEnteredAt` (stuck-in-pipeline clock).
  */
-export const createStatusOverlay = (input) => {
+export const createStatusOverlay = (input, now = new Date()) => {
   if (!input || typeof input !== 'object') throw new ValidationException('Invalid status data');
   const overlay = {};
   if (input.name !== undefined) overlay.name = text(input.name, 'status name', { min: 2, max: 120 });
@@ -116,6 +117,7 @@ export const createStatusOverlay = (input) => {
   if (input.stage !== undefined) {
     if (!PROSPECT_STAGES.includes(input.stage)) throw new ValidationException('Invalid pipeline stage');
     overlay.stage = input.stage;
+    overlay.stageEnteredAt = now instanceof Date ? now : new Date(now);
   }
   if (Object.keys(overlay).length === 0) throw new ValidationException('Nothing to update');
   return overlay;

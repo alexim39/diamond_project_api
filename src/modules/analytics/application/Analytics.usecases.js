@@ -71,19 +71,21 @@ const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
 
 /**
  * Daily Action Center: "what should I do today?" — urgent notifications
- * first, then behind-pace goals, ready-to-close prospects, then the rest.
+ * first, then behind-pace goals, stuck pipeline, ready-to-close prospects,
+ * then the rest.
  */
 export class GetActionsUseCase {
-  /** @param {{feed, goals, prospects}} deps (feed/goals are composed use cases) */
-  constructor({ feed, goals, prospects }) {
-    Object.assign(this, { feed, goals, prospects });
+  /** @param {{feed, goals, prospects, stuck}} deps (feed/goals/stuck are composed use cases) */
+  constructor({ feed, goals, prospects, stuck }) {
+    Object.assign(this, { feed, goals, prospects, stuck });
   }
 
   async execute({ partnerId, now = new Date(), limit = 15 }) {
-    const [feed, goals, hot] = await Promise.all([
+    const [feed, goals, hot, stuck] = await Promise.all([
       this.feed.execute({ partnerId, now, limit: 50 }),
       this.goals.execute({ partnerId, now }),
       this.prospects.findReadyToConvert(partnerId, 5),
+      this.stuck ? this.stuck.execute({ partnerId, now }) : [],
     ]);
 
     const actions = [];
@@ -115,6 +117,16 @@ export class GetActionsUseCase {
         title: `${p.prospectName ?? 'Prospect'} ${p.prospectSurname ?? ''}`.trim(),
         detail: 'In negotiation — close the loop',
         link: `/dashboard/prospects/detail/${p.id}`,
+      });
+    }
+    for (const s of (stuck ?? []).slice(0, 5)) {
+      actions.push({
+        id: `action:stuck:${s.prospectId}`,
+        priority: s.overBy >= s.limit ? 'high' : 'medium',
+        category: 'stuck',
+        title: `${s.name} stuck in ${s.stage} (${s.daysInStage}d)`,
+        detail: `No movement for ${s.daysInStage} days — threshold is ${s.limit}`,
+        link: `/dashboard/prospects/detail/${s.prospectId}`,
       });
     }
     for (const item of feed.items.filter((i) => !i.urgency).slice(0, 5)) {

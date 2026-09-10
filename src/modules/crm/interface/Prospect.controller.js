@@ -66,6 +66,13 @@ export const makeProspectController = (uc) => ({
     res.status(200).json({ message: 'Notifications built successfully!', data, success: true });
   }),
 
+  stuck: asyncHandler(async (req, res) => {
+    const partnerId = req.validated?.params?.partnerId ?? req.params.partnerId;
+    const q = req.validated?.query ?? req.query;
+    const data = await uc.stuck.execute({ partnerId, days: q?.days });
+    res.status(200).json({ message: 'Stuck prospects retrieved successfully!', data, success: true });
+  }),
+
   convert: asyncHandler(async (req, res) => {
     const data = await uc.convert.execute({ prospectId: pid(req) });
     res.status(200).json({

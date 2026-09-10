@@ -2,7 +2,7 @@ import express from 'express';
 import { validate } from '../../../shared/http/validate.js';
 import {
   ProspectIdParam, PartnerIdParam, CreateProspectSchema, UpdateProspectSchema,
-  UpdateStatusSchema, LogCommunicationSchema, PaginationQuery, CommIdsParam,
+  UpdateStatusSchema, LogCommunicationSchema, PaginationQuery, CommIdsParam, StuckQuery,
 } from './Prospect.validator.js';
 import { makeProspectController } from './Prospect.controller.js';
 import {
@@ -11,6 +11,7 @@ import {
 import { LogCommunicationUseCase, RemoveCommunicationUseCase } from '../application/Prospect.communications.js';
 import {
   GetProspectByIdUseCase, GetProspectsByPartnerUseCase, GetProspectNotificationsUseCase,
+  GetStuckProspectsUseCase,
 } from '../application/Prospect.queries.js';
 import { MongoProspectRepository, MongoPartnerLookup, MongoReservationCodes } from '../infrastructure/Prospect.mongo.repository.js';
 import { ConvertProspectToPartnerUseCase } from '../application/Prospect.convert.js';
@@ -39,6 +40,7 @@ export const buildProspectRouter = (deps = {}) => {
     logCommunication: new LogCommunicationUseCase({ prospects }),
     removeCommunication: new RemoveCommunicationUseCase({ prospects }),
     notifications: new GetProspectNotificationsUseCase({ prospects }),
+    stuck: new GetStuckProspectsUseCase({ prospects }),
     convert: new ConvertProspectToPartnerUseCase({ prospects, reservations }),
   });
 
@@ -55,6 +57,8 @@ export const buildProspectRouter = (deps = {}) => {
   router.get('/all-createdBy/:createdBy', validate({ query: PaginationQuery }), c.getByPartner);
 
   router.get('/notifications/:partnerId', validate({ params: PartnerIdParam }), c.notifications);
+
+  router.get('/stuck/:partnerId', validate({ params: PartnerIdParam, query: StuckQuery }), c.stuck);
 
   router.get('/:prospectId', validate({ params: ProspectIdParam }), c.getById);
   router.get('/getById/:prospectId', validate({ params: ProspectIdParam }), c.getById);

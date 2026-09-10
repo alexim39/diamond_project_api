@@ -1,5 +1,6 @@
 import { csvFilename, isoDate, toCsv } from '../domain/Export.csv.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
+import { stuckAnalysis } from '../../crm/domain/Prospect.stuck.js';
 
 const clampLimit = (limit, def = 1000, max = 5000) =>
   Math.min(Math.max(Number(limit) || def, 1), max);
@@ -53,6 +54,7 @@ export class ExportPipelineUseCase {
     const { items } = await this.prospects.findByPartnerId(partnerId, {
       limit: clampLimit(limit), skip: 0,
     });
+    const stuckDays = new Map(stuckAnalysis(items).map((s) => [s.prospectId, s.daysInStage]));
     const csv = toCsv(
       [
         { header: 'Name', format: displayName },
@@ -61,6 +63,7 @@ export class ExportPipelineUseCase {
         { header: 'Source', format: (p) => p.prospectSource ?? '' },
         { header: 'Stage', format: (p) => p.status?.stage ?? '' },
         { header: 'Status', format: (p) => p.status?.status ?? '' },
+        { header: 'Days in stage', format: (p) => stuckDays.get(String(p.id ?? p._id)) ?? '' },
         { header: 'Touches', format: (p) => (p.communications ?? []).length },
         { header: 'Last contact', format: (p) => { const d = lastContact(p); return d ? isoDate(d) : ''; } },
         { header: 'Created', format: (p) => isoDate(p.createdAt) },

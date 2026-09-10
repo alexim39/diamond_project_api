@@ -55,4 +55,8 @@ export const PaginationQuery = z.object({
   skip: z.coerce.number().int().min(0).optional().default(0),
 });
 
+export const StuckQuery = z.object({
+  days: z.coerce.number().int().min(1).max(365).optional(),
+});
+
 export const CommIdsParam = z.object({ prospectId: objectId, communicationId: objectId });

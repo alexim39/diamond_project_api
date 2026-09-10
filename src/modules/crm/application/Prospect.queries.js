@@ -1,6 +1,7 @@
 import { NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 import { PartnerId } from '../domain/Prospect.entity.js';
 import { buildProspectNotifications } from '../domain/Prospect.notifications.js';
+import { stuckAnalysis } from '../domain/Prospect.stuck.js';
 
 const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
 const idOrThrow = (value, field) => {
@@ -45,5 +46,25 @@ export class GetProspectNotificationsUseCase {
     const pid = PartnerId.create(partnerId);
     const { items } = await this.prospects.findByPartnerId(pid, { limit: 500, skip: 0 });
     return buildProspectNotifications(items, now);
+  }
+}
+
+/**
+ * GET /v1/prospects/stuck/:partnerId — prospects sitting in a stage past
+ * its attention threshold, worst first. `days` overrides every threshold.
+ */
+export class GetStuckProspectsUseCase {
+  /** @param {{prospects}} deps */
+  constructor({ prospects }) { this.prospects = prospects; }
+  async execute({ partnerId, days, now = new Date() }) {
+    const pid = PartnerId.create(partnerId);
+    const { items } = await this.prospects.findByPartnerId(pid, { limit: 500, skip: 0 });
+    let d;
+    if (days !== undefined && days !== null) {
+      const num = Number(days);
+      if (!Number.isFinite(num) || num < 1) throw new ValidationException('Invalid days');
+      d = Math.min(num, 365);
+    }
+    return stuckAnalysis(items, { now, days: d });
   }
 }
