@@ -18,17 +18,23 @@ export class GetFunnelUseCase {
 }
 
 export class GetTeamUseCase {
-  /** @param {{orders, network, prospects, goalProgress}} deps */
-  constructor({ orders, network, prospects, goalProgress }) {
-    Object.assign(this, { orders, network, prospects, goalProgress });
+  /** @param {{orders, network, prospects, goalProgress, snapshots}} deps */
+  constructor({ orders, network, prospects, goalProgress, snapshots }) {
+    Object.assign(this, { orders, network, prospects, goalProgress, snapshots });
   }
 
   async execute({ partnerId, days = 30, now = new Date() }) {
     const d = clampDays(days);
+    // Nightly snapshot fast path (30-day window only, fresh only).
+    if (d === 30 && this.snapshots) {
+      const snap = await this.snapshots.findFresh(partnerId, 30);
+      if (snap) return this.assemble({ ...snap, source: 'snapshot' }, partnerId, d, now);
+    }
+
     const { start, end, prevStart, prevEnd } = windows(now, d);
     const [{ ids: downline }] = await Promise.all([collectDownlineIds(this.network, partnerId)]);
 
-    const [personal, team, recruits, prevRecruits, prevTeam, active, conversions, goals] = await Promise.all([
+    const [personal, team, recruits, prevRecruits, prevTeam, active, conversions] = await Promise.all([
       this.orders.volumeBetween(partnerId, start, end),
       this.orders.volumeForBetween(downline, start, end),
       this.orders.recruitsBetween(partnerId, start, end),
@@ -36,16 +42,34 @@ export class GetTeamUseCase {
       this.orders.volumeForBetween(downline, prevStart, prevEnd),
       this.orders.activeMemberCount(downline, start, end),
       this.prospects.countConverted(partnerId, start, end),
-      this.goalProgress(partnerId),
     ]);
 
-    const downlineTotal = downline.length;
-    const activationRate = downlineTotal > 0 ? active / downlineTotal : null;
+    return this.assemble({
+      downlineTotal: downline.length,
+      active,
+      recruits,
+      prevRecruits,
+      teamVolume: team.total,
+      prevTeamVolume: prevTeam.total,
+      personalVolume: personal.total,
+      personalOrders: personal.orders,
+      conversions,
+      source: 'live',
+    }, partnerId, d, now);
+  }
+
+  /** Shared assembly — goals + funnel stay live (cheap, single-partner). */
+  async assemble(m, partnerId, d, now) {
+    const { start, end } = windows(now, d);
+    const [goals, funnel] = await Promise.all([
+      this.goalProgress(partnerId),
+      buildFunnel(await this.prospects.stageDistribution(partnerId, start, end)),
+    ]);
+    const activationRate = m.downlineTotal > 0 ? m.active / m.downlineTotal : null;
     const complete = goals.filter((g) => g.progress?.complete).length;
     const goalRate = goals.length > 0 ? complete / goals.length : null;
-    const funnel = buildFunnel(await this.prospects.stageDistribution(partnerId, start, end));
-    const recruitDelta = deltaPct(recruits, prevRecruits);
-    const teamDelta = deltaPct(team.total, prevTeam.total);
+    const recruitDelta = deltaPct(m.recruits, m.prevRecruits);
+    const teamDelta = deltaPct(m.teamVolume, m.prevTeamVolume);
 
     const health = scoreHealth({
       activationRate,
@@ -56,11 +80,17 @@ export class GetTeamUseCase {
 
     return {
       days: d,
-      recruits: { current: recruits, previous: prevRecruits, deltaPct: recruitDelta },
-      teamVolume: { current: team.total, previous: prevTeam.total, deltaPct: teamDelta },
-      personalVolume: personal,
-      downline: { total: downlineTotal, active, inactive: Math.max(0, downlineTotal - active), activationRate },
-      conversions,
+      source: m.source,
+      recruits: { current: m.recruits, previous: m.prevRecruits, deltaPct: recruitDelta },
+      teamVolume: { current: m.teamVolume, previous: m.prevTeamVolume, deltaPct: teamDelta },
+      personalVolume: { total: m.personalVolume, orders: m.personalOrders },
+      downline: {
+        total: m.downlineTotal,
+        active: m.active,
+        inactive: Math.max(0, m.downlineTotal - m.active),
+        activationRate,
+      },
+      conversions: m.conversions,
       goals: { total: goals.length, complete, rate: goalRate },
       health,
     };

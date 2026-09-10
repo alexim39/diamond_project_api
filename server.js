@@ -37,6 +37,8 @@ import ReportsRouter from './src/modules/reports/index.js';
 import ExportsRouter from './src/modules/exports/index.js';
 import ProspectV1Router from './src/modules/crm/index.js';
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
+import { ensureIndexes } from './src/shared/mongo/indexes.js';
+import { scheduleJobs } from './src/jobs/schedule.js';
 
 const port = process.env.PORT || 8080;
 const app = express();
@@ -112,6 +114,14 @@ mongoose.connect(`mongodb+srv://${process.env.MONGODB_USERNAME}:${process.env.MO
 .then(() => {
     // Application Starts Only when MongoDB is connected
     console.log('Connected to mongoDB')
+    ensureIndexes(mongoose).then(
+      ({ created, failed }) => {
+        console.log(`Indexes ensured: ${created.length} (failed: ${failed.length})`);
+        for (const f of failed) console.warn(`Index failed: ${f.index} — ${f.error}`);
+      },
+      (error) => console.warn('Index ensure skipped:', error?.message ?? error),
+    );
+    scheduleJobs();
     app.listen(port, () => {
         console.log(`Server is running on port: http://localhost:${port}`)
     })

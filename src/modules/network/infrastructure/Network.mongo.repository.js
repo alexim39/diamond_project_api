@@ -34,6 +34,12 @@ export class MongoNetworkRepository {  async findNode(id) {
       .lean();
     return docs.map(project);
   }
+
+  /** Everyone with ≥1 direct recruit — the snapshot job's work list. */
+  async findLeaderIds(limit = 2000) {
+    const ids = await PartnersModel.distinct('partnerOf');
+    return ids.map(String).filter(Boolean).slice(0, Math.min(Math.max(Number(limit) || 2000, 1), 5000));
+  }
 }
 
 /**

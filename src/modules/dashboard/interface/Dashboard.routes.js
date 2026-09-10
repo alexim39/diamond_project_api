@@ -10,6 +10,7 @@ import { MongoNetworkRepository } from '../../network/infrastructure/Network.mon
 import { MongoGoalStore } from '../../goals/infrastructure/Goals.mongo.repository.js';
 import { MongoNotificationStore } from '../../notifications/infrastructure/Notifications.mongo.repository.js';
 import { GetNotificationFeedUseCase } from '../../notifications/application/Notifications.usecases.js';
+import { MongoTeamSnapshotStore } from '../../analytics/infrastructure/TeamSnapshots.mongo.repository.js';
 import { ListGoalsUseCase } from '../../goals/application/Goals.usecases.js';
 import { GetActionsUseCase, GetFunnelUseCase, GetTeamUseCase } from '../../analytics/application/Analytics.usecases.js';
 import { GetStuckProspectsUseCase } from '../../crm/application/Prospect.queries.js';
@@ -33,8 +34,9 @@ export const buildDashboardRouter = (deps = {}) => {
   const stuck = deps.stuck ?? new GetStuckProspectsUseCase({ prospects });
   const actions = deps.actions ?? new GetActionsUseCase({ feed, goals, prospects, stuck });
   const funnel = deps.funnel ?? new GetFunnelUseCase({ prospects });
+  const snapshots = deps.snapshots ?? new MongoTeamSnapshotStore();
   const team = deps.team ?? new GetTeamUseCase({
-    orders, network, prospects, goalProgress: (pid) => goals.execute({ partnerId: pid }),
+    orders, network, prospects, snapshots, goalProgress: (pid) => goals.execute({ partnerId: pid }),
   });
   const overview = new GetOverviewUseCase({ actions, funnel, team, goals, feed });
 
