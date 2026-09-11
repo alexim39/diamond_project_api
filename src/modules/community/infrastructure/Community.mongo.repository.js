@@ -67,6 +67,12 @@ export const SavedModel = mongoose.models.CommunitySaved ?? mongoose.model('Comm
 export const PostReportModel = mongoose.models.CommunityReport ?? mongoose.model('CommunityReport', reportSchema);
 
 const oid = (v) => String(v);
+// Feed enrichment hands us string ids, but the _id/targetId/postId fields
+// are ObjectIds — $match inside aggregate() does not cast them the way
+// find() does, so uncast strings silently match nothing (all counts 0).
+// Coerce explicitly; new ObjectId(existingObjectId) is a safe no-op.
+const toObjectId = (v) => (v instanceof mongoose.Types.ObjectId ? v : new mongoose.Types.ObjectId(String(v)));
+const oidList = (ids) => (ids ?? []).map(toObjectId);
 const shaped = (o) => {
   if (!o) return null;
   const out = { ...o, id: oid(o._id) };
@@ -130,7 +136,7 @@ export class MongoCommunityStore {
   async likeCounts(targetType, targetIds) {
     if (targetIds.length === 0) return {};
     const rows = await LikeModel.aggregate([
-      { $match: { targetType, targetId: { $in: targetIds } } },
+      { $match: { targetType, targetId: { $in: oidList(targetIds) } } },
       { $group: { _id: '$targetId', count: { $sum: 1 } } },
     ]);
     return Object.fromEntries(rows.map((r) => [oid(r._id), r.count]));
@@ -156,7 +162,7 @@ export class MongoCommunityStore {
   async commentCounts(postIds) {
     if (postIds.length === 0) return {};
     const rows = await CommentModel.aggregate([
-      { $match: { postId: { $in: postIds } } },
+      { $match: { postId: { $in: oidList(postIds) } } },
       { $group: { _id: '$postId', count: { $sum: 1 } } },
     ]);
     return Object.fromEntries(rows.map((r) => [oid(r._id), r.count]));
@@ -181,7 +187,7 @@ export class MongoCommunityStore {
   async savedCounts(postIds) {
     if (postIds.length === 0) return {};
     const rows = await SavedModel.aggregate([
-      { $match: { postId: { $in: postIds } } },
+      { $match: { postId: { $in: oidList(postIds) } } },
       { $group: { _id: '$postId', count: { $sum: 1 } } },
     ]);
     return Object.fromEntries(rows.map((r) => [oid(r._id), r.count]));
