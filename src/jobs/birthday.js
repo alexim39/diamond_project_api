@@ -9,9 +9,8 @@ import { userBirthdayEmailTemplate } from '../apps/partner/services/email/birthd
  * memory and filtered month/day in JS.
  *
  * Query note: month/day predicates on a Date field defeat B-tree indexes,
- * so instead of indexing we narrow transfer — `$expr` matches in Mongo and
- * only celebrants cross the wire. (A derived dobMonth/dobDay + backfill
- * would make it indexed; queued as follow-up, not this phase.)
+ * so DoBs carry derived dobMonth/dobDay parts (schema hooks + backfill)
+ * and this query is a plain indexed equality — see the boot manifest.
  */
 
 /** Calendar-day match in server-local time (unit-testable, no Mongo). */
@@ -22,13 +21,9 @@ export const isBirthdayToday = (dob, today = new Date()) => {
 };
 
 const celebrantsToday = async (partners, today) => partners.find({
-  $expr: {
-    $and: [
-      { $eq: [{ $month: '$dobDatePicker' }, today.getMonth() + 1] },
-      { $eq: [{ $dayOfMonth: '$dobDatePicker' }, today.getDate()] },
-    ],
-  },
-}).select('name email dobDatePicker').lean();
+  dobMonth: today.getMonth() + 1,
+  dobDay: today.getDate(),
+}).select('name email dobDatePicker dobMonth dobDay').lean();
 
 export const buildBirthdayJob = (deps = {}) => ({
   partners: deps.partners ?? PartnersModel,

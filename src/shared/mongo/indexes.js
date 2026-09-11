@@ -10,11 +10,13 @@
  * - carts: NO indexes — all personal/team volume windows + activation.
  * - commissions: earnerId+status+createdAt exists; releasedAt leg missing.
  * - goals: partnerId exists; list sorts by endDate (new leg).
+ * - partners.dobMonth+dobDay: derived birthday parts (R6 follow-up).
  * Read-state TTL + request/report indexes already exist — untouched.
  */
 export const INDEXES = [
   { collection: 'partners', keys: { partnerOf: 1 }, options: {} },
   { collection: 'partners', keys: { partnerOf: 1, createdAt: -1 }, options: {} },
+  { collection: 'partners', keys: { dobMonth: 1, dobDay: 1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, createdAt: -1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, 'status.stage': 1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, updatedAt: -1 }, options: {} },
