@@ -18,6 +18,8 @@ export class NotificationStore {
 export class StoredNotificationStore {
   async create(data) { throw new Error('Not implemented'); }
   async findById(id) { throw new Error('Not implemented'); }
+  async findByKey(recipientId, key) { throw new Error('Not implemented'); }
+  async hasBriefForDay(recipientId, day) { throw new Error('Not implemented'); }
   async list(partnerId, { unreadOnly, search, cursor, limit }) { throw new Error('Not implemented'); }
   async markRead(partnerId, id) { throw new Error('Not implemented'); }
   async markAllRead(partnerId) { throw new Error('Not implemented'); }

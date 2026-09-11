@@ -9,9 +9,11 @@ import { MongoTeamSnapshotStore } from '../modules/analytics/infrastructure/Team
  * Background jobs — the single scheduling mechanism (the legacy birthday
  * side-effect import is retired; everything registers here).
  * - nightly team snapshots (02:00): materialize 30-day metrics per leader.
+ * - daily priorities brief (06:30 server-local): ≤3 + 1 momentum per partner.
  * - birthday greetings (08:00): $expr-matched celebrants only.
  * Jobs never throw into the scheduler — failures are logged, not fatal.
- * `runSnapshotJob` / `runBirthdayJob` are exported for tests and triggers.
+ * `runSnapshotJob` / `runBirthdayJob` / `runDailyBriefJob` are exported
+ * for tests and triggers.
  */
 export const buildSnapshotJob = (deps = {}) => new BuildTeamSnapshotsUseCase({
   network: deps.network ?? new MongoNetworkRepository(),
@@ -34,8 +36,10 @@ export async function runSnapshotJob(deps = {}) {
 
 export function scheduleJobs() {
   cron.schedule('0 2 * * *', () => runSnapshotJob());
+  cron.schedule('30 6 * * *', () => runDailyBriefJob());
   cron.schedule('0 8 * * *', () => runBirthdayJob());
-  console.log('[jobs] scheduled: nightly team snapshots at 02:00, birthdays at 08:00');
+  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, birthdays at 08:00');
 }
 
 export { runBirthdayJob } from './birthday.js';
+export { runDailyBriefJob } from './daily-brief.js';

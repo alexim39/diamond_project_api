@@ -9,12 +9,19 @@ const notificationSchema = new mongoose.Schema(
     body: { type: String, required: true, maxlength: 2000 },
     icon: { type: String, default: 'notifications', maxlength: 40 },
     link: { type: String, default: null, maxlength: 500 },
+    // Producer idempotency key (N2 daily brief) — only set for keyed writes.
+    key: { type: String, default: null, maxlength: 120 },
     readAt: { type: Date, default: null },
     archivedAt: { type: Date, default: null },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
 notificationSchema.index({ recipientId: 1, archivedAt: 1, createdAt: -1 });
+// Duplicate suppression: same producer key → same logical item, one row.
+notificationSchema.index(
+  { recipientId: 1, key: 1 },
+  { unique: true, partialFilterExpression: { key: { $type: 'string' } } },
+);
 notificationSchema.index({ title: 'text', body: 'text' });
 
 const preferenceSchema = new mongoose.Schema(
@@ -43,6 +50,20 @@ export class MongoStoredNotificationStore {
   async findById(id) {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
     return shaped(await StoredNotificationModel.findById(id).lean());
+  }
+
+  async findByKey(recipientId, key) {
+    if (!key) return null;
+    return shaped(await StoredNotificationModel.findOne({ recipientId, key }).lean());
+  }
+
+  /** True when any `daily:<day>:*` slot already exists (rerun guard). */
+  async hasBriefForDay(recipientId, day) {
+    const exists = await StoredNotificationModel.exists({
+      recipientId,
+      key: { $gte: `daily:${day}:`, $lt: `daily:${day};` },
+    });
+    return exists !== null;
   }
 
   async list(partnerId, { unreadOnly = false, search = '', cursor = null, limit = 50 } = {}) {

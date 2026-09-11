@@ -1,7 +1,12 @@
 import { ForbiddenException, NotFoundException } from '../../../shared/domain/AppError.js';
 import { createNotificationEntity, createPreferencesEntity, resolvePreferences } from '../domain/StoredNotifications.js';
 
-/** Producer API for N4 (no HTTP create — stored items are written server-side only). */
+/**
+ * Producer API (no HTTP create — stored items are written server-side only).
+ * Duplicate suppression: a racing/duplicate keyed write (E11000 on the
+ * unique (recipientId, key)) resolves to the existing row with
+ * `{deduped: true}` instead of throwing — reruns never double-notify.
+ */
 export class NotifyUseCase {
   /** @param {{stored}} deps */
   constructor({ stored }) {
@@ -9,7 +14,16 @@ export class NotifyUseCase {
   }
 
   async execute({ recipientId, ...input }) {
-    return this.stored.create({ ...createNotificationEntity(input), recipientId });
+    const data = { ...createNotificationEntity(input), recipientId };
+    try {
+      return await this.stored.create(data);
+    } catch (error) {
+      if (data.key && (error?.code === 11000 || /duplicate key/i.test(error?.message ?? ''))) {
+        const existing = await this.stored.findByKey(recipientId, data.key);
+        if (existing) return { ...existing, deduped: true };
+      }
+      throw error;
+    }
   }
 }
 

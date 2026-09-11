@@ -30,11 +30,16 @@ const text = (value, field, { min = 1, max = 2000 } = {}) => {
   return s;
 };
 
-/** @param {{category,priority,title,body,icon,link}} input (producer-supplied) */
+/**
+ * @param {{category,priority,title,body,icon,link,key}} input (producer-supplied)
+ * `key` is the optional idempotency key (e.g. `daily:<day>:p1`) — when
+ * present the unique (recipientId, key) index + NotifyUseCase turn
+ * concurrent reruns into a harmless dedupe instead of a double send.
+ */
 export const createNotificationEntity = (input) => {
   if (!NOTIFICATION_CATEGORIES.includes(input.category)) throw new ValidationException('Invalid notification category');
   if (!NOTIFICATION_PRIORITIES.includes(input.priority)) throw new ValidationException('Invalid notification priority');
-  return {
+  const entity = {
     category: input.category,
     priority: input.priority,
     title: text(input.title, 'title', { min: 2, max: 120 }),
@@ -42,6 +47,10 @@ export const createNotificationEntity = (input) => {
     icon: String(input.icon ?? 'notifications').slice(0, 40) || 'notifications',
     link: input.link === undefined || input.link === null ? null : String(input.link).slice(0, 500) || null,
   };
+  if (input.key !== undefined && input.key !== null && String(input.key).trim() !== '') {
+    entity.key = text(input.key, 'key', { min: 1, max: 120 }).replace(/\s+/g, '');
+  }
+  return entity;
 };
 
 const DEFAULT_CHANNELS = { inApp: true, email: false, sms: false };
