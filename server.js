@@ -22,8 +22,7 @@ import ProfileImageRouter from './src/services/upload-profile-picture.js';
 import TicketRouter from './src/apps/ticket/index.js';
 import TeamsRouter from './src/apps/teams/index.js';
 import SettingsRouter from './src/apps/settings/index.js';
-// Import the birthday notification service
-import './src/apps/partner/services/dob.notification.js';
+
 // Strangler Fig: DDD slices (new) mounted alongside legacy routers
 import TicketV1Router from './src/modules/support-ticketing/index.js';
 import AuthV1Router, { AdminRouter } from './src/modules/identity-access/index.js';
