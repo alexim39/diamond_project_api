@@ -31,6 +31,7 @@ const asStoredItem = (row) => ({
   id: String(row.id),
   kind: row.category,
   category: row.category,
+  key: row.key ?? null,
   priority: row.priority,
   urgency: row.priority === 'critical',
   title: row.title,
@@ -63,9 +64,20 @@ export class ListCenterUseCase {
         ? []
         : this.feed.execute({ partnerId, limit: 50 }).then((f) => f.items ?? []),
     ]);
+    const items = stored.items.map(asStoredItem);
+    // N4: a stored mention supersedes its derived twin (`mention:<type>:<id>`
+    // prefix of the stored `mention:<type>:<id>:<handle>` key) — one row per event.
+    const superseded = new Set(
+      items
+        .map((i) => i.key)
+        .filter((k) => typeof k === 'string' && k.startsWith('mention:'))
+        .map((k) => k.split(':').slice(0, 3).join(':')),
+    );
     return {
-      stored: stored.items.map(asStoredItem),
-      derived: (derived ?? []).map(asDerivedItem),
+      stored: items,
+      derived: (derived ?? [])
+        .filter((d) => !(d.kind === 'mention' && superseded.has(d.id)))
+        .map(asDerivedItem),
       hasMore: stored.hasMore,
     };
   }

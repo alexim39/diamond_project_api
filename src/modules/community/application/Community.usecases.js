@@ -71,19 +71,30 @@ export class GetFeedUseCase {
 }
 
 export class CreatePostUseCase {
-  /** @param {{community}} deps */
-  constructor({ community }) {
-    this.community = community;
+  /** @param {{community, fanout?}} deps (fanout optional — N4 mention email/in-app) */
+  constructor({ community, fanout = null }) {
+    Object.assign(this, { community, fanout });
   }
 
   async execute({ authorId, ...input }) {
     const entity = createPostEntity(input);
-    return this.community.createPost({
+    const post = await this.community.createPost({
       ...entity,
       authorId,
       auto: false,
       mentions: extractMentions(`${entity.title} ${entity.body}`),
     });
+    // Best-effort mention fan-out — never fails the post.
+    if (this.fanout && (post?.mentions ?? []).length > 0) {
+      await this.fanout.execute({
+        authorId,
+        sourceType: 'post',
+        sourceId: String(post.id ?? post._id),
+        handles: post.mentions,
+        text: `${entity.title} ${entity.body}`,
+      }).catch(() => null);
+    }
+    return post;
   }
 }
 
@@ -149,9 +160,9 @@ export class ListCommentsUseCase {
 }
 
 export class AddCommentUseCase {
-  /** @param {{community, network, progress}} deps (visibility-checked) */
-  constructor({ community, network, progress }) {
-    Object.assign(this, { community, network, progress });
+  /** @param {{community, network, progress, fanout?}} deps (visibility-checked; fanout optional — N4) */
+  constructor({ community, network, progress, fanout = null }) {
+    Object.assign(this, { community, network, progress, fanout });
   }
 
   async execute({ partnerId, postId, ...input }) {
@@ -162,13 +173,24 @@ export class AddCommentUseCase {
       throw new ForbiddenException('You cannot comment on this post');
     }
     const { body } = createCommentEntity(input);
-    return this.community.addComment({
+    const comment = await this.community.addComment({
       postId,
       authorId: partnerId,
       body,
       parentId: input.parentId ?? null,
       mentions: extractMentions(body),
     });
+    // Best-effort mention fan-out — never fails the comment.
+    if (this.fanout && (comment?.mentions ?? []).length > 0) {
+      await this.fanout.execute({
+        authorId: partnerId,
+        sourceType: 'comment',
+        sourceId: String(comment.id ?? comment._id),
+        handles: comment.mentions,
+        text: body,
+      }).catch(() => null);
+    }
+    return comment;
   }
 }
 

@@ -223,6 +223,25 @@ export class MongoCommunityStore {
   }
 
   /**
+   * Resolve @mention handles to partners (exact, case-insensitive).
+   * Safe fields + email only — the fan-out needs somewhere to send.
+   */
+  async findPartnersByUsernames(handles) {
+    const clean = [...new Set((handles ?? []).map((h) => String(h ?? '').toLowerCase().trim()))].filter(Boolean);
+    if (clean.length === 0) return [];
+    const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const docs = await PartnersModel.find({
+      $or: clean.map((h) => ({ username: { $regex: `^${escape(h)}$`, $options: 'i' } })),
+    }).select('username name surname email').lean();
+    return docs.map((d) => ({
+      partnerId: oid(d._id),
+      username: String(d.username ?? '').toLowerCase(),
+      name: [d.name, d.surname].filter(Boolean).join(' ') || d.username,
+      email: d.email ?? null,
+    }));
+  }
+
+  /**
    * Recent posts + comments mentioning `username` (already lowercase).
    * Normalized for the notification feed builder; visibility is NOT
    * checked here — the feed filters to visible posts only.

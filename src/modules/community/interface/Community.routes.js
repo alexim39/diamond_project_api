@@ -10,6 +10,10 @@ import {
 import { MongoCommunityStore } from '../infrastructure/Community.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
+import { FanoutMentionsUseCase } from '../../notifications/application/MentionFanout.usecase.js';
+import { NotifyUseCase } from '../../notifications/application/NotificationsCenter.usecases.js';
+import { MongoStoredNotificationStore } from '../../notifications/infrastructure/StoredNotifications.mongo.repository.js';
+import { MentionMailer } from '../../notifications/infrastructure/MentionMailer.js';
 import { ATTACHMENT_MIMES, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, POST_KINDS, AUDIENCE_SCOPES } from '../domain/Post.entity.js';
 import { communityUpload } from './Community.upload.js';
 
@@ -50,11 +54,19 @@ export const buildCommunityRouter = (deps = {}) => {
   const network = deps.network ?? new MongoNetworkRepository();
   const progress = deps.progress ?? new MongoProgressionStore();
 
+  const stored = deps.stored ?? new MongoStoredNotificationStore();
+  const fanout = deps.fanout ?? new FanoutMentionsUseCase({
+    community,
+    stored,
+    notify: new NotifyUseCase({ stored }),
+    mailer: new MentionMailer(),
+  });
+
   const feed = new GetFeedUseCase({ community, network, progress });
-  const create = new CreatePostUseCase({ community });
+  const create = new CreatePostUseCase({ community, fanout });
   const like = new ToggleLikeUseCase({ community, network, progress });
   const comments = new ListCommentsUseCase({ community, network, progress });
-  const comment = new AddCommentUseCase({ community, network, progress });
+  const comment = new AddCommentUseCase({ community, network, progress, fanout });
   const save = new ToggleSaveUseCase({ community });
   const report = new ReportPostUseCase({ community });
   const pin = new PinPostUseCase({ community });
