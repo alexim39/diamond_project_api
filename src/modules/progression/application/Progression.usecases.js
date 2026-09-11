@@ -75,9 +75,9 @@ export const buildMilestonePatch = (input = {}) => {
 
 /** My journey: derived level, next gate, promotion detection (recognition hook). */
 export class GetMyProgressionUseCase {
-  /** @param {{progress, network, orders}} deps */
-  constructor({ progress, network, orders }) {
-    Object.assign(this, { progress, network, orders });
+  /** @param {{progress, network, orders, recognition}} deps (recognition optional — auto-posts promotions) */
+  constructor({ progress, network, orders, recognition }) {
+    Object.assign(this, { progress, network, orders, recognition });
   }
 
   async execute({ partnerId, now = new Date() }) {
@@ -89,6 +89,16 @@ export class GetMyProgressionUseCase {
       const from = doc.level ?? 'partner';
       await this.progress.setLevel(partnerId, resolved.level);
       promoted = { from, to: resolved.level };
+      // Community recognition — best-effort, never fails the read.
+      if (this.recognition) {
+        try {
+          const node = await this.network.findNode(partnerId);
+          const name = node
+            ? [node.name, node.surname].filter(Boolean).join(' ') || node.username
+            : 'A partner';
+          await this.recognition.promotion(partnerId, from, resolved.level, name);
+        } catch { /* recognition is celebratory, not critical */ }
+      }
     }
     return {
       level: resolved.level,

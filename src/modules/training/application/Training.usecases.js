@@ -40,9 +40,9 @@ export class GetCourseUseCase {
 }
 
 export class CompleteLessonUseCase {
-  /** @param {{training, progress}} deps (progress = progression store for milestone auto-check) */
-  constructor({ training, progress }) {
-    Object.assign(this, { training, progress });
+  /** @param {{training, progress, recognition, network}} deps (recognition/network optional — auto-posts certificates) */
+  constructor({ training, progress, recognition, network }) {
+    Object.assign(this, { training, progress, recognition, network });
   }
 
   async execute({ partnerId, courseId, lessonId }) {
@@ -62,6 +62,17 @@ export class CompleteLessonUseCase {
         { at: new Date(), by: partnerId, key: `${course.milestone} (via ${courseId} certificate)` },
       );
       milestoneChecked = course.milestone;
+    }
+
+    // Community recognition — best-effort, never fails the request.
+    if (newlyCertified && this.recognition) {
+      try {
+        const node = await this.network?.findNode(partnerId);
+        const name = node
+          ? [node.name, node.surname].filter(Boolean).join(' ') || node.username
+          : 'A partner';
+        await this.recognition.certificate(partnerId, courseId, course.title, name);
+      } catch { /* celebratory, not critical */ }
     }
     return {
       progress: next,

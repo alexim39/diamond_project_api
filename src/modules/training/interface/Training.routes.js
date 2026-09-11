@@ -8,6 +8,9 @@ import {
 } from '../application/Training.usecases.js';
 import { MongoTrainingStore } from '../infrastructure/Training.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
+import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
+import { RecognitionUseCases } from '../../community/application/Community.usecases.js';
+import { MongoCommunityStore } from '../../community/infrastructure/Community.mongo.repository.js';
 
 const slug = z.string().trim().min(1).max(64);
 const CourseParam = z.object({ courseId: slug });
@@ -17,10 +20,13 @@ const LessonParam = z.object({ courseId: slug, lessonId: slug });
 export const buildTrainingRouter = (deps = {}) => {
   const training = deps.training ?? new MongoTrainingStore();
   const progress = deps.progress ?? new MongoProgressionStore();
+  const network = deps.network ?? new MongoNetworkRepository();
+  const recognition = deps.recognition
+    ?? new RecognitionUseCases({ community: deps.community ?? new MongoCommunityStore() });
 
   const list = new ListCoursesUseCase({ training });
   const detail = new GetCourseUseCase({ training });
-  const complete = new CompleteLessonUseCase({ training, progress });
+  const complete = new CompleteLessonUseCase({ training, progress, recognition, network });
   const certs = new MyCertificatesUseCase({ training });
 
   const router = express.Router();

@@ -10,6 +10,8 @@ import {
 import { MongoProgressionStore } from '../infrastructure/Progression.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoOrderReader } from '../../billing/infrastructure/Billing.mongo.repository.js';
+import { RecognitionUseCases } from '../../community/application/Community.usecases.js';
+import { MongoCommunityStore } from '../../community/infrastructure/Community.mongo.repository.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 const stamp = z.object({ done: z.boolean() }).passthrough();
@@ -37,7 +39,12 @@ export const buildProgressionRouter = (deps = {}) => {
   const network = deps.network ?? new MongoNetworkRepository();
   const orders = deps.orders ?? new MongoOrderReader();
 
-  const mine = deps.mine ?? new GetMyProgressionUseCase({ progress, network, orders });
+  const mine = deps.mine ?? new GetMyProgressionUseCase({
+    progress,
+    network,
+    orders,
+    recognition: deps.recognition ?? new RecognitionUseCases({ community: deps.community ?? new MongoCommunityStore() }),
+  });
   const update = new UpdateMilestonesUseCase({ progress });
   const nominate = new RequestNominationUseCase({ progress, network, orders, mine });
   const decide = new DecideNominationUseCase({ progress, network, orders, mine });
