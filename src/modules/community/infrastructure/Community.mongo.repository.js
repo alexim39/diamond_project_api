@@ -207,6 +207,53 @@ export class MongoCommunityStore {
     return new Set(rows.map((r) => oid(r.postId)));
   }
 
+  /** Lowercase username for mention matching (null when unknown). */
+  async findUsername(partnerId) {
+    const doc = await PartnersModel.findById(partnerId).select('username').lean();
+    return doc?.username ? String(doc.username).toLowerCase() : null;
+  }
+
+  /**
+   * Recent posts + comments mentioning `username` (already lowercase).
+   * Normalized for the notification feed builder; visibility is NOT
+   * checked here — the feed filters to visible posts only.
+   */
+  async findMentionsOf(username, since, limit = 20) {
+    const handle = String(username ?? '').toLowerCase();
+    if (!handle) return [];
+    const lim = Math.min(Math.max(Number(limit) || 20, 1), 50);
+    const [posts, comments] = await Promise.all([
+      PostModel.find({ mentions: handle, createdAt: { $gte: since } })
+        .sort({ createdAt: -1 })
+        .limit(lim)
+        .lean(),
+      CommentModel.find({ mentions: handle, createdAt: { $gte: since } })
+        .sort({ createdAt: -1 })
+        .limit(lim)
+        .lean(),
+    ]);
+    const out = [
+      ...posts.map((p) => ({
+        sourceType: 'post',
+        sourceId: oid(p._id),
+        postId: oid(p._id),
+        authorId: oid(p.authorId),
+        excerpt: p.title ? `${p.title} — ${p.body}` : p.body,
+        createdAt: p.createdAt,
+      })),
+      ...comments.map((c) => ({
+        sourceType: 'comment',
+        sourceId: oid(c._id),
+        postId: oid(c.postId),
+        authorId: oid(c.authorId),
+        excerpt: c.body,
+        createdAt: c.createdAt,
+      })),
+    ];
+    out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return out.slice(0, lim);
+  }
+
   async authorLabels(ids) {
     const uniq = [...new Set(ids.map(String))].filter(Boolean);
     if (uniq.length === 0) return {};

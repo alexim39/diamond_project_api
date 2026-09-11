@@ -9,6 +9,7 @@ import {
 import { MongoNotificationStore } from '../infrastructure/Notifications.mongo.repository.js';
 import { MongoProspectRepository } from '../../crm/infrastructure/Prospect.mongo.repository.js';
 import { MongoCommissionLedger } from '../../billing/infrastructure/Billing.mongo.repository.js';
+import { MongoCommunityStore } from '../../community/infrastructure/Community.mongo.repository.js';
 
 const FeedQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional().default(100),
@@ -22,8 +23,9 @@ export const buildNotificationsRouter = (deps = {}) => {
   const prospects = deps.prospects ?? new MongoProspectRepository();
   const ledger = deps.ledger ?? new MongoCommissionLedger();
   const reads = deps.reads ?? new MongoNotificationStore();
+  const community = deps.community ?? new MongoCommunityStore();
 
-  const feed = new GetNotificationFeedUseCase({ prospects, ledger, reads });
+  const feed = new GetNotificationFeedUseCase({ prospects, ledger, reads, community });
   const markRead = new MarkNotificationsReadUseCase({ reads });
 
   const router = express.Router();

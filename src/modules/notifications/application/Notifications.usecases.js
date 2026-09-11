@@ -1,25 +1,53 @@
 import { buildProspectNotifications } from '../../crm/domain/Prospect.notifications.js';
-import { buildConversionAlerts, buildInactivityAlerts, buildReleaseAlerts } from '../domain/Feed.items.js';
+import { buildConversionAlerts, buildInactivityAlerts, buildMentionAlerts, buildReleaseAlerts } from '../domain/Feed.items.js';
 
 const rankUrgency = (a) => (a.urgency ? 0 : 1);
+const MENTION_LOOKBACK_DAYS = 30;
+const MENTION_LIMIT = 20;
 
 /**
  * Unified feed: follow-ups (crm builder) + inactivity + conversions +
- * commission releases, minus read items. Urgent first, newest first.
+ * commission releases + @mentions, minus read items.
+ * Urgent first, newest first. `community` is optional — without it the
+ * feed behaves exactly as before (keeps old fakes/tests green).
  */
 export class GetNotificationFeedUseCase {
-  /** @param {{prospects, ledger, reads}} deps */
-  constructor({ prospects, ledger, reads }) {
+  /** @param {{prospects, ledger, reads, community?}} deps */
+  constructor({ prospects, ledger, reads, community }) {
     this.prospects = prospects;
     this.ledger = ledger;
     this.reads = reads;
+    this.community = community ?? null;
+  }
+
+  /** Resolve mention rows with author names; never throws (feed degrades). */
+  async resolveMentions(partnerId, now) {
+    if (!this.community) return [];
+    try {
+      const username = await this.community.findUsername(partnerId);
+      if (!username) return [];
+      // Mentions store lowercase handles — normalize at the call site.
+      const handle = String(username).toLowerCase();
+      const since = new Date(now.getTime() - MENTION_LOOKBACK_DAYS * 86400000);
+      const rows = await this.community.findMentionsOf(handle, since, MENTION_LIMIT);
+      const fresh = rows.filter((r) => String(r.authorId) !== String(partnerId));
+      if (fresh.length === 0) return [];
+      const labels = await this.community.authorLabels(fresh.map((r) => r.authorId));
+      return buildMentionAlerts(fresh.map((r) => ({
+        ...r,
+        authorName: labels[r.authorId]?.name ?? labels[r.authorId]?.username ?? null,
+      })), { now });
+    } catch {
+      return [];
+    }
   }
 
   async execute({ partnerId, now = new Date(), limit = 100 }) {
     const { items: list } = await this.prospects.findByPartnerId(partnerId, { limit: 500, skip: 0 });
-    const [read, releases] = await Promise.all([
+    const [read, releases, mentions] = await Promise.all([
       this.reads.readIds(partnerId),
       this.ledger.findReleasedSince(partnerId, 30),
+      this.resolveMentions(partnerId, now),
     ]);
 
     const all = [
@@ -37,6 +65,7 @@ export class GetNotificationFeedUseCase {
       ...buildInactivityAlerts(list, now),
       ...buildConversionAlerts(list, { now }),
       ...buildReleaseAlerts(releases, { now }),
+      ...mentions,
     ];
 
     const unread = all.filter((n) => !read.has(n.id));

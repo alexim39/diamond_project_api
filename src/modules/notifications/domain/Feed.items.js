@@ -2,7 +2,7 @@
  * Unified feed item. `id` is stable across reads (derived from source data)
  * so read-state persists; `at` drives urgent-first, newest-first sorting.
  */
-export const NOTIFICATION_KINDS = ['followup', 'inactive', 'conversion', 'release'];
+export const NOTIFICATION_KINDS = ['followup', 'inactive', 'conversion', 'release', 'mention'];
 
 /**
  * @param {object} p
@@ -91,6 +91,30 @@ export function buildConversionAlerts(prospects, { lookbackDays = 30, now = new 
       tag: 'New partner pipeline',
       link: `/dashboard/prospects/pipeline`,
       at: p.updatedAt,
+    }));
+  }
+  return items;
+}
+
+/**
+ * @mention alerts — someone tagged the viewer in a post or comment.
+ * Input rows carry `authorName`; ids are stable per source row so
+ * read-state persists across reads.
+ */
+export function buildMentionAlerts(mentions, { now = new Date() } = {}) {
+  const items = [];
+  for (const m of mentions ?? []) {
+    const excerpt = cap(m.excerpt ?? '', 120);
+    items.push(feedItem({
+      id: `mention:${m.sourceType}:${m.sourceId}`,
+      kind: 'mention',
+      urgency: false,
+      title: `${cap(m.authorName ?? 'Someone')} mentioned you`,
+      body: m.sourceType === 'comment' ? `Replied: ${excerpt}` : excerpt,
+      icon: 'alternate_email',
+      tag: 'Mention',
+      link: '/dashboard/community',
+      at: m.createdAt ?? now,
     }));
   }
   return items;

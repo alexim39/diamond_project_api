@@ -23,6 +23,8 @@ export const INDEXES = [
   { collection: 'goals', keys: { partnerId: 1, endDate: 1 }, options: {} },
   { collection: 'messages', keys: { recipientId: 1, createdAt: -1 }, options: {} },
   { collection: 'messages', keys: { senderId: 1, createdAt: -1 }, options: {} },
+  { collection: 'communityposts', keys: { mentions: 1, createdAt: -1 }, options: {} },
+  { collection: 'communitycomments', keys: { mentions: 1, createdAt: -1 }, options: {} },
 ];
 
 /**
