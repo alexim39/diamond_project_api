@@ -1,7 +1,7 @@
 import {
-  ForbiddenException, NotFoundException,
+  ForbiddenException, NotFoundException, ValidationException,
 } from '../../../shared/domain/AppError.js';
-import { LEADERSHIP_LEVELS, createCommentEntity, createPostEntity } from '../domain/Post.entity.js';
+import { LEADERSHIP_LEVELS, createCommentEntity, createPostEntity, extractMentions } from '../domain/Post.entity.js';
 import { isAncestor } from '../../network/infrastructure/Network.mongo.repository.js';
 
 const pageOf = (limit) => Math.min(Math.max(Number(limit) || 20, 1), 50);
@@ -75,24 +75,45 @@ export class CreatePostUseCase {
   }
 
   async execute({ authorId, ...input }) {
-    return this.community.createPost({ ...createPostEntity(input), authorId, auto: false });
+    const entity = createPostEntity(input);
+    return this.community.createPost({
+      ...entity,
+      authorId,
+      auto: false,
+      mentions: extractMentions(`${entity.title} ${entity.body}`),
+    });
   }
 }
 
 export class ToggleLikeUseCase {
-  /** @param {{community, network, progress}} deps (visibility-checked) */
+  /** @param {{community, network, progress}} deps (visibility-checked; exactly one of postId/commentId) */
   constructor({ community, network, progress }) {
     Object.assign(this, { community, network, progress });
   }
 
-  async execute({ partnerId, postId }) {
-    const post = await this.community.findPostById(postId);
-    if (!post) throw new NotFoundException('Post not found');
+  async execute({ partnerId, postId, commentId }) {
+    if ((postId && commentId) || (!postId && !commentId)) {
+      throw new ValidationException('Provide exactly one of postId, commentId');
+    }
+    let post = null;
+    let targetType = 'post';
+    let targetId = postId;
+    if (commentId) {
+      const comment = await this.community.findCommentById(commentId);
+      if (!comment) throw new NotFoundException('Comment not found');
+      post = await this.community.findPostById(comment.postId);
+      if (!post) throw new NotFoundException('Post not found');
+      targetType = 'comment';
+      targetId = commentId;
+    } else {
+      post = await this.community.findPostById(postId);
+      if (!post) throw new NotFoundException('Post not found');
+    }
     const level = await viewerLevel(this.progress, partnerId);
     if (!(await visible(post, partnerId, LEADERSHIP_LEVELS.includes(level), this))) {
       throw new ForbiddenException('You cannot interact with this post');
     }
-    return this.community.toggleLike('post', postId, partnerId);
+    return this.community.toggleLike(targetType, targetId, partnerId);
   }
 }
 
@@ -139,7 +160,13 @@ export class AddCommentUseCase {
       throw new ForbiddenException('You cannot comment on this post');
     }
     const { body } = createCommentEntity(input);
-    return this.community.addComment({ postId, authorId: partnerId, body, parentId: input.parentId ?? null });
+    return this.community.addComment({
+      postId,
+      authorId: partnerId,
+      body,
+      parentId: input.parentId ?? null,
+      mentions: extractMentions(body),
+    });
   }
 }
 
@@ -185,8 +212,19 @@ export class PinPostUseCase {
   }
 }
 
-export class CommunityAnalyticsUseCase {
+/** Username directory for @mention autocomplete (safe fields only). */
+export class DirectoryUseCase {
   /** @param {{community}} deps */
+  constructor({ community }) {
+    this.community = community;
+  }
+
+  async execute({ query, limit = 10 }) {
+    return this.community.searchDirectory(query, limit);
+  }
+}
+
+export class CommunityAnalyticsUseCase {  /** @param {{community}} deps */
   constructor({ community }) {
     this.community = community;
   }

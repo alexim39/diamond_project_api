@@ -5,6 +5,8 @@
 export class CommunityStore {
   async createPost(data) { throw new Error('Not implemented'); }
   async findPostById(id) { throw new Error('Not implemented'); }
+  async findCommentById(id) { throw new Error('Not implemented'); }
+  async searchDirectory(query, limit) { throw new Error('Not implemented'); }
   async recentCandidates(before, limit, excludeIds) { throw new Error('Not implemented'); }
   async setPinned(id, pinned) { throw new Error('Not implemented'); }
   async toggleLike(targetType, targetId, partnerId) { throw new Error('Not implemented'); }

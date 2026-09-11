@@ -13,6 +13,7 @@ const postSchema = new mongoose.Schema(
     auto: { type: Boolean, default: false, index: true },
     refType: { type: String, default: '' },
     refId: { type: String, default: '' },
+    mentions: { type: [String], default: [] },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
@@ -24,6 +25,7 @@ const commentSchema = new mongoose.Schema(
     authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true },
     body: { type: String, required: true, maxlength: 1000 },
     parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'CommunityComment', default: null },
+    mentions: { type: [String], default: [] },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
@@ -81,6 +83,24 @@ export class MongoCommunityStore {
 
   async findPostById(id) {
     return shaped(await PostModel.findById(id).lean());
+  }
+
+  async findCommentById(id) {
+    return shaped(await CommentModel.findById(id).lean());
+  }
+
+  /** Username directory for @mention autocomplete (safe fields only). */
+  async searchDirectory(query, limit = 10) {
+    const q = String(query ?? '').trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (q.length < 2) return [];
+    const docs = await PartnersModel.find({ username: { $regex: `^${q}`, $options: 'i' } })
+      .select('username name surname')
+      .limit(Math.min(Math.max(Number(limit) || 10, 1), 20))
+      .lean();
+    return docs.map((d) => ({
+      username: d.username,
+      name: [d.name, d.surname].filter(Boolean).join(' ') || d.username,
+    }));
   }
 
   /** Newest-first candidates (visibility filtered in the use case). */

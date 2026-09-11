@@ -4,7 +4,7 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
-  AddCommentUseCase, CommunityAnalyticsUseCase, CreatePostUseCase, GetFeedUseCase,
+  AddCommentUseCase, CommunityAnalyticsUseCase, CreatePostUseCase, DirectoryUseCase, GetFeedUseCase,
   ListCommentsUseCase, PinPostUseCase, ReportPostUseCase, ToggleLikeUseCase, ToggleSaveUseCase,
 } from '../application/Community.usecases.js';
 import { MongoCommunityStore } from '../infrastructure/Community.mongo.repository.js';
@@ -50,6 +50,7 @@ export const buildCommunityRouter = (deps = {}) => {
   const save = new ToggleSaveUseCase({ community });
   const report = new ReportPostUseCase({ community });
   const pin = new PinPostUseCase({ community });
+  const directory = new DirectoryUseCase({ community });
   const analytics = new CommunityAnalyticsUseCase({ community });
 
   const router = express.Router();
@@ -110,6 +111,18 @@ export const buildCommunityRouter = (deps = {}) => {
     const q = req.validated?.query ?? req.query;
     const data = await analytics.execute({ days: q?.days });
     res.status(200).json({ message: 'Community analytics retrieved successfully', data, success: true });
+  }));
+
+  router.get('/directory', validate({ query: z.object({ q: z.string().trim().min(2).max(40) }) }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const data = await directory.execute({ query: q?.q });
+    res.status(200).json({ message: 'Directory retrieved successfully', data, success: true });
+  }));
+
+  router.post('/comments/:commentId/like', validate({ params: z.object({ commentId: objectId }) }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await like.execute({ partnerId: req.auth?.partnerId, commentId: params.commentId });
+    res.status(200).json({ message: 'Like toggled successfully', data, success: true });
   }));
 
   return router;

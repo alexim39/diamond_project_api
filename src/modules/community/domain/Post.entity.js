@@ -39,3 +39,20 @@ export const createPostEntity = (input) => {
 export const createCommentEntity = (input) => ({
   body: text(input.body, 'comment body', { max: 1000 }),
 });
+
+/**
+ * Pure @mention extraction — unique lowercase usernames in order.
+ * Stored for future push; the UI highlights them from body text today.
+ */
+export const extractMentions = (body) => {
+  const out = [];
+  const seen = new Set();
+  for (const m of String(body ?? '').matchAll(/@([A-Za-z0-9_.]{2,40})/g)) {
+    const handle = m[1].toLowerCase();
+    if (!seen.has(handle)) {
+      seen.add(handle);
+      out.push(handle);
+    }
+  }
+  return out;
+};
