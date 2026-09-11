@@ -29,4 +29,7 @@ export class StoredNotificationStore {
   async unreadCount(partnerId) { throw new Error('Not implemented'); }
   async getPreferences(partnerId) { throw new Error('Not implemented'); }
   async savePreferences(partnerId, prefs) { throw new Error('Not implemented'); }
+  async listDigestSubscribers(digest, { cursor, limit }) { throw new Error('Not implemented'); }
+  async unreadSince(partnerId, since, limit) { throw new Error('Not implemented'); }
+  async stampDigest(partnerId, kind, at) { throw new Error('Not implemented'); }
 }

@@ -12,9 +12,10 @@ import { MongoTeamSnapshotStore } from '../modules/analytics/infrastructure/Team
  * - daily priorities brief (06:30 server-local): ≤3 + 1 momentum per partner.
  * - weekly review request (Monday 07:00 server-local): one keyed prompt.
  * - birthday greetings (08:00): $expr-matched celebrants only.
+ * - email digests (19:00 server-local): daily cadence + weekly on Mondays.
  * Jobs never throw into the scheduler — failures are logged, not fatal.
  * `runSnapshotJob` / `runBirthdayJob` / `runDailyBriefJob` /
- * `runWeeklyReviewJob` are exported for tests and triggers.
+ * `runWeeklyReviewJob` / `runDigestJob` are exported for tests and triggers.
  */
 export const buildSnapshotJob = (deps = {}) => new BuildTeamSnapshotsUseCase({
   network: deps.network ?? new MongoNetworkRepository(),
@@ -40,9 +41,11 @@ export function scheduleJobs() {
   cron.schedule('30 6 * * *', () => runDailyBriefJob());
   cron.schedule('0 7 * * 1', () => runWeeklyReviewJob());
   cron.schedule('0 8 * * *', () => runBirthdayJob());
-  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00');
+  cron.schedule('0 19 * * *', () => runDigestJob());
+  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00, digests at 19:00');
 }
 
 export { runBirthdayJob } from './birthday.js';
 export { runDailyBriefJob } from './daily-brief.js';
 export { runWeeklyReviewJob } from './weekly-review.js';
+export { runDigestJob } from './digest.js';

@@ -29,9 +29,13 @@ const preferenceSchema = new mongoose.Schema(
     partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true, unique: true },
     channels: { type: Object, default: {} },
     emailDigest: { type: String, enum: ['immediate', 'daily', 'weekly', 'off'], default: 'immediate' },
+    // N5 digest bookkeeping — last successful send per cadence (null = never).
+    lastDailyDigestAt: { type: Date, default: null },
+    lastWeeklyDigestAt: { type: Date, default: null },
   },
   { timestamps: { createdAt: true, updatedAt: true } },
 );
+preferenceSchema.index({ emailDigest: 1, partnerId: 1 });
 
 export const StoredNotificationModel =
   mongoose.models['Stored-notification'] ?? mongoose.model('Stored-notification', notificationSchema);
@@ -143,5 +147,51 @@ export class MongoStoredNotificationStore {
       { new: true, upsert: true },
     ).lean();
     return { channels: doc.channels ?? {}, emailDigest: doc.emailDigest ?? 'immediate' };
+  }
+
+  /** Partner ids subscribed to a digest cadence (cursor-pageable). */
+  async listDigestSubscribers(digest, { cursor = null, limit = 200 } = {}) {
+    const lim = Math.min(Math.max(Number(limit) || 200, 1), 1000);
+    const filter = { emailDigest: digest };
+    if (cursor) filter.partnerId = { $gt: cursor };
+    const docs = await NotificationPreferenceModel.find(filter)
+      .select('partnerId emailDigest lastDailyDigestAt lastWeeklyDigestAt')
+      .sort({ partnerId: 1 })
+      .limit(lim + 1)
+      .lean();
+    return {
+      items: docs.slice(0, lim).map((d) => ({
+        partnerId: oid(d.partnerId),
+        lastDailyDigestAt: d.lastDailyDigestAt ?? null,
+        lastWeeklyDigestAt: d.lastWeeklyDigestAt ?? null,
+      })),
+      hasMore: docs.length > lim,
+    };
+  }
+
+  /** Unread, unarchived stored items since `since`, newest first. */
+  async unreadSince(partnerId, since, limit = 50) {
+    const lim = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const docs = await StoredNotificationModel.find({
+      recipientId: partnerId,
+      archivedAt: null,
+      readAt: null,
+      createdAt: { $gte: since },
+    })
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(lim)
+      .lean();
+    return docs.map(shaped);
+  }
+
+  /** Record a successful digest send (upserts the preference row). */
+  async stampDigest(partnerId, kind, at = new Date()) {
+    const field = kind === 'weekly' ? 'lastWeeklyDigestAt' : 'lastDailyDigestAt';
+    await NotificationPreferenceModel.updateOne(
+      { partnerId },
+      { $set: { [field]: at } },
+      { upsert: true },
+    );
+    return { stamped: field };
   }
 }
