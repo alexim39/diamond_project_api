@@ -41,8 +41,36 @@ export const createGoalEntity = (input) => {
 };
 
 /**
+ * Pure forecast math — pace extrapolation from live numerator + elapsed time.
+ * No history snapshots needed: dailyRate = current / elapsedDays.
+ * @returns {{dailyRate,projected,willHit,etaDate,requiredDaily,shortfall}}
+ */
+export const forecastProgress = (current, target, startDate, endDate, now = new Date()) => {
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime();
+  const t = new Date(now).getTime();
+  const elapsedDays = Math.max(0, (Math.min(t, end) - start) / 86400000);
+  const daysLeft = Math.max(0, Math.ceil((end - t) / 86400000));
+  const needed = Math.max(0, target - current);
+  const dailyRate = elapsedDays > 0 ? current / elapsedDays : 0;
+  const projected = current + dailyRate * daysLeft;
+  const willHit = projected >= target;
+  return {
+    dailyRate: r2(dailyRate),
+    projected: r2(projected),
+    willHit,
+    // When this pace reaches target (null when stalled or already there).
+    etaDate: dailyRate > 0 && needed > 0 ? new Date(t + (needed / dailyRate) * 86400000).toISOString() : null,
+    // Pace required from today to still hit target (null when no time left).
+    requiredDaily: daysLeft > 0 ? r2(needed / daysLeft) : null,
+    shortfall: r2(Math.max(0, target - projected)),
+  };
+};
+
+/**
  * Pure progress math — unit-testable without Mongo.
- * @returns {{current,percent,remaining,daysLeft,daysTotal,onTrack,complete}}
+ * @returns {{current,percent,remaining,daysLeft,daysTotal,onTrack,complete,forecast}}
  */
 export const computeProgress = (current, target, startDate, endDate, now = new Date()) => {
   const start = new Date(startDate).getTime();
@@ -60,5 +88,6 @@ export const computeProgress = (current, target, startDate, endDate, now = new D
     daysTotal,
     onTrack: current >= expected,
     complete: current >= target,
+    forecast: forecastProgress(current, target, startDate, endDate, now),
   };
 };
