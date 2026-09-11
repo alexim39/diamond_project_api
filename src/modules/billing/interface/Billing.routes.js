@@ -1,3 +1,4 @@
+import axios from 'axios';
 import express from 'express';
 import { z } from 'zod';
 import { validate } from '../../../shared/http/validate.js';
@@ -9,6 +10,7 @@ import {
 } from '../application/Commission.commands.js';
 import {
   GetEarningsTrendUseCase, GetMyCommissionsUseCase, GetPendingCartsUseCase, GetPerformanceUseCase,
+  ResolveAccountUseCase,
 } from '../application/Commission.queries.js';
 import { MongoCommissionLedger, MongoOrderReader } from '../infrastructure/Billing.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -24,6 +26,10 @@ const PageQuery = z.object({
 const TrendsQuery = z.object({
   months: z.coerce.number().int().min(2).max(12).optional().default(6),
 });
+const ResolveQuery = z.object({
+  accountNumber: z.string().trim().regex(/^\d{10}$/, 'Invalid account number'),
+  bankCode: z.string().trim().min(1).max(20),
+});
 
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
 export const buildBillingRouter = (deps = {}) => {
@@ -36,6 +42,7 @@ export const buildBillingRouter = (deps = {}) => {
     mine: new GetMyCommissionsUseCase({ ledger }),
     performance: new GetPerformanceUseCase({ ledger, orders, network, partners }),
     trends: new GetEarningsTrendUseCase({ ledger }),
+    resolveAccount: new ResolveAccountUseCase({ http: deps.http ?? axios }),
     accrue: new AccrueCommissionsUseCase({ ledger, orders, network }),
     pendingCarts: new GetPendingCartsUseCase({ ledger }),
     release: new ReleaseCartCommissionsUseCase({ ledger, orders }),
@@ -49,6 +56,8 @@ export const buildBillingRouter = (deps = {}) => {
   router.get('/mine', validate({ query: PageQuery }), c.mine);
   router.get('/performance', validate({ query: z.object({}) }), c.summary);
   router.get('/trends', validate({ query: TrendsQuery }), c.trends);
+  // Bank account holder lookup — proxied so the Paystack secret never ships to clients.
+  router.get('/resolve-account', validate({ query: ResolveQuery }), c.resolveAccount);
   // Called by checkout after legacy order success (idempotent on retry).
   router.post('/accrue/:cartId', validate({ params: CartIdParam }), c.accrue);
 

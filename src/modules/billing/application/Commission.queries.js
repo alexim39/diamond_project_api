@@ -1,4 +1,4 @@
-import { NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
+import { AppError, NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 
 /** Earner's own ledger page. */
 export class GetMyCommissionsUseCase {  /** @param {{ledger}} deps */
@@ -31,6 +31,40 @@ export class GetMyCommissionsUseCase {  /** @param {{ledger}} deps */
     const lim = Math.min(Math.max(Number(limit) || 25, 1), 100);
     const sk = Math.max(Number(skip) || 0, 0);
     return this.ledger.pendingCarts({ limit: lim, skip: sk });
+  }
+}
+
+/**
+ * Resolve a bank account holder via Paystack — the secret lives server-side
+ * (PAYSTACKTOKEN); the client must never call api.paystack.co directly.
+ */
+export class ResolveAccountUseCase {
+  /** @param {{http}} deps (axios-compatible; stubbed in tests) */
+  constructor({ http }) {
+    this.http = http;
+  }
+
+  async execute({ accountNumber, bankCode }) {
+    const acct = String(accountNumber ?? '').trim();
+    const bank = String(bankCode ?? '').trim();
+    if (!/^\d{10}$/.test(acct)) throw new ValidationException('Invalid account number');
+    if (!bank) throw new ValidationException('Invalid bank code');
+    const secret = process.env.PAYSTACKTOKEN;
+    if (!secret) throw new AppError('Payment provider not configured', 500, 'CONFIG_ERROR');
+    let data;
+    try {
+      const response = await this.http.get('https://api.paystack.co/bank/resolve', {
+        params: { account_number: acct, bank_code: bank },
+        headers: { Authorization: `Bearer ${secret}` },
+      });
+      data = response?.data?.data ?? response?.data;
+    } catch (error) {
+      throw new ValidationException(
+        error?.response?.data?.message ?? 'Account could not be resolved',
+      );
+    }
+    if (!data?.account_name) throw new ValidationException('Account not found');
+    return { accountName: data.account_name, accountNumber: data.account_number ?? acct };
   }
 }
 
