@@ -6,30 +6,30 @@ const excerptOf = (text, max = 140) => {
 };
 
 /**
- * @mention fan-out (N4): stored in-app item + immediate email per prefs.
+ * @mention fan-out: subscriber of `community.mention.created`.
  * Best-effort by design — a mention must never fail the post/comment
  * that carries it (same convention as promotion recognition).
  *
- * Rules: unknown handles and self-mentions are skipped; in-app is always
- * written (keyed `mention:<type>:<id>:<handle>`, reruns no-op via
- * `findByKey` + the unique-key backstop); email goes out only when the
- * recipient opted into community email AND their digest is `immediate`
- * (daily/weekly/off keep the in-app item for the digest sender, N5).
- * SMS/push senders do not exist yet — preferences reserve the flags.
+ * Rules: unknown handles and self-mentions are skipped; delivery runs
+ * through NotificationDeliveryService (keyed `mention:<type>:<id>:<handle>`
+ * in-app rows, reruns no-op via `findByKey`); email goes out only when
+ * the recipient opted into community email AND their digest is
+ * `immediate` (daily/weekly/off keep the in-app item for the digest
+ * sender, N5). SMS/push follow the same preference matrix.
  */
 export class FanoutMentionsUseCase {
-  /** @param {{community, stored, notify, mailer}} deps */
-  constructor({ community, stored, notify, mailer }) {
-    Object.assign(this, { community, stored, notify, mailer });
+  /** @param {{community, stored, delivery, mailer}} deps */
+  constructor({ community, stored, delivery, mailer }) {
+    Object.assign(this, { community, stored, delivery, mailer });
   }
 
   /**
    * @param {{authorId, sourceType, sourceId, handles, text}} input
    * (`handles` are the stored mentions — one parser, `extractMentions`.)
-   * @returns {{notified, emailed, skipped, failed}}
+   * @returns {{notified, emailed, sms, push, skipped, failed}}
    */
   async execute({ authorId, sourceType, sourceId, handles = [], text = '' }) {
-    const result = { notified: 0, emailed: 0, skipped: 0, failed: [] };
+    const result = { notified: 0, emailed: 0, sms: 0, push: 0, skipped: 0, failed: [] };
     try {
       const clean = [...new Set((handles ?? []).map((h) => String(h ?? '').toLowerCase()))].filter(Boolean);
       if (clean.length === 0) return result;
@@ -51,22 +51,27 @@ export class FanoutMentionsUseCase {
             result.skipped += 1;
             continue;
           }
-          await this.notify.execute({
+          const report = await this.delivery.deliver({
             recipientId: r.partnerId,
-            category: 'community',
-            priority: 'medium',
-            title: `${authorName} mentioned you`,
-            body: excerpt || 'You were mentioned in Community.',
-            icon: 'alternate_email',
-            link: '/dashboard/community',
-            key,
+            contact: { email: r.email ?? null, phone: r.phone ?? null },
+            item: {
+              category: 'community',
+              priority: 'medium',
+              title: `${authorName} mentioned you`,
+              body: excerpt || 'You were mentioned in Community.',
+              icon: 'alternate_email',
+              link: '/dashboard/community',
+              key,
+            },
+            email: this.mailer.buildMention({ authorName, excerpt, sourceType }),
+            emailPolicy: 'immediate-only',
           });
-          result.notified += 1;
-          const prefs = resolvePreferences(await this.stored.getPreferences(r.partnerId).catch(() => null));
-          if (prefs.channels.community.email === true && prefs.emailDigest === 'immediate' && r.email) {
-            await this.mailer.sendMention({ to: r.email, authorName, excerpt, sourceType });
-            result.emailed += 1;
-          }
+          if (report.inApp === 'created' || report.inApp === 'deduped') result.notified += 1;
+          else result.skipped += 1;
+          if (report.email) result.emailed += 1;
+          if (report.sms) result.sms += 1;
+          result.push += report.push;
+          for (const e of report.errors) result.failed.push({ partner: String(r.partnerId), ...e });
         } catch (error) {
           result.failed.push({ partner: String(r.partnerId), error: error?.message ?? String(error) });
         }

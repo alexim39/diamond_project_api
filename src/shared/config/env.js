@@ -26,4 +26,43 @@ export const env = {
       database: process.env.MONGODB_DATABASE || '',
     };
   },
+  /**
+   * Web-push (VAPID). Empty until production keys land in env —
+   * the sender factory falls back to a logging sender meanwhile.
+   * Generate once: npx web-push generate-vapid-keys
+   */
+  get push() {
+    return {
+      publicKey: process.env.VAPID_PUBLIC_KEY || '',
+      privateKey: process.env.VAPID_PRIVATE_KEY || '',
+      subject: process.env.VAPID_SUBJECT || 'mailto:noreply@diamondprojectonline.com',
+      enabled: Boolean(process.env.VAPID_PUBLIC_KEY) && Boolean(process.env.VAPID_PRIVATE_KEY),
+    };
+  },
+  /** Absolute base URL for push-click targets (fallback: relative path). */
+  get appBaseUrl() {
+    return (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
+  },
+  /**
+   * SMS via a generic HTTP provider (Termii-compatible shape documented
+   * in .env.example). `disabled` (default) logs instead of sending.
+   */
+  get sms() {
+    let headers = {};
+    let extra = {};
+    try { headers = JSON.parse(process.env.SMS_HTTP_HEADERS || '{}'); } catch { headers = {}; }
+    try { extra = JSON.parse(process.env.SMS_HTTP_EXTRA || '{}'); } catch { extra = {}; }
+    return {
+      provider: process.env.SMS_PROVIDER || 'disabled',
+      url: process.env.SMS_HTTP_URL || '',
+      method: (process.env.SMS_HTTP_METHOD || 'POST').toUpperCase(),
+      headers,
+      toField: process.env.SMS_HTTP_TO_FIELD || 'to',
+      messageField: process.env.SMS_HTTP_MESSAGE_FIELD || 'message',
+      extra,
+      senderId: process.env.SMS_SENDER_ID || 'DiamondProj',
+      timeoutMs: Number(process.env.SMS_HTTP_TIMEOUT_MS || 8000),
+      enabled: (process.env.SMS_PROVIDER || 'disabled') !== 'disabled' && Boolean(process.env.SMS_HTTP_URL),
+    };
+  },
 };

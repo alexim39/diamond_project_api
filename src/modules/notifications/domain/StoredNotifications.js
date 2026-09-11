@@ -53,7 +53,7 @@ export const createNotificationEntity = (input) => {
   return entity;
 };
 
-const DEFAULT_CHANNELS = { inApp: true, email: false, sms: false };
+const DEFAULT_CHANNELS = { inApp: true, email: false, sms: false, push: false };
 
 /** Full preference matrix with per-category channel flags. */
 export const defaultPreferences = () => ({
@@ -75,6 +75,7 @@ export const resolvePreferences = (stored) => {
         inApp: row.inApp !== false,
         email: row.email === true,
         sms: row.sms === true,
+        push: row.push === true,
       };
     }
   }

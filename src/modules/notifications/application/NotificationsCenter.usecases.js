@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '../../../shared/domain/AppError.js';
+import { ForbiddenException, NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 import { createNotificationEntity, createPreferencesEntity, resolvePreferences } from '../domain/StoredNotifications.js';
 
 /**
@@ -136,6 +136,7 @@ export class BulkCenterUseCase {
 
   async execute({ partnerId, action }) {
     if (action === 'read-all') return this.stored.markAllRead(partnerId);
+    if (action === 'delete-all') return this.stored.deleteAll(partnerId);
     return this.stored.archiveAll(partnerId);
   }
 }
@@ -160,5 +161,112 @@ export class UpdatePreferencesUseCase {
   async execute({ partnerId, prefs }) {
     const saved = await this.stored.savePreferences(partnerId, createPreferencesEntity(prefs));
     return resolvePreferences(saved);
+  }
+}
+
+export class MarkStoredUnreadUseCase {
+  /** @param {{stored}} deps */
+  constructor({ stored }) {
+    this.stored = stored;
+  }
+
+  async execute({ partnerId, id }) {
+    const row = await this.stored.findById(id);
+    assertOwned(row, partnerId);
+    return this.stored.markUnread(partnerId, id);
+  }
+}
+
+/** Click beacon for engagement analytics (implies read). */
+export class RecordClickUseCase {
+  /** @param {{stored}} deps */
+  constructor({ stored }) {
+    this.stored = stored;
+  }
+
+  async execute({ partnerId, id }) {
+    const row = await this.stored.findById(id);
+    assertOwned(row, partnerId);
+    return this.stored.recordClick(partnerId, id);
+  }
+}
+
+/**
+ * Engagement analytics: delivery / read / click / engagement rates
+ * overall + per category over the trailing window (default 30d).
+ */
+export class NotificationStatsUseCase {
+  /** @param {{stored}} deps */
+  constructor({ stored }) {
+    this.stored = stored;
+  }
+
+  async execute({ partnerId, days = 30, now = new Date() }) {
+    const windowDays = Math.min(Math.max(Number(days) || 30, 1), 90);
+    const since = new Date(new Date(now).getTime() - windowDays * 86400000);
+    const perCategory = await this.stored.engagementStats(partnerId, since);
+    const rate = (num, den) => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
+    // Clicks imply reads, so engagement (read OR clicked) equals the read
+    // rate by construction; click rate measures depth below it.
+    const withRates = perCategory.map((c) => ({
+      ...c,
+      readRate: rate(c.read, c.sent),
+      clickRate: rate(c.clicked, c.sent),
+      engagementRate: rate(c.read, c.sent),
+    }));
+    const totals = withRates.reduce(
+      (acc, c) => ({
+        sent: acc.sent + c.sent,
+        read: acc.read + c.read,
+        clicked: acc.clicked + c.clicked,
+        email: acc.email + c.channels.email,
+        sms: acc.sms + c.channels.sms,
+        push: acc.push + c.channels.push,
+      }),
+      { sent: 0, read: 0, clicked: 0, email: 0, sms: 0, push: 0 },
+    );
+    return {
+      days: windowDays,
+      totals: {
+        ...totals,
+        readRate: rate(totals.read, totals.sent),
+        clickRate: rate(totals.clicked, totals.sent),
+        engagementRate: rate(totals.read, totals.sent),
+      },
+      perCategory: withRates,
+    };
+  }
+}
+
+const pushSubSchema = (input = {}) => {
+  const endpoint = String(input.endpoint ?? '').trim();
+  const p256dh = String(input.keys?.p256dh ?? input.p256dh ?? '').trim();
+  const auth = String(input.keys?.auth ?? input.auth ?? '').trim();
+  if (!/^https?:\/\//.test(endpoint) || endpoint.length > 2000) {
+    throw new ValidationException('Invalid push endpoint');
+  }
+  if (!p256dh || !auth) throw new ValidationException('Invalid push keys');
+  return { endpoint, p256dh, auth, userAgent: String(input.userAgent ?? '').slice(0, 500) || null };
+};
+
+export class SavePushSubscriptionUseCase {
+  /** @param {{stored}} deps */
+  constructor({ stored }) {
+    this.stored = stored;
+  }
+
+  async execute({ partnerId, subscription }) {
+    return this.stored.saveSubscription(partnerId, pushSubSchema(subscription));
+  }
+}
+
+export class RemovePushSubscriptionUseCase {
+  /** @param {{stored}} deps */
+  constructor({ stored }) {
+    this.stored = stored;
+  }
+
+  async execute({ partnerId, endpoint }) {
+    return this.stored.removeSubscription(partnerId, String(endpoint ?? ''));
   }
 }

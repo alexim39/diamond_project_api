@@ -21,16 +21,23 @@ export class MentionMailer {
     this.send = send ?? sendEmail;
   }
 
-  /** @param {{to, authorName, excerpt, sourceType}} input */
-  async sendMention({ to, authorName, excerpt, sourceType }) {
-    const subject = `${authorName} mentioned you on Diamond Project`;
-    const html = `
+  /** @param {{authorName, excerpt, sourceType}} input @returns {{subject, html}} */
+  buildMention({ authorName, excerpt, sourceType }) {
+    return {
+      subject: `${authorName} mentioned you on Diamond Project`,
+      html: `
       <p>Hi there,</p>
       <p><strong>${escapeHtml(authorName)}</strong> mentioned you in a ${escapeHtml(sourceType)}:</p>
       <blockquote>${escapeHtml(excerpt)}</blockquote>
       <p><a href="/dashboard/community">View it in Community</a></p>
       <p style="color:#888;font-size:12px;">You get this because community email is on and your digest is immediate. Change anytime in Notification settings.</p>
-    `;
+    `,
+    };
+  }
+
+  /** @param {{to, authorName, excerpt, sourceType}} input */
+  async sendMention({ to, authorName, excerpt, sourceType }) {
+    const { subject, html } = this.buildMention({ authorName, excerpt, sourceType });
     await this.send(to, subject, html);
   }
 }

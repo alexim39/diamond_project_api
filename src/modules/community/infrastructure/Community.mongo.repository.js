@@ -232,12 +232,13 @@ export class MongoCommunityStore {
     const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const docs = await PartnersModel.find({
       $or: clean.map((h) => ({ username: { $regex: `^${escape(h)}$`, $options: 'i' } })),
-    }).select('username name surname email').lean();
+    }).select('username name surname email phone').lean();
     return docs.map((d) => ({
       partnerId: oid(d._id),
       username: String(d.username ?? '').toLowerCase(),
       name: [d.name, d.surname].filter(Boolean).join(' ') || d.username,
       email: d.email ?? null,
+      phone: d.phone ?? null,
     }));
   }
 

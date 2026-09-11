@@ -10,10 +10,17 @@ import {
 import { MongoCommunityStore } from '../infrastructure/Community.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
+import { env } from '../../../shared/config/env.js';
+import { DomainEvents } from '../../../shared/events/DomainEvents.js';
+import { sendEmail } from '../../../services/emailService.js';
 import { FanoutMentionsUseCase } from '../../notifications/application/MentionFanout.usecase.js';
 import { NotifyUseCase } from '../../notifications/application/NotificationsCenter.usecases.js';
+import { NotificationDeliveryService } from '../../notifications/application/NotificationDelivery.js';
+import { NOTIFICATION_EVENTS } from '../../notifications/domain/NotificationEvents.js';
 import { MongoStoredNotificationStore } from '../../notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { MentionMailer } from '../../notifications/infrastructure/MentionMailer.js';
+import { buildSmsSender } from '../../notifications/infrastructure/SmsSender.js';
+import { buildPushSender } from '../../notifications/infrastructure/PushSender.js';
 import { ATTACHMENT_MIMES, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, POST_KINDS, AUDIENCE_SCOPES } from '../domain/Post.entity.js';
 import { communityUpload } from './Community.upload.js';
 
@@ -55,18 +62,29 @@ export const buildCommunityRouter = (deps = {}) => {
   const progress = deps.progress ?? new MongoProgressionStore();
 
   const stored = deps.stored ?? new MongoStoredNotificationStore();
+  // Event-driven fan-out: community emits facts, the notification slice
+  // subscribes. Fresh bus per build (explicit, no cross-router leakage);
+  // pass deps.events to share one across routers in tests.
+  const events = deps.events ?? new DomainEvents();
   const fanout = deps.fanout ?? new FanoutMentionsUseCase({
     community,
     stored,
-    notify: new NotifyUseCase({ stored }),
+    delivery: new NotificationDeliveryService({
+      stored,
+      notify: new NotifyUseCase({ stored }),
+      mail: sendEmail,
+      sms: buildSmsSender(env.sms),
+      push: buildPushSender(env.push, env.appBaseUrl),
+    }),
     mailer: new MentionMailer(),
   });
+  events.on(NOTIFICATION_EVENTS.MENTION_CREATED, (payload) => fanout.execute(payload));
 
   const feed = new GetFeedUseCase({ community, network, progress });
-  const create = new CreatePostUseCase({ community, fanout });
+  const create = new CreatePostUseCase({ community, events });
   const like = new ToggleLikeUseCase({ community, network, progress });
   const comments = new ListCommentsUseCase({ community, network, progress });
-  const comment = new AddCommentUseCase({ community, network, progress, fanout });
+  const comment = new AddCommentUseCase({ community, network, progress, events });
   const save = new ToggleSaveUseCase({ community });
   const report = new ReportPostUseCase({ community });
   const pin = new PinPostUseCase({ community });

@@ -3,6 +3,7 @@ import {
 } from '../../../shared/domain/AppError.js';
 import { LEADERSHIP_LEVELS, createCommentEntity, createPostEntity, extractMentions } from '../domain/Post.entity.js';
 import { isAncestor } from '../../network/infrastructure/Network.mongo.repository.js';
+import { NOTIFICATION_EVENTS, mentionCreated } from '../../notifications/domain/NotificationEvents.js';
 
 const pageOf = (limit) => Math.min(Math.max(Number(limit) || 20, 1), 50);
 
@@ -71,9 +72,9 @@ export class GetFeedUseCase {
 }
 
 export class CreatePostUseCase {
-  /** @param {{community, fanout?}} deps (fanout optional — N4 mention email/in-app) */
-  constructor({ community, fanout = null }) {
-    Object.assign(this, { community, fanout });
+  /** @param {{community, events?}} deps (events optional — mention fan-out subscribes) */
+  constructor({ community, events = null }) {
+    Object.assign(this, { community, events });
   }
 
   async execute({ authorId, ...input }) {
@@ -84,15 +85,18 @@ export class CreatePostUseCase {
       auto: false,
       mentions: extractMentions(`${entity.title} ${entity.body}`),
     });
-    // Best-effort mention fan-out — never fails the post.
-    if (this.fanout && (post?.mentions ?? []).length > 0) {
-      await this.fanout.execute({
-        authorId,
-        sourceType: 'post',
-        sourceId: String(post.id ?? post._id),
-        handles: post.mentions,
-        text: `${entity.title} ${entity.body}`,
-      }).catch(() => null);
+    // Business modules emit facts; delivery lives in the notification slice.
+    if (this.events && (post?.mentions ?? []).length > 0) {
+      await this.events.emit(
+        NOTIFICATION_EVENTS.MENTION_CREATED,
+        mentionCreated({
+          authorId,
+          sourceType: 'post',
+          sourceId: String(post.id ?? post._id),
+          handles: post.mentions,
+          text: `${entity.title} ${entity.body}`,
+        }),
+      ).catch(() => null);
     }
     return post;
   }
@@ -160,9 +164,9 @@ export class ListCommentsUseCase {
 }
 
 export class AddCommentUseCase {
-  /** @param {{community, network, progress, fanout?}} deps (visibility-checked; fanout optional — N4) */
-  constructor({ community, network, progress, fanout = null }) {
-    Object.assign(this, { community, network, progress, fanout });
+  /** @param {{community, network, progress, events?}} deps (visibility-checked; events optional) */
+  constructor({ community, network, progress, events = null }) {
+    Object.assign(this, { community, network, progress, events });
   }
 
   async execute({ partnerId, postId, ...input }) {
@@ -180,15 +184,17 @@ export class AddCommentUseCase {
       parentId: input.parentId ?? null,
       mentions: extractMentions(body),
     });
-    // Best-effort mention fan-out — never fails the comment.
-    if (this.fanout && (comment?.mentions ?? []).length > 0) {
-      await this.fanout.execute({
-        authorId: partnerId,
-        sourceType: 'comment',
-        sourceId: String(comment.id ?? comment._id),
-        handles: comment.mentions,
-        text: body,
-      }).catch(() => null);
+    if (this.events && (comment?.mentions ?? []).length > 0) {
+      await this.events.emit(
+        NOTIFICATION_EVENTS.MENTION_CREATED,
+        mentionCreated({
+          authorId: partnerId,
+          sourceType: 'comment',
+          sourceId: String(comment.id ?? comment._id),
+          handles: comment.mentions,
+          text: body,
+        }),
+      ).catch(() => null);
     }
     return comment;
   }

@@ -32,4 +32,13 @@ export class StoredNotificationStore {
   async listDigestSubscribers(digest, { cursor, limit }) { throw new Error('Not implemented'); }
   async unreadSince(partnerId, since, limit) { throw new Error('Not implemented'); }
   async stampDigest(partnerId, kind, at) { throw new Error('Not implemented'); }
+  async saveSubscription(partnerId, sub) { throw new Error('Not implemented'); }
+  async removeSubscription(partnerId, endpoint) { throw new Error('Not implemented'); }
+  async pruneSubscription(partnerId, endpoint) { throw new Error('Not implemented'); }
+  async listSubscriptions(partnerId) { throw new Error('Not implemented'); }
+  async markUnread(partnerId, id) { throw new Error('Not implemented'); }
+  async recordClick(partnerId, id) { throw new Error('Not implemented'); }
+  async stampChannels(id, stamp) { throw new Error('Not implemented'); }
+  async deleteAll(partnerId) { throw new Error('Not implemented'); }
+  async engagementStats(partnerId, since) { throw new Error('Not implemented'); }
 }
