@@ -40,6 +40,11 @@ export class MongoNetworkRepository {  async findNode(id) {
     const ids = await PartnersModel.distinct('partnerOf');
     return ids.map(String).filter(Boolean).slice(0, Math.min(Math.max(Number(limit) || 2000, 1), 5000));
   }
+
+  /** Direct-recruit count (progression signals). */
+  async countChildren(partnerId) {
+    return PartnersModel.countDocuments({ partnerOf: String(partnerId) });
+  }
 }
 
 /**

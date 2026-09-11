@@ -14,6 +14,8 @@ import { MongoTeamSnapshotStore } from '../../analytics/infrastructure/TeamSnaps
 import { ListGoalsUseCase } from '../../goals/application/Goals.usecases.js';
 import { GetActionsUseCase, GetFunnelUseCase, GetTeamUseCase } from '../../analytics/application/Analytics.usecases.js';
 import { GetStuckProspectsUseCase } from '../../crm/application/Prospect.queries.js';
+import { GetMyProgressionUseCase } from '../../progression/application/Progression.usecases.js';
+import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
 const OverviewQuery = z.object({
   days: z.coerce.number().int().min(7).max(365).optional().default(30),
   // Optional upline-scoped read: leader views a downline partner's overview.
@@ -32,7 +34,9 @@ export const buildDashboardRouter = (deps = {}) => {
   const feed = deps.feed ?? new GetNotificationFeedUseCase({ prospects, ledger, reads });
   const goals = deps.goals ?? new ListGoalsUseCase({ goals: goalStore, orders, prospects, network });
   const stuck = deps.stuck ?? new GetStuckProspectsUseCase({ prospects });
-  const actions = deps.actions ?? new GetActionsUseCase({ feed, goals, prospects, stuck });
+  const progressStore = deps.progressStore ?? new MongoProgressionStore();
+  const progression = deps.progression ?? new GetMyProgressionUseCase({ progress: progressStore, network, orders });
+  const actions = deps.actions ?? new GetActionsUseCase({ feed, goals, prospects, stuck, progression });
   const funnel = deps.funnel ?? new GetFunnelUseCase({ prospects });
   const snapshots = deps.snapshots ?? new MongoTeamSnapshotStore();
   const team = deps.team ?? new GetTeamUseCase({

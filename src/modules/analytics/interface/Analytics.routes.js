@@ -5,6 +5,8 @@ import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { GetActionsUseCase, GetFunnelUseCase, GetTeamUseCase } from '../application/Analytics.usecases.js';
 import { GetStuckProspectsUseCase } from '../../crm/application/Prospect.queries.js';
+import { GetMyProgressionUseCase } from '../../progression/application/Progression.usecases.js';
+import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
 import { MongoTeamSnapshotStore } from '../infrastructure/TeamSnapshots.mongo.repository.js';
 import { MongoProspectRepository } from '../../crm/infrastructure/Prospect.mongo.repository.js';
 import { MongoOrderReader, MongoCommissionLedger } from '../../billing/infrastructure/Billing.mongo.repository.js';
@@ -35,10 +37,12 @@ export const buildAnalyticsRouter = (deps = {}) => {
   const feed = deps.feed ?? new GetNotificationFeedUseCase({ prospects, ledger, reads });
   const goals = deps.goals ?? new ListGoalsUseCase({ goals: goalStore, orders, prospects, network });
   const stuck = deps.stuck ?? new GetStuckProspectsUseCase({ prospects });
+  const progressStore = deps.progressStore ?? new MongoProgressionStore();
+  const progression = deps.progression ?? new GetMyProgressionUseCase({ progress: progressStore, network, orders });
   const funnel = new GetFunnelUseCase({ prospects });
   const snapshots = deps.snapshots ?? new MongoTeamSnapshotStore();
   const team = new GetTeamUseCase({ orders, network, prospects, snapshots, goalProgress: (pid) => goals.execute({ partnerId: pid }) });
-  const actions = new GetActionsUseCase({ feed, goals, prospects, stuck });
+  const actions = new GetActionsUseCase({ feed, goals, prospects, stuck, progression });
 
   const router = express.Router();
   router.use(requireAuth);

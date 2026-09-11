@@ -102,20 +102,21 @@ const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
 /**
  * Daily Action Center: "what should I do today?" — urgent notifications
  * first, then behind-pace goals, stuck pipeline, ready-to-close prospects,
- * then the rest.
+ * journey milestones, then the rest.
  */
 export class GetActionsUseCase {
-  /** @param {{feed, goals, prospects, stuck}} deps (feed/goals/stuck are composed use cases) */
-  constructor({ feed, goals, prospects, stuck }) {
-    Object.assign(this, { feed, goals, prospects, stuck });
+  /** @param {{feed, goals, prospects, stuck, progression}} deps (composed use cases; stuck/progression optional) */
+  constructor({ feed, goals, prospects, stuck, progression }) {
+    Object.assign(this, { feed, goals, prospects, stuck, progression });
   }
 
   async execute({ partnerId, now = new Date(), limit = 15 }) {
-    const [feed, goals, hot, stuck] = await Promise.all([
+    const [feed, goals, hot, stuck, journey] = await Promise.all([
       this.feed.execute({ partnerId, now, limit: 50 }),
       this.goals.execute({ partnerId, now }),
       this.prospects.findReadyToConvert(partnerId, 5),
       this.stuck ? this.stuck.execute({ partnerId, now }) : [],
+      this.progression ? this.progression.summarize({ partnerId, now }) : null,
     ]);
 
     const actions = [];
@@ -167,6 +168,26 @@ export class GetActionsUseCase {
         title: item.title,
         detail: item.body,
         link: item.link,
+      });
+    }
+    if (journey?.promoted) {
+      actions.push({
+        id: `action:promoted:${journey.promoted.to}`,
+        priority: 'high',
+        category: 'growth',
+        title: `Promoted to ${journey.promoted.to.replace(/_/g, ' ')}`,
+        detail: 'Your journey advanced — see what unlocked next',
+        link: '/dashboard/progress',
+      });
+    }
+    for (const m of (journey?.missing ?? []).slice(0, 2)) {
+      actions.push({
+        id: `action:journey:${m.key}`,
+        priority: 'medium',
+        category: 'growth',
+        title: m.label,
+        detail: m.action,
+        link: '/dashboard/progress',
       });
     }
 
