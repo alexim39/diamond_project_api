@@ -4,10 +4,12 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
-  ExportCommissionsUseCase, ExportPipelineUseCase, ExportReportsUseCase, ExportTeamUseCase,
+  ExportCommissionsUseCase, ExportCommunityUseCase, ExportPipelineUseCase, ExportReportsUseCase, ExportTeamUseCase,
 } from '../application/Exports.usecases.js';
 import { toCsv } from '../domain/Export.csv.js';
 import { buildXlsx } from '../domain/Export.xlsx.js';
+import { CommunityAnalyticsUseCase } from '../../community/application/Community.usecases.js';
+import { MongoCommunityStore } from '../../community/infrastructure/Community.mongo.repository.js';
 import { MongoProspectRepository } from '../../crm/infrastructure/Prospect.mongo.repository.js';
 import { MongoCommissionLedger } from '../../billing/infrastructure/Billing.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -18,6 +20,9 @@ const LimitQuery = z.object({
 });
 const ReportsQuery = LimitQuery.extend({
   scope: z.enum(['mine', 'team']).optional().default('mine'),
+});
+const DaysQuery = z.object({
+  days: z.coerce.number().int().min(1).max(90).optional().default(7),
 });
 
 /** UTF-8 BOM so Excel opens the file correctly. */
@@ -40,11 +45,15 @@ export const buildExportsRouter = (deps = {}) => {
   const ledger = deps.ledger ?? new MongoCommissionLedger();
   const network = deps.network ?? new MongoNetworkRepository();
   const reports = deps.reports ?? new MongoReportStore();
+  const community = deps.community ?? new MongoCommunityStore();
 
   const team = new ExportTeamUseCase({ network });
   const pipeline = new ExportPipelineUseCase({ prospects });
   const commissions = new ExportCommissionsUseCase({ ledger });
   const periodReports = new ExportReportsUseCase({ reports, network });
+  const communityStats = deps.communityStats ?? new ExportCommunityUseCase({
+    analytics: deps.analytics ?? new CommunityAnalyticsUseCase({ community }),
+  });
 
   const router = express.Router();
   // Session identity scopes every export — no :partnerId to tamper with.
@@ -86,6 +95,16 @@ export const buildExportsRouter = (deps = {}) => {
   router.get('/reports.xlsx', validate({ query: ReportsQuery }), asyncHandler(async (req, res) => {
     const q = req.validated?.query ?? req.query;
     await sendXlsx(res, 'Reports', await periodReports.execute({ partnerId: req.auth?.partnerId, scope: q?.scope }));
+  }));
+
+  router.get('/community.csv', validate({ query: DaysQuery }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    sendCsv(res, await communityStats.execute({ days: q?.days }));
+  }));
+
+  router.get('/community.xlsx', validate({ query: DaysQuery }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    await sendXlsx(res, 'Community', await communityStats.execute({ days: q?.days }));
   }));
 
   return router;

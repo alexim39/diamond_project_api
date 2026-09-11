@@ -94,6 +94,40 @@ export class ExportCommissionsUseCase {
   }
 }
 
+/** Community engagement digest — summary, posts by kind, top contributors. */
+export class ExportCommunityUseCase {
+  /** @param {{analytics}} deps (community analytics use case) */
+  constructor({ analytics }) {
+    this.analytics = analytics;
+  }
+
+  async execute({ days = 7 } = {}) {
+    const data = await this.analytics.execute({ days });
+    const rows = [
+      { metric: 'Window (days)', value: data.days },
+      { metric: 'Total posts', value: data.posts },
+      { metric: 'Total likes', value: data.likes },
+      { metric: 'Total comments', value: data.comments },
+      { metric: '— Posts by kind —', value: '' },
+      ...Object.entries(data.byKind ?? {}).map(([kind, count]) => ({ metric: `  ${kind}`, value: count })),
+      { metric: '— Top contributors —', value: '' },
+      ...(data.topContributors ?? []).map((c) => ({
+        metric: `  ${c.name || c.username || c.id}`,
+        value: c.posts,
+      })),
+    ];
+    return {
+      name: exportBasename('community'),
+      columns: [
+        { key: 'metric', header: 'Metric' },
+        { key: 'value', header: 'Value' },
+      ],
+      rows,
+      count: rows.length,
+    };
+  }
+}
+
 /** Period reports — own submissions or the direct-downline feed. */
 export class ExportReportsUseCase {
   /** @param {{reports, network}} deps */
