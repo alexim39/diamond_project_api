@@ -27,6 +27,9 @@ export const INDEXES = [
   { collection: 'messages', keys: { senderId: 1, createdAt: -1 }, options: {} },
   { collection: 'communityposts', keys: { mentions: 1, createdAt: -1 }, options: {} },
   { collection: 'communitycomments', keys: { mentions: 1, createdAt: -1 }, options: {} },
+  { collection: 'events', keys: { startsAt: 1 }, options: {} },
+  { collection: 'events', keys: { authorId: 1, startsAt: -1 }, options: {} },
+  { collection: 'eventrsvps', keys: { eventId: 1 }, options: {} },
 ];
 
 /**
