@@ -14,6 +14,15 @@ const postSchema = new mongoose.Schema(
     refType: { type: String, default: '' },
     refId: { type: String, default: '' },
     mentions: { type: [String], default: [] },
+    attachments: {
+      type: [{
+        url: { type: String, required: true },
+        mime: { type: String, required: true },
+        size: { type: Number, required: true },
+        _id: false,
+      }],
+      default: [],
+    },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

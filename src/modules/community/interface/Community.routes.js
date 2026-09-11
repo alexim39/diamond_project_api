@@ -10,9 +10,16 @@ import {
 import { MongoCommunityStore } from '../infrastructure/Community.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
-import { POST_KINDS, AUDIENCE_SCOPES } from '../domain/Post.entity.js';
+import { ATTACHMENT_MIMES, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, POST_KINDS, AUDIENCE_SCOPES } from '../domain/Post.entity.js';
+import { communityUpload } from './Community.upload.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
+
+const AttachmentSchema = z.object({
+  url: z.string().trim().regex(/^\/uploads\/community\/[A-Za-z0-9_.-]+$/, 'Invalid attachment url'),
+  mime: z.enum(ATTACHMENT_MIMES),
+  size: z.number().int().min(1).max(MAX_ATTACHMENT_BYTES),
+});
 
 const PostSchema = z.object({
   kind: z.enum(POST_KINDS),
@@ -20,6 +27,7 @@ const PostSchema = z.object({
   body: z.string().trim().min(1).max(2000),
   link: z.string().trim().max(500).optional().default(''),
   scope: z.enum(AUDIENCE_SCOPES),
+  attachments: z.array(AttachmentSchema).max(MAX_ATTACHMENTS).optional().default([]),
 });
 
 const CommentSchema = z.object({
@@ -66,6 +74,22 @@ export const buildCommunityRouter = (deps = {}) => {
     const body = req.validated?.body ?? req.body;
     const data = await create.execute({ authorId: req.auth?.partnerId, ...body });
     res.status(200).json({ message: 'Post created successfully', data, success: true });
+  }));
+
+  // Image upload (multipart `image` field) — returns a URL to attach on POST /.
+  router.post('/attachments', communityUpload.single('image'), asyncHandler(async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image uploaded', success: false, code: 'VALIDATION_ERROR' });
+    }
+    res.status(200).json({
+      message: 'Image uploaded successfully',
+      data: {
+        url: `/uploads/community/${req.file.filename}`,
+        mime: req.file.mimetype,
+        size: req.file.size,
+      },
+      success: true,
+    });
   }));
 
   router.post('/:postId/like', validate({ params: z.object({ postId: objectId }) }), asyncHandler(async (req, res) => {

@@ -17,7 +17,30 @@ const text = (value, field, { min = 1, max = 2000 } = {}) => {
   return s;
 };
 
-/** @param {{kind,title,body,link,scope}} input (Zod-whitelisted) */
+/** Posts-only image attachments (v1 scope — comments stay text). */
+export const ATTACHMENT_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+export const MAX_ATTACHMENTS = 4;
+export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const ATTACHMENT_URL_RE = /^\/uploads\/community\/[A-Za-z0-9_.-]+$/;
+
+/** @param {unknown} value (already Zod-shaped, defense in depth) */
+export const createAttachmentEntities = (value) => {
+  const list = value ?? [];
+  if (!Array.isArray(list)) throw new ValidationException('Invalid attachments');
+  if (list.length > MAX_ATTACHMENTS) throw new ValidationException(`At most ${MAX_ATTACHMENTS} images per post`);
+  return list.map((a) => {
+    if (!a || typeof a !== 'object') throw new ValidationException('Invalid attachment');
+    if (!ATTACHMENT_URL_RE.test(String(a.url ?? ''))) throw new ValidationException('Invalid attachment url');
+    if (!ATTACHMENT_MIMES.includes(a.mime)) throw new ValidationException('Invalid attachment type');
+    const size = Number(a.size);
+    if (!Number.isInteger(size) || size < 1 || size > MAX_ATTACHMENT_BYTES) {
+      throw new ValidationException('Invalid attachment size');
+    }
+    return { url: String(a.url), mime: a.mime, size };
+  });
+};
+
+/** @param {{kind,title,body,link,scope,attachments}} input (Zod-whitelisted) */
 export const createPostEntity = (input) => {
   if (!POST_KINDS.includes(input.kind)) throw new ValidationException('Invalid post kind');
   if (!AUDIENCE_SCOPES.includes(input.scope)) throw new ValidationException('Invalid audience');
@@ -32,6 +55,7 @@ export const createPostEntity = (input) => {
     body: text(input.body, 'post body'),
     link,
     scope: input.scope,
+    attachments: createAttachmentEntities(input.attachments),
   };
 };
 

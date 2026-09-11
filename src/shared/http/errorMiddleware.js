@@ -15,6 +15,15 @@ export const errorMiddleware = (err, _req, res, _next) => {
     });
   }
 
+  // Multer upload errors (size caps, field limits) — client errors, not 500s.
+  if (err?.name === 'MulterError') {
+    return res.status(400).json({
+      message: err.code === 'LIMIT_FILE_SIZE' ? 'Image is too large (max 5MB)' : 'Invalid upload',
+      success: false,
+      code: 'VALIDATION_ERROR',
+    });
+  }
+
   // Mongoose validation / cast errors from any not-yet-migrated path
   if (err?.name === 'ValidationError') {
     return res.status(400).json({
