@@ -109,4 +109,15 @@ export class MongoProgressionStore {
     ).lean();
     return shaped(row);
   }
+
+  /** Pending G-nominations within a bounded id set (oversight inbox). */
+  async listPendingNominations(partnerIds, limit = 100) {
+    if (partnerIds.length === 0) return [];
+    const rows = await ProgressionModel.find({ partnerId: { $in: partnerIds }, 'nomination.status': 'pending' })
+      .select('partnerId level nomination updatedAt')
+      .sort({ updatedAt: -1 })
+      .limit(Math.min(Math.max(Number(limit) || 100, 1), 200))
+      .lean();
+    return rows.map(shaped);
+  }
 }

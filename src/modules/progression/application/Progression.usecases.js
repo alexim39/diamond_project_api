@@ -2,6 +2,7 @@ import {
   ConflictException, ForbiddenException, NotFoundException, ValidationException,
 } from '../../../shared/domain/AppError.js';
 import { LEVELS, LEVEL_LABELS, RANK, resolveProgression } from '../domain/Progression.levels.js';
+import { adminBootstrapEmails, lenientRole } from '../../identity-access/domain/PartnerRole.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
 
 const DAY = 86400000;
@@ -174,6 +175,74 @@ export class DecideNominationUseCase {
     const doc = await this.progress.decideNomination(partnerId, approved === true, approverId);
     if (!doc) throw new NotFoundException('No pending nomination');
     return { status: doc.nomination.status };
+  }
+}
+
+/** Pending G-nominations in the requester's downline, with member labels. */
+export class ListPendingNominationsUseCase {
+  /** @param {{progress, network}} deps */
+  constructor({ progress, network }) {
+    Object.assign(this, { progress, network });
+  }
+
+  async execute({ requesterId, limit = 100 }) {
+    const { ids } = await collectDownlineIds(this.network, requesterId);
+    const rows = await this.progress.listPendingNominations(ids.slice(0, 2000), limit);
+    if (rows.length === 0) return { items: [], total: 0 };
+    const nodes = await this.network.findNodesByIds(rows.map((r) => r.partnerId));
+    const labels = Object.fromEntries(nodes.map((nd) => [String(nd.id), {
+      username: nd.username,
+      name: [nd.name, nd.surname].filter(Boolean).join(' ') || nd.username,
+    }]));
+    return {
+      items: rows.map((r) => ({
+        partnerId: String(r.partnerId),
+        level: r.level ?? null,
+        note: r.nomination?.note ?? '',
+        requestedAt: r.nomination?.at ?? r.updatedAt ?? null,
+        member: labels[String(r.partnerId)] ?? null,
+      })),
+      total: rows.length,
+    };
+  }
+}
+
+/**
+ * G8 oversight rollup: distribution + leaders + pending nominations.
+ * Gated to ladder-g8 members and admins (with bootstrap-email parity,
+ * mirroring requireRole) — everyone else gets 403.
+ */
+export class GetOversightUseCase {
+  /** @param {{mine, partners, distribution, pending}} deps (composed use cases) */
+  constructor({ mine, partners, distribution, pending }) {
+    Object.assign(this, { mine, partners, distribution, pending });
+  }
+
+  async execute({ requesterId }) {
+    const [me, adminDoc] = await Promise.all([
+      this.mine.execute({ partnerId: requesterId }),
+      this.partners.findById(requesterId),
+    ]);
+    const role = lenientRole(adminDoc?.role);
+    const isAdmin = role === 'admin'
+      || adminBootstrapEmails().includes(String(adminDoc?.email ?? '').toLowerCase());
+    if (me.level !== 'g8' && !isAdmin) {
+      throw new ForbiddenException('Oversight is available to G8 Leaders and admins');
+    }
+    const [dist, nominations] = await Promise.all([
+      this.distribution.execute({ partnerId: requesterId }),
+      this.pending.execute({ requesterId }),
+    ]);
+    return {
+      level: me.level,
+      isAdmin,
+      total: dist.total,
+      capped: dist.capped,
+      distribution: dist.distribution,
+      leaders: dist.leaders,
+      pendingNominations: nominations.items,
+      pendingCount: nominations.total,
+    };
   }
 }
 

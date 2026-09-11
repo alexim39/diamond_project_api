@@ -4,12 +4,13 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
-  DecideNominationUseCase, GetMyProgressionUseCase, RequestNominationUseCase,
-  TeamDistributionUseCase, UpdateMilestonesUseCase,
+  DecideNominationUseCase, GetMyProgressionUseCase, GetOversightUseCase, ListPendingNominationsUseCase,
+  RequestNominationUseCase, TeamDistributionUseCase, UpdateMilestonesUseCase,
 } from '../application/Progression.usecases.js';
 import { MongoProgressionStore } from '../infrastructure/Progression.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoOrderReader } from '../../billing/infrastructure/Billing.mongo.repository.js';
+import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
 import { RecognitionUseCases } from '../../community/application/Community.usecases.js';
 import { MongoCommunityStore } from '../../community/infrastructure/Community.mongo.repository.js';
 
@@ -49,6 +50,13 @@ export const buildProgressionRouter = (deps = {}) => {
   const nominate = new RequestNominationUseCase({ progress, network, orders, mine });
   const decide = new DecideNominationUseCase({ progress, network, orders, mine });
   const team = new TeamDistributionUseCase({ progress, network });
+  const partners = deps.partners ?? new MongoPartnerRepository();
+  const pending = deps.pending ?? new ListPendingNominationsUseCase({ progress, network });
+  const oversight = deps.oversight ?? new GetOversightUseCase({
+    mine, partners,
+    distribution: deps.distribution ?? team,
+    pending,
+  });
 
   const router = express.Router();
   router.use(requireAuth);
@@ -79,6 +87,16 @@ export const buildProgressionRouter = (deps = {}) => {
   router.get('/team/distribution', asyncHandler(async (req, res) => {
     const data = await team.execute({ partnerId: req.auth?.partnerId });
     res.status(200).json({ message: 'Team distribution retrieved successfully', data, success: true });
+  }));
+
+  router.get('/nominations/pending', asyncHandler(async (req, res) => {
+    const data = await pending.execute({ requesterId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Pending nominations retrieved successfully', data, success: true });
+  }));
+
+  router.get('/oversight', asyncHandler(async (req, res) => {
+    const data = await oversight.execute({ requesterId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Oversight retrieved successfully', data, success: true });
   }));
 
   return router;
