@@ -37,6 +37,7 @@ import ReportsRouter from './src/modules/reports/index.js';
 import ExportsRouter from './src/modules/exports/index.js';
 import MessagingRouter from './src/modules/messaging/index.js';
 import ProgressionRouter from './src/modules/progression/index.js';
+import TrainingRouter from './src/modules/training/index.js';
 import ProspectV1Router from './src/modules/crm/index.js';
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 import { ensureIndexes } from './src/shared/mongo/indexes.js';
@@ -101,6 +102,7 @@ app.use('/v1/reports', ReportsRouter);
 app.use('/v1/exports', ExportsRouter);
 app.use('/v1/messages', MessagingRouter);
 app.use('/v1/progression', ProgressionRouter);
+app.use('/v1/training', TrainingRouter);
 
 
 
