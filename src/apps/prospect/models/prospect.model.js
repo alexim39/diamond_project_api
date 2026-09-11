@@ -35,6 +35,15 @@ const prospectSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Survey',
         },
+        // Optional campaign attribution (R4): stamped when a prospect
+        // arrives via a tracked campaign link. Sparse — absent historically.
+        campaignId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Campaign',
+            default: null,
+            index: true,
+            sparse: true,
+        },
         status: StatusSchema,
         role: {
             type: String,

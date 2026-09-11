@@ -15,6 +15,7 @@ export const CreateProspectSchema = z.object({
   partnerId: objectId,
   surverId: z.string().trim().optional(),
   survey: z.unknown().optional(),
+  campaignId: objectId.optional(),
 });
 
 export const UpdateProspectSchema = z.object({

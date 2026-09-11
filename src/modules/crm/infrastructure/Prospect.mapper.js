@@ -14,6 +14,7 @@ export const ProspectMapper = {
       prospectSource: o.prospectSource,
       partnerId: str(o.partnerId),
       surverId: o.surverId === undefined || o.surverId === null ? o.surverId : str(o.surverId),
+      campaignId: o.campaignId === undefined || o.campaignId === null ? o.campaignId ?? null : str(o.campaignId),
       survey: o.survey,
       role: o.role,
       status: o.status ? { ...o.status } : o.status,

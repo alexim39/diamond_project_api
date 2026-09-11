@@ -4,10 +4,17 @@ import { createStatusOverlay } from '../domain/Prospect.entity.js';
 
 /** POST /v1/prospects — scoped dup-check (legacy: global). */
 export class CreateProspectUseCase {
-  /** @param {{prospects}} deps */
-  constructor({ prospects }) { this.prospects = prospects; }
+  /** @param {{prospects, campaigns?}} deps (campaigns verifies attribution ownership) */
+  constructor({ prospects, campaigns }) {
+    Object.assign(this, { prospects, campaigns: campaigns ?? null });
+  }
   async execute(input) {
     const entity = createProspectEntity(input);
+    if (entity.campaignId) {
+      // 404 for both missing and foreign campaigns — no existence oracle.
+      const owned = await this.campaigns?.findOwned(entity.campaignId, entity.partnerId);
+      if (!owned) throw new NotFoundException('Campaign not found');
+    }
     const dupe = await this.prospects.findDuplicate(entity.partnerId, {
       phone: entity.prospectPhone,
       email: entity.prospectEmail,

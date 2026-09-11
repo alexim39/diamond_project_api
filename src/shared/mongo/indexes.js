@@ -18,6 +18,8 @@ export const INDEXES = [
   { collection: 'prospects', keys: { partnerId: 1, createdAt: -1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, 'status.stage': 1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, updatedAt: -1 }, options: {} },
+  { collection: 'prospects', keys: { partnerId: 1, prospectSource: 1, createdAt: -1 }, options: {} },
+  { collection: 'prospects', keys: { partnerId: 1, campaignId: 1, createdAt: -1 }, options: {} },
   { collection: 'carts', keys: { partner: 1, orderStatus: 1, createdAt: -1 }, options: {} },
   { collection: 'commissions', keys: { earnerId: 1, status: 1, releasedAt: -1 }, options: {} },
   { collection: 'goals', keys: { partnerId: 1, endDate: 1 }, options: {} },

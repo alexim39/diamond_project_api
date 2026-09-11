@@ -14,6 +14,7 @@ import {
   GetStuckProspectsUseCase,
 } from '../application/Prospect.queries.js';
 import { MongoProspectRepository, MongoPartnerLookup, MongoReservationCodes } from '../infrastructure/Prospect.mongo.repository.js';
+import { MongoCampaignLookup } from '../../marketing/infrastructure/Marketing.mongo.repository.js';
 import { ConvertProspectToPartnerUseCase } from '../application/Prospect.convert.js';
 
 /**
@@ -29,9 +30,10 @@ export const buildProspectRouter = (deps = {}) => {
   const prospects = deps.prospects ?? new MongoProspectRepository();
   const partners = deps.partners ?? new MongoPartnerLookup();
   const reservations = deps.reservations ?? new MongoReservationCodes();
+  const campaigns = deps.campaigns ?? new MongoCampaignLookup();
 
   const c = makeProspectController({
-    create: new CreateProspectUseCase({ prospects }),
+    create: new CreateProspectUseCase({ prospects, campaigns }),
     update: new UpdateProspectUseCase({ prospects }),
     updateStatus: new UpdateProspectStatusUseCase({ prospects }),
     remove: new DeleteProspectUseCase({ prospects }),
