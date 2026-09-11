@@ -11,6 +11,11 @@
  * - commissions: earnerId+status+createdAt exists; releasedAt leg missing.
  * - goals: partnerId exists; list sorts by endDate (new leg).
  * - partners.dobMonth+dobDay: derived birthday parts (R6 follow-up).
+ * - stored-notifications (N1/N2): center list leg, unique producer-key
+ *   leg (partial — legacy unkeyed rows excluded), title/body text leg.
+ * - notification-preferences (N5): digest-subscriber sweep leg.
+ * - partners.status+_id (N2/N3): active-partner job sweeps.
+ * - partners.username (N4): @mention handle resolution.
  * Read-state TTL + request/report indexes already exist — untouched.
  */
 export const INDEXES = [
@@ -29,6 +34,16 @@ export const INDEXES = [
   { collection: 'messages', keys: { senderId: 1, createdAt: -1 }, options: {} },
   { collection: 'communityposts', keys: { mentions: 1, createdAt: -1 }, options: {} },
   { collection: 'communitycomments', keys: { mentions: 1, createdAt: -1 }, options: {} },
+  { collection: 'stored-notifications', keys: { recipientId: 1, archivedAt: 1, createdAt: -1 }, options: {} },
+  {
+    collection: 'stored-notifications',
+    keys: { recipientId: 1, key: 1 },
+    options: { unique: true, partialFilterExpression: { key: { $type: 'string' } } },
+  },
+  { collection: 'stored-notifications', keys: { title: 'text', body: 'text' }, options: {} },
+  { collection: 'notification-preferences', keys: { emailDigest: 1, partnerId: 1 }, options: {} },
+  { collection: 'partners', keys: { status: 1, _id: 1 }, options: {} },
+  { collection: 'partners', keys: { username: 1 }, options: {} },
   { collection: 'events', keys: { startsAt: 1 }, options: {} },
   { collection: 'events', keys: { authorId: 1, startsAt: -1 }, options: {} },
   { collection: 'eventrsvps', keys: { eventId: 1 }, options: {} },

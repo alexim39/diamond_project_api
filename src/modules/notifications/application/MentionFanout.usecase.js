@@ -14,7 +14,7 @@ const excerptOf = (text, max = 140) => {
  * written (keyed `mention:<type>:<id>:<handle>`, reruns no-op via
  * `findByKey` + the unique-key backstop); email goes out only when the
  * recipient opted into community email AND their digest is `immediate`
- * (daily/weekly/off keep the in-app item for a future digest job).
+ * (daily/weekly/off keep the in-app item for the digest sender, N5).
  * SMS/push senders do not exist yet — preferences reserve the flags.
  */
 export class FanoutMentionsUseCase {
