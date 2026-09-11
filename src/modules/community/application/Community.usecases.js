@@ -44,11 +44,12 @@ export class GetFeedUseCase {
       if (await visible(post, viewerId, viewerIsLeader, this)) visiblePosts.push(post);
     }
     const ids = visiblePosts.map((p) => p.id);
-    const [likes, comments, liked, saved, authors] = await Promise.all([
+    const [likes, comments, liked, saved, savedCounts, authors] = await Promise.all([
       this.community.likeCounts('post', ids),
       this.community.commentCounts(ids),
       this.community.likedByMe('post', ids, viewerId),
       this.community.savedByMe(ids, viewerId),
+      this.community.savedCounts(ids),
       this.community.authorLabels(visiblePosts.map((p) => p.authorId)),
     ]);
     const items = visiblePosts.map((p) => ({
@@ -58,6 +59,7 @@ export class GetFeedUseCase {
       commentCount: comments[p.id] ?? 0,
       likedByMe: liked.has(p.id),
       savedByMe: saved.has(p.id),
+      saveCount: savedCounts[p.id] ?? 0,
     }));
     const last = visiblePosts[visiblePosts.length - 1];
     return {

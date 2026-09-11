@@ -17,6 +17,7 @@ export class CommunityStore {
   async commentCounts(postIds) { throw new Error('Not implemented'); }
   async toggleSave(partnerId, postId) { throw new Error('Not implemented'); }
   async savedByMe(postIds, partnerId) { throw new Error('Not implemented'); }
+  async savedCounts(postIds) { throw new Error('Not implemented'); }
   async report(partnerId, postId, reason) { throw new Error('Not implemented'); }
   async reportedByMe(partnerId) { throw new Error('Not implemented'); }
   async authorLabels(ids) { throw new Error('Not implemented'); }

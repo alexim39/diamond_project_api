@@ -144,8 +144,8 @@ export class MongoCommunityStore {
     return new Set(rows.map((r) => oid(r.targetId)));
   }
 
-  async addComment({ postId, authorId, body, parentId }) {
-    return shaped((await CommentModel.create({ postId, authorId, body, parentId: parentId ?? null })).toObject());
+  async addComment({ postId, authorId, body, parentId, mentions }) {
+    return shaped((await CommentModel.create({ postId, authorId, body, parentId: parentId ?? null, mentions: mentions ?? [] })).toObject());
   }
 
   async listComments(postId, limit = 100) {
@@ -176,6 +176,15 @@ export class MongoCommunityStore {
     if (postIds.length === 0) return new Set();
     const rows = await SavedModel.find({ postId: { $in: postIds }, partnerId }).select('postId').lean();
     return new Set(rows.map((r) => oid(r.postId)));
+  }
+
+  async savedCounts(postIds) {
+    if (postIds.length === 0) return {};
+    const rows = await SavedModel.aggregate([
+      { $match: { postId: { $in: postIds } } },
+      { $group: { _id: '$postId', count: { $sum: 1 } } },
+    ]);
+    return Object.fromEntries(rows.map((r) => [oid(r._id), r.count]));
   }
 
   async report(partnerId, postId, reason) {
