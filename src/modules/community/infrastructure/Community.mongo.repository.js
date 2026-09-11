@@ -159,7 +159,7 @@ export class MongoCommunityStore {
   }
 
   async report(partnerId, postId, reason) {
-    await ReportModel.updateOne(
+    await PostReportModel.updateOne(
       { partnerId, postId },
       { $setOnInsert: { partnerId, postId, reason } },
       { upsert: true },
@@ -168,7 +168,7 @@ export class MongoCommunityStore {
   }
 
   async reportedByMe(partnerId) {
-    const rows = await ReportModel.find({ partnerId }).select('postId').lean();
+    const rows = await PostReportModel.find({ partnerId }).select('postId').lean();
     return new Set(rows.map((r) => oid(r.postId)));
   }
 
