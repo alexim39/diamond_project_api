@@ -6,6 +6,8 @@ import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
   ExportCommissionsUseCase, ExportPipelineUseCase, ExportReportsUseCase, ExportTeamUseCase,
 } from '../application/Exports.usecases.js';
+import { toCsv } from '../domain/Export.csv.js';
+import { buildXlsx } from '../domain/Export.xlsx.js';
 import { MongoProspectRepository } from '../../crm/infrastructure/Prospect.mongo.repository.js';
 import { MongoCommissionLedger } from '../../billing/infrastructure/Billing.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -19,10 +21,17 @@ const ReportsQuery = LimitQuery.extend({
 });
 
 /** UTF-8 BOM so Excel opens the file correctly. */
-const sendCsv = (res, { filename, csv }) => {
+const sendCsv = (res, { name, columns, rows }) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.status(200).send(`\uFEFF${csv}`);
+  res.setHeader('Content-Disposition', `attachment; filename="${name}.csv"`);
+  res.status(200).send(`\uFEFF${toCsv(columns, rows)}`);
+};
+
+const sendXlsx = async (res, sheet, { name, columns, rows }) => {
+  const buffer = await buildXlsx(sheet, columns, rows);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${name}.xlsx"`);
+  res.status(200).send(buffer);
 };
 
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
@@ -45,9 +54,18 @@ export const buildExportsRouter = (deps = {}) => {
     sendCsv(res, await team.execute({ partnerId: req.auth?.partnerId }));
   }));
 
+  router.get('/team.xlsx', asyncHandler(async (req, res) => {
+    await sendXlsx(res, 'Team', await team.execute({ partnerId: req.auth?.partnerId }));
+  }));
+
   router.get('/pipeline.csv', validate({ query: LimitQuery }), asyncHandler(async (req, res) => {
     const q = req.validated?.query ?? req.query;
     sendCsv(res, await pipeline.execute({ partnerId: req.auth?.partnerId, limit: q?.limit }));
+  }));
+
+  router.get('/pipeline.xlsx', validate({ query: LimitQuery }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    await sendXlsx(res, 'Pipeline', await pipeline.execute({ partnerId: req.auth?.partnerId, limit: q?.limit }));
   }));
 
   router.get('/commissions.csv', validate({ query: LimitQuery }), asyncHandler(async (req, res) => {
@@ -55,9 +73,19 @@ export const buildExportsRouter = (deps = {}) => {
     sendCsv(res, await commissions.execute({ partnerId: req.auth?.partnerId, limit: q?.limit }));
   }));
 
+  router.get('/commissions.xlsx', validate({ query: LimitQuery }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    await sendXlsx(res, 'Commissions', await commissions.execute({ partnerId: req.auth?.partnerId, limit: q?.limit }));
+  }));
+
   router.get('/reports.csv', validate({ query: ReportsQuery }), asyncHandler(async (req, res) => {
     const q = req.validated?.query ?? req.query;
     sendCsv(res, await periodReports.execute({ partnerId: req.auth?.partnerId, scope: q?.scope }));
+  }));
+
+  router.get('/reports.xlsx', validate({ query: ReportsQuery }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    await sendXlsx(res, 'Reports', await periodReports.execute({ partnerId: req.auth?.partnerId, scope: q?.scope }));
   }));
 
   return router;

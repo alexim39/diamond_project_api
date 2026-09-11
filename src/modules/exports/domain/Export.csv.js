@@ -28,7 +28,9 @@ export const toCsv = (columns, rows) => {
   return [head, ...lines].join('\r\n') + '\r\n';
 };
 
-export const csvFilename = (base, now = new Date()) =>
-  `${base}-${now.toISOString().slice(0, 10)}.csv`;
+export const exportBasename = (base, now = new Date()) =>
+  `${base}-${now.toISOString().slice(0, 10)}`;
+
+export const csvFilename = (base, now = new Date()) => `${exportBasename(base, now)}.csv`;
 
 export const isoDate = iso;
