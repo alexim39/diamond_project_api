@@ -13,6 +13,7 @@ import { MongoOrderReader, MongoCommissionLedger } from '../../billing/infrastru
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoGoalStore } from '../../goals/infrastructure/Goals.mongo.repository.js';
 import { MongoNotificationStore } from '../../notifications/infrastructure/Notifications.mongo.repository.js';
+import { MongoEventStore } from '../../events/infrastructure/Events.mongo.repository.js';
 import { GetNotificationFeedUseCase } from '../../notifications/application/Notifications.usecases.js';
 import { ListGoalsUseCase } from '../../goals/application/Goals.usecases.js';
 
@@ -42,7 +43,8 @@ export const buildAnalyticsRouter = (deps = {}) => {
   const funnel = new GetFunnelUseCase({ prospects });
   const snapshots = deps.snapshots ?? new MongoTeamSnapshotStore();
   const team = new GetTeamUseCase({ orders, network, prospects, snapshots, goalProgress: (pid) => goals.execute({ partnerId: pid }) });
-  const actions = new GetActionsUseCase({ feed, goals, prospects, stuck, progression });
+  const eventStore = deps.eventStore ?? new MongoEventStore();
+  const actions = new GetActionsUseCase({ feed, goals, prospects, stuck, progression, events: eventStore });
 
   const router = express.Router();
   router.use(requireAuth);

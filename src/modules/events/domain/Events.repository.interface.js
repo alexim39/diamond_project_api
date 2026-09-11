@@ -9,6 +9,7 @@ export class EventStore {
   async listByAuthor(authorId, limit) { throw new Error('Not implemented'); }
   async deleteEvent(id) { throw new Error('Not implemented'); }
   async upsertRsvp(eventId, partnerId, status) { throw new Error('Not implemented'); }
+  async upcomingRsvps(partnerId, now, horizonDays, limit) { throw new Error('Not implemented'); }
   async rsvpCounts(eventIds) { throw new Error('Not implemented'); }
   async myRsvps(eventIds, partnerId) { throw new Error('Not implemented'); }
   async authorLabels(ids) { throw new Error('Not implemented'); }

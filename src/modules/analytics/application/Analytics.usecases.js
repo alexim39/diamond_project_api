@@ -102,21 +102,22 @@ const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
 /**
  * Daily Action Center: "what should I do today?" — urgent notifications
  * first, then behind-pace goals, stuck pipeline, ready-to-close prospects,
- * journey milestones, then the rest.
+ * upcoming gatherings, journey milestones, then the rest.
  */
 export class GetActionsUseCase {
-  /** @param {{feed, goals, prospects, stuck, progression}} deps (composed use cases; stuck/progression optional) */
-  constructor({ feed, goals, prospects, stuck, progression }) {
-    Object.assign(this, { feed, goals, prospects, stuck, progression });
+  /** @param {{feed, goals, prospects, stuck, progression, events}} deps (stuck/progression/events optional) */
+  constructor({ feed, goals, prospects, stuck, progression, events }) {
+    Object.assign(this, { feed, goals, prospects, stuck, progression, events });
   }
 
   async execute({ partnerId, now = new Date(), limit = 15 }) {
-    const [feed, goals, hot, stuck, journey] = await Promise.all([
+    const [feed, goals, hot, stuck, journey, gatherings] = await Promise.all([
       this.feed.execute({ partnerId, now, limit: 50 }),
       this.goals.execute({ partnerId, now }),
       this.prospects.findReadyToConvert(partnerId, 5),
       this.stuck ? this.stuck.execute({ partnerId, now }) : [],
       this.progression ? this.progression.summarize({ partnerId, now }) : null,
+      this.events ? this.events.upcomingRsvps(partnerId, now) : [],
     ]);
 
     const actions = [];
@@ -158,6 +159,18 @@ export class GetActionsUseCase {
         title: `${s.name} stuck in ${s.stage} (${s.daysInStage}d)`,
         detail: `No movement for ${s.daysInStage} days — threshold is ${s.limit}`,
         link: `/dashboard/prospects/detail/${s.prospectId}`,
+      });
+    }
+    for (const g of (gatherings ?? []).slice(0, 3)) {
+      const hours = (new Date(g.startsAt).getTime() - new Date(now).getTime()) / 3600000;
+      const when = hours < 24 ? 'today' : hours < 48 ? 'tomorrow' : `in ${Math.ceil(hours / 24)} days`;
+      actions.push({
+        id: `action:event:${g.id}`,
+        priority: hours <= 48 ? 'high' : 'medium',
+        category: 'event',
+        title: `${g.title} — ${when}`,
+        detail: `${g.myRsvp === 'going' ? 'You’re going' : 'You’re interested'}${g.location ? ` · ${g.location}` : ''}`,
+        link: '/dashboard/community/events',
       });
     }
     for (const item of feed.items.filter((i) => !i.urgency).slice(0, 5)) {

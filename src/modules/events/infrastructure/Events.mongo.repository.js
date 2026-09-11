@@ -113,6 +113,26 @@ export class MongoEventStore {
     return Object.fromEntries(rows.map((r) => [oid(r.eventId), r.status]));
   }
 
+  /**
+   * Upcoming events this partner RSVP'd going/interested to — the
+   * Action Center reminder source. Cancelled events vanish naturally
+   * (their row is gone); declined RSVPs never remind.
+   */
+  async upcomingRsvps(partnerId, now, horizonDays = 7, limit = 10) {
+    const horizon = new Date(new Date(now).getTime() + horizonDays * 86400000);
+    const rsvps = await EventRsvpModel.find({
+      partnerId,
+      status: { $in: ['going', 'interested'] },
+    }).select('eventId status').lean();
+    if (rsvps.length === 0) return [];
+    const mine = Object.fromEntries(rsvps.map((r) => [oid(r.eventId), r.status]));
+    const docs = await EventModel.find({
+      _id: { $in: oidList(Object.keys(mine)) },
+      startsAt: { $gte: new Date(now), $lte: horizon },
+    }).sort({ startsAt: 1 }).limit(Math.min(Math.max(Number(limit) || 10, 1), 25)).lean();
+    return docs.map((d) => ({ ...shaped(d), myRsvp: mine[oid(d._id)] }));
+  }
+
   async authorLabels(ids) {
     const uniq = [...new Set(ids.map(String))].filter(Boolean);
     if (uniq.length === 0) return {};
