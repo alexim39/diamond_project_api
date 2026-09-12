@@ -25,6 +25,13 @@ const optDate = (value, field) => {
   return d;
 };
 
+export const normalizePhone = (value) => {
+  const raw = String(value ?? '').trim().replace(/[\s\-\(\)]/g, '');
+  if (raw.startsWith('+234')) return '0' + raw.slice(4);
+  if (raw.startsWith('234')) return '0' + raw.slice(3);
+  return raw;
+};
+
 /** Contact-list enrichment vocab (fixed tag set — free text fragments reporting). */
 export const RELATIONSHIP_TAGS = ['Family', 'Friend', 'Colleague', 'Church', 'Neighbour', 'Referral', 'Other'];
 export const CONTACT_PRIORITIES = ['high', 'normal'];
@@ -41,7 +48,7 @@ export const createProspectEntity = (input) => {
   return {
     prospectName: text(input.prospectName, 'prospectName', { min: 2, max: 80 }),
     prospectSurname: text(input.prospectSurname, 'prospectSurname', { min: 1, max: 80, optional: true }),
-    prospectPhone: text(input.prospectPhone, 'prospectPhone', { min: 7, max: 20 }),
+    prospectPhone: normalizePhone(text(input.prospectPhone, 'prospectPhone', { min: 7, max: 20 })),
     prospectEmail: email,
     prospectSource: text(input.prospectSource, 'prospectSource', { min: 2, max: 120 }),
     relationship: RELATIONSHIP_TAGS.includes(input.relationship) ? input.relationship : 'Other',

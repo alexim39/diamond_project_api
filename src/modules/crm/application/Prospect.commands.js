@@ -1,5 +1,5 @@
 import { ConflictException, NotFoundException } from '../../../shared/domain/AppError.js';
-import { createProspectEntity } from '../domain/Prospect.entity.js';
+import { createProspectEntity, normalizePhone } from '../domain/Prospect.entity.js';
 import { createStatusOverlay } from '../domain/Prospect.entity.js';
 
 /** POST /v1/prospects — scoped dup-check (legacy: global). */
@@ -47,6 +47,7 @@ export class UpdateProspectUseCase {
     ]) {
       if (fields[key] !== undefined) patch[key] = fields[key];
     }
+    if (patch.prospectPhone) patch.prospectPhone = normalizePhone(patch.prospectPhone);
     if (patch.prospectPhone || patch.prospectEmail) {
       const existing = await this.prospects.findById(prospectId);
       if (!existing) throw new NotFoundException('Prospect not found');

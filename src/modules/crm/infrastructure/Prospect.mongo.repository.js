@@ -1,5 +1,6 @@
 import { ProspectModel, PartnersModel, ReservationCodeModel } from './Prospect.models.js';
 import { ProspectMapper } from './Prospect.mapper.js';
+import { normalizePhone } from '../domain/Prospect.entity.js';
 
 /** Mongo implementation of the crm repository contracts. Reads use `.lean()`. */
 export class MongoProspectRepository {
@@ -72,13 +73,19 @@ export class MongoProspectRepository {
   }
 
   async findDuplicate(partnerId, { phone, email }) {
-    const or = [];
-    if (phone) or.push({ prospectPhone: phone });
-    if (email) or.push({ prospectEmail: email });
-    if (or.length === 0) return null;
-    return ProspectMapper.toDomain(
-      await ProspectModel.findOne({ partnerId, $or: or }).lean(),
-    );
+    const normalizedPhone = phone ? normalizePhone(phone) : null;
+    const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
+    if (!normalizedPhone && !normalizedEmail) return null;
+    // Normalize-aware check: fetch partner's phones/emails and compare in memory
+    // so "0803 123 4567" and "08031234567" collide correctly, and legacy
+    // spaced values still match. Bounded by partner (hundreds, not thousands).
+    const docs = await ProspectModel.find({ partnerId }).select('prospectPhone prospectEmail').lean();
+    const hit = docs.find((d) => {
+      if (normalizedPhone && normalizePhone(d.prospectPhone ?? '') === normalizedPhone) return true;
+      if (normalizedEmail && d.prospectEmail && String(d.prospectEmail).trim().toLowerCase() === normalizedEmail) return true;
+      return false;
+    });
+    return hit ? ProspectMapper.toDomain(await ProspectModel.findById(hit._id).lean()) : null;
   }
 
   async updateFields(id, patch) {
