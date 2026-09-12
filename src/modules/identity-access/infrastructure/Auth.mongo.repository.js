@@ -64,4 +64,13 @@ export class MongoReservationRepository {
     if (!doc) return null;
     return { id: String(doc._id), status: doc.status, partnerId: doc.partnerId ? String(doc.partnerId) : null };
   }
+
+  async markUsed(code, { session } = {}) {
+    const res = await ReservationCodeModel.updateOne(
+      { code: String(code).trim() },
+      { $set: { status: 'Used' } },
+      opts(session),
+    );
+    return { used: (res.modifiedCount ?? 0) > 0 };
+  }
 }

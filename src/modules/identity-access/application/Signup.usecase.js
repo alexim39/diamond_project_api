@@ -58,6 +58,9 @@ export class SignupUseCase {
         },
         { session },
       );
+      // Close the lifecycle in the same tx: Approved → Used, so the code
+      // can never be re-read as "ready" after it is consumed.
+      await this.reservations.markUsed(entity.reservationCode, { session });
       return toSafePartner(saved);
     });
   }

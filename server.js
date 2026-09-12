@@ -41,6 +41,7 @@ import CommunityRouter from './src/modules/community/index.js';
 import MarketingRouter from './src/modules/marketing/index.js';
 import EventsRouter from './src/modules/events/index.js';
 import OraRouter from './src/modules/ora/index.js';
+import ReservationsRouter from './src/modules/reservations/index.js';
 import ProspectV1Router from './src/modules/crm/index.js';
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 import { ensureIndexes } from './src/shared/mongo/indexes.js';
@@ -110,6 +111,7 @@ app.use('/v1/community', CommunityRouter);
 app.use('/v1/marketing', MarketingRouter);
 app.use('/v1/events', EventsRouter);
 app.use('/v1/ora', OraRouter);
+app.use('/v1/reservations', ReservationsRouter);
 
 
 

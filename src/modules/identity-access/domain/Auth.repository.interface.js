@@ -29,6 +29,8 @@ export class ReservationRepository {
    * @returns {Promise<{id:string,status:string,partnerId:string|null}|null>}
    */
   async findByCode(code, _opts) { throw new Error('Not implemented'); }
+  /** Stamp a consumed code Used (same tx as partner creation). */
+  async markUsed(code, _opts) { throw new Error('Not implemented'); }
 }
 
 export class PasswordHasher {

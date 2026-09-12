@@ -1,7 +1,15 @@
 import crypto from 'crypto';
 import { ConflictException, NotFoundException } from '../../../shared/domain/AppError.js';
 
-const codeGenerator = () => `DP-${crypto.randomInt(0, 36 ** 6).toString(36).toUpperCase().padStart(6, '0')}`;
+/**
+ * Codes must pass the signup form's regex
+ * (/^(247[A-Za-z0-9\/]+|NR\d{6}|NI\d{6}|NV\d{6}|[A-Za-z]{2}[A-Za-z0-9]+)$/i):
+ * the old `DP-…` hyphenated shape was rejected at signup, stranding
+ * converted prospects. `DPXXXXXX` matches the `[A-Za-z]{2}[A-Za-z0-9]+` leg.
+ */
+export const generateEnrollmentCode = () =>
+  `DP${crypto.randomInt(0, 36 ** 6).toString(36).toUpperCase().padStart(6, '0')}`;
+const codeGenerator = generateEnrollmentCode;
 
 /**
  * Convert prospect → partner enrollment (Phase A).
