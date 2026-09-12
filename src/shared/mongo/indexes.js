@@ -22,6 +22,8 @@
 /**
  * Legacy global phone uniqueness (prevents cross-partner same phone).
  * Must be dropped — scoped check in the crm slice owns this now.
+ * We drop by name and also scan for any unique {prospectPhone:1} index
+ * regardless of name, so renames or Atlas-managed names are covered.
  */
 const LEGACY_DROP = [
   { collection: 'prospects', indexName: 'prospectPhone_1' },
@@ -83,6 +85,24 @@ export async function ensureIndexes(mongoose, { collections = INDEXES } = {}) {
       }
     }
   }
+  // Belt-and-braces: drop any remaining unique {prospectPhone:1} index
+  // that survived a rename or manual creation (Atlas, Compass, etc.).
+  try {
+    const idxs = await db.collection('prospects').indexes();
+    for (const idx of idxs) {
+      const keys = idx.key ?? {};
+      const isPhoneOnlyUnique = idx.unique === true
+        && Object.keys(keys).length === 1 && keys.prospectPhone === 1;
+      if (isPhoneOnlyUnique && idx.name !== 'prospectPhone_1') {
+        try {
+          await db.collection('prospects').dropIndex(idx.name);
+          created.push(`prospects:dropped:${idx.name}`);
+        } catch (error) {
+          failed.push({ index: `prospects:${idx.name}`, error: error?.message ?? String(error) });
+        }
+      }
+    }
+  } catch { /* listing indexes is best-effort */ }
   for (const { collection, keys, options } of collections) {
     const name = `${collection}:${JSON.stringify(keys)}`;
     try {
