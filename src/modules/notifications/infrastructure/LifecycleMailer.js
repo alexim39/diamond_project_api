@@ -13,10 +13,66 @@ const steps = (items) => `<ol>${items.map((s) => `<li>${escapeHtml(s)}</li>`).jo
 
 /**
  * Lifecycle email templates — pure builders (testable without a mailer).
- * Welcome, recruit-alert and promotion mails are lifecycle mail: always
- * sent alongside the in-app row (delivery `force` policy), never gated
- * on marketing preferences.
+ * Welcome, recruit-alert, promotion, goal and training-track mails are
+ * lifecycle mail: always sent alongside the in-app row (delivery `force`
+ * policy), never gated on marketing preferences.
  */
+export const buildGoalRisk = ({ memberName, uplineName, title, remaining, daysLeft, requiredDaily }) => ({
+  subject: `${memberName}'s goal "${title}" needs help — ${daysLeft}d left`,
+  html: `
+    <p>Hi ${escapeHtml(uplineName)},</p>
+    <p><strong>${escapeHtml(memberName)}</strong> is off-track on <strong>${escapeHtml(title)}</strong> with ${escapeHtml(daysLeft)} days left:</p>
+    ${steps([
+      `${escapeHtml(remaining)} still to go — about ${escapeHtml(requiredDaily)} per day to catch up.`,
+      'Check in today: one honest conversation beats a week of hoping.',
+      'Help them pick the single next action, not ten.',
+    ])}
+    <p><a href="/dashboard/network/tree">View your team</a></p>
+    ${footer('You get this because someone in your downline has a goal at risk.')}
+  `,
+});
+
+export const buildGoalDone = ({ memberName, title }) => ({
+  subject: `Goal smashed: "${title}" — congratulations!`,
+  html: `
+    <p>Hi ${escapeHtml(memberName)},</p>
+    <p>You hit <strong>${escapeHtml(title)}</strong>. Targets you keep are the ones that compound:</p>
+    ${steps([
+      'Set your next goal while the momentum is hot.',
+      'Tell your upline — wins shared are wins doubled.',
+    ])}
+    <p><a href="/dashboard/goals">Set your next goal</a></p>
+    ${footer('You get this because you completed a goal.')}
+  `,
+});
+
+export const buildTrackComplete = ({ memberName }) => ({
+  subject: `${memberName}, your full training track is complete!`,
+  html: `
+    <p>Hi ${escapeHtml(memberName)},</p>
+    <p>IPO, QSG and SMO — all confirmed. That puts you in rare company:</p>
+    ${steps([
+      'Open My Journey to see what your training unlocked.',
+      'Offer to walk a newer member through IPO — teaching locks in learning.',
+    ])}
+    <p><a href="/dashboard/progress">View your journey</a></p>
+    ${footer('You get this because you completed the full training track.')}
+  `,
+});
+
+export const buildTrackCompleteUpline = ({ memberName, uplineName }) => ({
+  subject: `${memberName} finished the full training track — recognise them`,
+  html: `
+    <p>Hi ${escapeHtml(uplineName)},</p>
+    <p><strong>${escapeHtml(memberName)}</strong> just completed IPO, QSG and SMO — all confirmed. Fully-trained members recruit and retain better:</p>
+    ${steps([
+      `Recognise ${memberName} publicly — Community shout-outs duplicate effort.`,
+      'Point them at their next gate in your next 15-minute review.',
+    ])}
+    <p><a href="/dashboard/network/tree">View your team</a></p>
+    ${footer('You get this because someone in your downline finished training.')}
+  `,
+});
 export const buildWelcome = ({ memberName }) => ({
   subject: `Welcome to Diamond Project, ${memberName}! Here are your first steps`,
   html: `

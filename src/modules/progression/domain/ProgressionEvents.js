@@ -11,6 +11,8 @@ export const PROGRESSION_EVENTS = {
   TRAINING_CONFIRM_REQUESTED: 'progression.training.requested',
   /** An upline decided a training confirmation (approved or declined). */
   TRAINING_CONFIRM_DECIDED: 'progression.training.decided',
+  /** All of IPO/QSG/SMO now confirmed — full training track complete. */
+  TRAINING_TRACK_COMPLETED: 'progression.training.trackCompleted',
 };
 
 /**
@@ -53,4 +55,11 @@ export const trainingDecidedPayload = ({ partnerId, key, keyLabel, approved, not
   note: String(note ?? '').slice(0, 500),
   memberName: memberName ? String(memberName) : null,
   cycle: cycle ?? Date.now(),
+});
+
+/** @param {{partnerId, memberName}} input (upline resolved subscriber-side). */
+export const trainingTrackCompletedPayload = ({ partnerId, memberName = null }) => ({
+  type: PROGRESSION_EVENTS.TRAINING_TRACK_COMPLETED,
+  partnerId: String(partnerId),
+  memberName: memberName ? String(memberName) : null,
 });

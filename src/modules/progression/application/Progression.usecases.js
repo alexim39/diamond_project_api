@@ -2,7 +2,7 @@ import {
   ConflictException, ForbiddenException, NotFoundException, ValidationException,
 } from '../../../shared/domain/AppError.js';
 import { LEVELS, LEVEL_LABELS, NOMINATION_APPROVALS_REQUIRED, RANK, STALE_CONFIRM_MS, TRAINING_CONFIRM_KEYS, TRAINING_KEY_LABELS, confirmed, formatLatency, medianOf, resolveProgression } from '../domain/Progression.levels.js';
-import { PROGRESSION_EVENTS, promotedPayload, trainingDecidedPayload, trainingRequestedPayload } from '../domain/ProgressionEvents.js';
+import { PROGRESSION_EVENTS, promotedPayload, trainingDecidedPayload, trainingRequestedPayload, trainingTrackCompletedPayload } from '../domain/ProgressionEvents.js';
 import { adminBootstrapEmails, lenientRole } from '../../identity-access/domain/PartnerRole.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
 
@@ -291,6 +291,16 @@ export class DecideTrainingConfirmUseCase {
             cycle: stampAt,
           }),
         ).catch(() => null);
+        // Full track now confirmed → celebrate once (member + upline).
+        if (approved === true && TRAINING_CONFIRM_KEYS.every((k) => confirmed(doc[k]))) {
+          await this.events.emit(
+            PROGRESSION_EVENTS.TRAINING_TRACK_COMPLETED,
+            trainingTrackCompletedPayload({
+              partnerId,
+              memberName: [memberNode.name, memberNode.surname].filter(Boolean).join(' ') || memberNode.username,
+            }),
+          ).catch(() => null);
+        }
       } catch { /* outcome fan-out never fails the decision */ }
     }
     return { status: approved === true ? 'confirmed' : 'declined' };

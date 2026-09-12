@@ -7,6 +7,9 @@ import { resolvePreferences } from '../modules/notifications/domain/StoredNotifi
 import { NotifyUseCase } from '../modules/notifications/application/NotificationsCenter.usecases.js';
 import { MongoStoredNotificationStore } from '../modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { ListGoalsUseCase } from '../modules/goals/application/Goals.usecases.js';
+import { GOAL_EVENTS, goalAtRiskPayload, goalCompletedPayload } from '../modules/goals/domain/GoalEvents.js';
+import { weekKey } from '../modules/notifications/domain/WeeklyReview.js';
+import { domainEvents } from '../shared/events/DomainEvents.js';
 import { MongoGoalStore } from '../modules/goals/infrastructure/Goals.mongo.repository.js';
 import { MongoOrderReader } from '../modules/billing/infrastructure/Billing.mongo.repository.js';
 import { MongoNetworkRepository } from '../modules/network/infrastructure/Network.mongo.repository.js';
@@ -91,6 +94,7 @@ export const buildDailyBriefJob = (deps = {}) => {
     stored,
     notify: deps.notify ?? new NotifyUseCase({ stored }),
     backfill: deps.backfill ?? backfillDobParts,
+    events: deps.events ?? domainEvents,
   };
 };
 
@@ -119,11 +123,37 @@ async function briefPartner(job, partnerId) {
     .slice(0, 5)
     .map(asFollowup);
   const active = activeGoalRows(goalRows, job.now);
-  const goalNudges = active
+  const atRiskGoals = active
     .filter((g) => !g.progress.onTrack && g.progress.daysLeft <= AT_RISK_DAYS)
-    .sort((a, b) => a.progress.daysLeft - b.progress.daysLeft)
-    .slice(0, 3)
-    .map(asGoalRisk);
+    .sort((a, b) => a.progress.daysLeft - b.progress.daysLeft);
+  // Lifecycle moments ride the bus (member already covered by the brief
+  // items below; the fan-out notifies the upline + celebrates completions).
+  // Best-effort per goal — a bad payload never breaks the brief.
+  const week = weekKey(job.now);
+  for (const g of atRiskGoals.filter((x) => x?.id)) {
+    try {
+      await job.events.emit(GOAL_EVENTS.AT_RISK, goalAtRiskPayload({
+        partnerId,
+        goalId: g.id,
+        title: g.title,
+        remaining: g.progress.remaining,
+        daysLeft: g.progress.daysLeft,
+        requiredDaily: g.progress.forecast?.requiredDaily,
+        week,
+      }));
+    } catch { /* goal events never break the brief */ }
+  }
+  for (const g of (goalRows ?? []).filter((x) => x?.id && x?.progress?.complete
+    && new Date(x.endDate).getTime() >= new Date(job.now).getTime() - 14 * 86400000)) {
+    try {
+      await job.events.emit(GOAL_EVENTS.COMPLETED, goalCompletedPayload({
+        partnerId,
+        goalId: g.id,
+        title: g.title,
+      }));
+    } catch { /* goal events never break the brief */ }
+  }
+  const goalNudges = atRiskGoals.slice(0, 3).map(asGoalRisk);
   const praiseGoal = active
     .filter((g) => g.progress.percent >= PRAISE_MIN_PERCENT && g.progress.daysLeft <= PRAISE_DAYS)
     .sort((a, b) => b.progress.percent - a.progress.percent)[0];
