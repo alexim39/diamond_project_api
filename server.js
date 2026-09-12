@@ -44,10 +44,18 @@ import OraRouter from './src/modules/ora/index.js';
 import ReservationsRouter from './src/modules/reservations/index.js';
 import SettingsV1Router from './src/modules/settings/index.js';
 import { subscribeActivation } from './src/modules/activation/index.js';
+import { subscribePromotionFanout } from './src/modules/notifications/application/PromotionFanout.js';
 import { domainEvents } from './src/shared/events/DomainEvents.js';
+import { env } from './src/shared/config/env.js';
+import { sendEmail } from './src/services/emailService.js';
 import { NotifyUseCase } from './src/modules/notifications/application/NotificationsCenter.usecases.js';
+import { NotificationDeliveryService } from './src/modules/notifications/application/NotificationDelivery.js';
 import { MongoStoredNotificationStore } from './src/modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { MongoProspectRepository } from './src/modules/crm/infrastructure/Prospect.mongo.repository.js';
+import { MongoPartnerRepository } from './src/modules/identity-access/infrastructure/Auth.mongo.repository.js';
+import { MongoNetworkRepository } from './src/modules/network/infrastructure/Network.mongo.repository.js';
+import { buildSmsSender } from './src/modules/notifications/infrastructure/SmsSender.js';
+import { buildPushSender } from './src/modules/notifications/infrastructure/PushSender.js';
 import ProspectV1Router from './src/modules/crm/index.js';
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 import { ensureIndexes } from './src/shared/mongo/indexes.js';
@@ -131,15 +139,33 @@ app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads')));
 /* Central domain-error map for v1 slices (legacy routes keep their own try/catch) */
 app.use(errorMiddleware);
 
-/* Activation close-the-loop: signup consume → prospect Converted + upline
- * notified. Subscribed ONCE here (never per-router) on the shared bus. */
+/* Lifecycle fan-out, subscribed ONCE here (never per-router) on the
+ * shared bus: signup consume → prospect Converted + upline welcomed +
+ * member welcomed; promotions → member + upline notified. */
 {
-  const activationStore = new MongoStoredNotificationStore();
+  const lifecycleStore = new MongoStoredNotificationStore();
+  const lifecycleDelivery = new NotificationDeliveryService({
+    stored: lifecycleStore,
+    notify: new NotifyUseCase({ stored: lifecycleStore }),
+    mail: sendEmail,
+    sms: buildSmsSender(env.sms),
+    push: buildPushSender(env.push, env.appBaseUrl),
+  });
+  const lifecyclePartners = new MongoPartnerRepository();
   subscribeActivation({
     events: domainEvents,
     prospects: new MongoProspectRepository(),
-    stored: activationStore,
-    notify: new NotifyUseCase({ stored: activationStore }),
+    stored: lifecycleStore,
+    notify: new NotifyUseCase({ stored: lifecycleStore }),
+    delivery: lifecycleDelivery,
+    partners: lifecyclePartners,
+  });
+  subscribePromotionFanout({
+    events: domainEvents,
+    stored: lifecycleStore,
+    delivery: lifecycleDelivery,
+    partners: lifecyclePartners,
+    network: new MongoNetworkRepository(),
   });
 }
 

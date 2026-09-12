@@ -2,6 +2,7 @@ import {
   ConflictException, ForbiddenException, NotFoundException, ValidationException,
 } from '../../../shared/domain/AppError.js';
 import { LEVELS, LEVEL_LABELS, RANK, resolveProgression } from '../domain/Progression.levels.js';
+import { PROGRESSION_EVENTS, promotedPayload } from '../domain/ProgressionEvents.js';
 import { adminBootstrapEmails, lenientRole } from '../../identity-access/domain/PartnerRole.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
 
@@ -76,9 +77,9 @@ export const buildMilestonePatch = (input = {}) => {
 
 /** My journey: derived level, next gate, promotion detection (recognition hook). */
 export class GetMyProgressionUseCase {
-  /** @param {{progress, network, orders, recognition}} deps (recognition optional — auto-posts promotions) */
-  constructor({ progress, network, orders, recognition }) {
-    Object.assign(this, { progress, network, orders, recognition });
+  /** @param {{progress, network, orders, recognition, events?}} deps (recognition optional — auto-posts promotions; events optional — promotion fan-out) */
+  constructor({ progress, network, orders, recognition, events = null }) {
+    Object.assign(this, { progress, network, orders, recognition, events });
   }
 
   async execute({ partnerId, now = new Date() }) {
@@ -99,6 +100,26 @@ export class GetMyProgressionUseCase {
             : 'A partner';
           await this.recognition.promotion(partnerId, from, resolved.level, name);
         } catch { /* recognition is celebratory, not critical */ }
+      }
+      // Promotion fan-out (member + upline notified) — best-effort, never fails the read.
+      if (this.events) {
+        try {
+          const node = await this.network?.findNode?.(partnerId).catch(() => null);
+          const name = node
+            ? [node.name, node.surname].filter(Boolean).join(' ') || node.username
+            : null;
+          await this.events.emit(
+            PROGRESSION_EVENTS.PROMOTED,
+            promotedPayload({
+              partnerId,
+              from,
+              to: resolved.level,
+              toLabel: LEVEL_LABELS[resolved.level] ?? resolved.level,
+              memberName: name,
+              uplineId: node?.parentId ?? null,
+            }),
+          ).catch(() => null);
+        } catch { /* fan-out is celebratory, not critical */ }
       }
     }
     return {

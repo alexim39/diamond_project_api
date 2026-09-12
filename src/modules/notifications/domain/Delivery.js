@@ -29,11 +29,15 @@ export const pushPayload = ({ title, body, link }, appBaseUrl = '') => ({
 /**
  * Resolve which off-device channels fire for one recipient.
  * @param {{prefs, category, emailPolicy}} input (`immediate-only` holds
- *   email for non-immediate digests — the digest sender owns those).
+ *   email for non-immediate digests — the digest sender owns those;
+ *   `force` sends regardless of prefs — lifecycle/transactional mail
+ *   only: welcome, recruit alerts, promotions. SMS/push always stay
+ *   prefs-driven under every policy.)
  */
 export const resolveChannels = ({ prefs, category, emailPolicy = 'always' } = {}) => {
   const row = prefs?.channels?.[category] ?? { inApp: true, email: false, sms: false, push: false };
-  const emailOk = row.email === true && (emailPolicy !== 'immediate-only' || prefs?.emailDigest === 'immediate');
+  const emailOk = emailPolicy === 'force'
+    || (row.email === true && (emailPolicy !== 'immediate-only' || prefs?.emailDigest === 'immediate'));
   return {
     inApp: row.inApp !== false,
     email: emailOk,

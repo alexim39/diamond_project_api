@@ -9,7 +9,21 @@ import { v2 as cloudinary } from 'cloudinary';
  */
 export class ImageStore {
   async upload() { throw new Error('Not implemented'); }
+  async destroy() { throw new Error('Not implemented'); }
 }
+
+/**
+ * Reverse a Cloudinary delivery URL to its public id:
+ * `…/upload/(v123/)folder/name.png` → `folder/name`.
+ * Returns null for anything else (legacy filenames, blanks) so callers
+ * never send garbage to the API.
+ */
+export const publicIdFromUrl = (url) => {
+  const m = /\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z0-9]+(?:[?#].*)?$/.exec(String(url ?? '').trim());
+  if (!m) return null;
+  const id = m[1].trim();
+  return id && !/\s/.test(id) ? id : null;
+};
 
 export class CloudinaryImageStore extends ImageStore {
   /** @param {{cloudName, apiKey, apiSecret, folder, sdk?}} config */
@@ -42,6 +56,17 @@ export class CloudinaryImageStore extends ImageStore {
       stream.end(buffer);
     });
   }
+
+  /** Delete one asset by public id — `not found` counts as deleted. */
+  async destroy(publicId) {
+    if (!publicId) return { deleted: false };
+    try {
+      const result = await this.sdk.uploader.destroy(publicId, { resource_type: 'image' });
+      return { deleted: result?.result === 'ok' || result?.result === 'not found' };
+    } catch (error) {
+      throw new Error(`Image delete failed: ${error?.message ?? 'unknown error'}`);
+    }
+  }
 }
 
 export class DisabledImageStore extends ImageStore {
@@ -50,6 +75,10 @@ export class DisabledImageStore extends ImageStore {
     error.statusCode = 503;
     error.code = 'CLOUDINARY_NOT_CONFIGURED';
     throw error;
+  }
+
+  async destroy() {
+    return { deleted: false };
   }
 }
 
