@@ -15,15 +15,22 @@ export class CreateProspectUseCase {
       const owned = await this.campaigns?.findOwned(entity.campaignId, entity.partnerId);
       if (!owned) throw new NotFoundException('Campaign not found');
     }
-    const dupe = await this.prospects.findDuplicate(entity.partnerId, {
-      phone: entity.prospectPhone,
-      email: entity.prospectEmail,
-    });
-    if (dupe) throw new ConflictException('You already have a contact with this phone number or email.');
+    const dupePhone = entity.prospectPhone
+      ? await this.prospects.findDuplicate(entity.partnerId, { phone: entity.prospectPhone, email: null })
+      : null;
+    if (dupePhone) throw new ConflictException('You already have a contact with this phone number.');
+    const dupeEmail = entity.prospectEmail
+      ? await this.prospects.findDuplicate(entity.partnerId, { phone: null, email: entity.prospectEmail })
+      : null;
+    if (dupeEmail) throw new ConflictException('You already have a contact with this email address.');
     try {
       return await this.prospects.create(entity);
     } catch (error) {
-      if (error?.code === 11000) throw new ConflictException('You already have a contact with this phone number.');
+      if (error?.code === 11000) {
+        const msg = String(error?.message ?? '').toLowerCase();
+        if (msg.includes('prospectemail')) throw new ConflictException('You already have a contact with this email address.');
+        throw new ConflictException('You already have a contact with this phone number.');
+      }
       throw error;
     }
   }
@@ -51,12 +58,19 @@ export class UpdateProspectUseCase {
     if (patch.prospectPhone || patch.prospectEmail) {
       const existing = await this.prospects.findById(prospectId);
       if (!existing) throw new NotFoundException('Prospect not found');
-      const dupe = await this.prospects.findDuplicate(existing.partnerId, {
-        phone: patch.prospectPhone ?? existing.prospectPhone,
-        email: patch.prospectEmail ?? existing.prospectEmail,
-      });
-      if (dupe && String(dupe.id ?? dupe._id) !== String(prospectId)) {
-        throw new ConflictException('You already have a contact with this phone number or email.');
+      const nextPhone = patch.prospectPhone ?? existing.prospectPhone;
+      const nextEmail = patch.prospectEmail ?? existing.prospectEmail;
+      if (nextPhone) {
+        const dupe = await this.prospects.findDuplicate(existing.partnerId, { phone: nextPhone, email: null });
+        if (dupe && String(dupe.id ?? dupe._id) !== String(prospectId)) {
+          throw new ConflictException('You already have a contact with this phone number.');
+        }
+      }
+      if (nextEmail) {
+        const dupe = await this.prospects.findDuplicate(existing.partnerId, { phone: null, email: nextEmail });
+        if (dupe && String(dupe.id ?? dupe._id) !== String(prospectId)) {
+          throw new ConflictException('You already have a contact with this email address.');
+        }
       }
     }
     try {

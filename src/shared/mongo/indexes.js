@@ -91,9 +91,9 @@ export async function ensureIndexes(mongoose, { collections = INDEXES } = {}) {
     const idxs = await db.collection('prospects').indexes();
     for (const idx of idxs) {
       const keys = idx.key ?? {};
-      const isPhoneOnlyUnique = idx.unique === true
-        && Object.keys(keys).length === 1 && keys.prospectPhone === 1;
-      if (isPhoneOnlyUnique && idx.name !== 'prospectPhone_1') {
+      const isPhoneOnlyUnique = Object.keys(keys).length === 1 && keys.prospectPhone === 1;
+      const isLegacyGlobal = isPhoneOnlyUnique && idx.unique === true;
+      if (isLegacyGlobal) {
         try {
           await db.collection('prospects').dropIndex(idx.name);
           created.push(`prospects:dropped:${idx.name}`);
