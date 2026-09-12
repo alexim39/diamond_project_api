@@ -41,11 +41,12 @@ const shaped = (o) => ({ ...o, id: oid(o._id) });
 async function authorLabels(ids) {
   if (ids.length === 0) return {};
   const docs = await PartnersModel.find({ _id: { $in: ids } })
-    .select('username name surname')
+    .select('username name surname profileImage')
     .lean();
   return Object.fromEntries(docs.map((d) => [oid(d._id), {
     username: d.username,
     name: [d.name, d.surname].filter(Boolean).join(' ') || d.username,
+    profileImage: d.profileImage ?? null,
   }]));
 }
 

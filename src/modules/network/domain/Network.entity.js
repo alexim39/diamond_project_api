@@ -24,6 +24,7 @@ export const toNetworkNode = (doc) => {
     surname: o.surname,
     role: String(o.role ?? 'user').toLowerCase(),
     plan: o.subscription?.plan ?? 'Basic',
+    profileImage: o.profileImage ?? null,
     joinedAt: o.createdAt,
   };
 };

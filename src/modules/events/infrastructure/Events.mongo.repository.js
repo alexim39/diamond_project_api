@@ -136,10 +136,11 @@ export class MongoEventStore {
   async authorLabels(ids) {
     const uniq = [...new Set(ids.map(String))].filter(Boolean);
     if (uniq.length === 0) return {};
-    const docs = await PartnersModel.find({ _id: { $in: uniq } }).select('username name surname').lean();
+    const docs = await PartnersModel.find({ _id: { $in: uniq } }).select('username name surname profileImage').lean();
     return Object.fromEntries(docs.map((d) => [oid(d._id), {
       username: d.username,
       name: [d.name, d.surname].filter(Boolean).join(' ') || d.username,
+      profileImage: d.profileImage ?? null,
     }]));
   }
 }
