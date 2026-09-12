@@ -27,6 +27,21 @@ export const env = {
     };
   },
   /**
+   * Ora AI assistant (DeepSeek, OpenAI-compatible). The key lives ONLY in
+   * env — never in code, logs or the frontend. Empty key = chat endpoints
+   * answer 503 with a clear message instead of failing obscurely.
+   */
+  get ora() {
+    return {
+      apiKey: process.env.DEEPSEEK_API_KEY || '',
+      baseUrl: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+      maxTokens: Number(process.env.DEEPSEEK_MAX_TOKENS || 800),
+      timeoutMs: Number(process.env.DEEPSEEK_TIMEOUT_MS || 30000),
+      dailyLimit: Number(process.env.ORA_DAILY_LIMIT || 50),
+    };
+  },
+  /**
    * Web-push (VAPID). Empty until production keys land in env —
    * the sender factory falls back to a logging sender meanwhile.
    * Generate once: npx web-push generate-vapid-keys

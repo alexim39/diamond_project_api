@@ -44,6 +44,7 @@ export const INDEXES = [
   { collection: 'notification-preferences', keys: { emailDigest: 1, partnerId: 1 }, options: {} },
   { collection: 'partners', keys: { status: 1, _id: 1 }, options: {} },
   { collection: 'partners', keys: { username: 1 }, options: {} },
+  { collection: 'ora-conversations', keys: { partnerId: 1, updatedAt: -1 }, options: {} },
   { collection: 'events', keys: { startsAt: 1 }, options: {} },
   { collection: 'events', keys: { authorId: 1, startsAt: -1 }, options: {} },
   { collection: 'eventrsvps', keys: { eventId: 1 }, options: {} },
