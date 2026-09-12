@@ -10,6 +10,7 @@ export class ProgressionStore {
   async requestTrainingConfirm(partnerId, key) { throw new Error('Not implemented'); }
   async confirmTraining(partnerId, key, approverId, approved) { throw new Error('Not implemented'); }
   async listPendingConfirmations(partnerIds, keys, limit) { throw new Error('Not implemented'); }
+  async listConfirmationStats(partnerIds, keys) { throw new Error('Not implemented'); }
   async requestNomination(partnerId, note) { throw new Error('Not implemented'); }
   /** Counted approval — returns `{doc, duplicate}` (null doc = nothing pending). */
   async approveNomination(partnerId, approverId, required) { throw new Error('Not implemented'); }

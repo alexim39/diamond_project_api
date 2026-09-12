@@ -140,6 +140,19 @@ export class MongoProgressionStore {
     return rows.map(shaped);
   }
 
+  /** Confirmation stamps across a bounded id set (stats read-model). */
+  async listConfirmationStats(partnerIds, keys) {
+    if (partnerIds.length === 0 || keys.length === 0) return [];
+    const fields = ['partnerId level updatedAt'];
+    for (const k of keys) fields.push(`${k}.done`, `${k}.at`, `${k}.confirmedBy`, `${k}.confirmedAt`);
+    const rows = await ProgressionModel.find({ partnerId: { $in: partnerIds } })
+      .select(fields.join(' '))
+      .sort({ updatedAt: -1 })
+      .limit(2000)
+      .lean();
+    return rows.map(shaped);
+  }
+
   async setLevel(partnerId, level) {
     const row = await ProgressionModel.findOneAndUpdate(
       { partnerId },

@@ -1,7 +1,7 @@
 import {
   ConflictException, ForbiddenException, NotFoundException, ValidationException,
 } from '../../../shared/domain/AppError.js';
-import { LEVELS, LEVEL_LABELS, NOMINATION_APPROVALS_REQUIRED, RANK, TRAINING_CONFIRM_KEYS, TRAINING_KEY_LABELS, confirmed, resolveProgression } from '../domain/Progression.levels.js';
+import { LEVELS, LEVEL_LABELS, NOMINATION_APPROVALS_REQUIRED, RANK, STALE_CONFIRM_MS, TRAINING_CONFIRM_KEYS, TRAINING_KEY_LABELS, confirmed, formatLatency, medianOf, resolveProgression } from '../domain/Progression.levels.js';
 import { PROGRESSION_EVENTS, promotedPayload, trainingDecidedPayload, trainingRequestedPayload } from '../domain/ProgressionEvents.js';
 import { adminBootstrapEmails, lenientRole } from '../../identity-access/domain/PartnerRole.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -324,6 +324,100 @@ export class ListPendingConfirmationsUseCase {
         member: labels[String(r.partnerId)] ?? null,
       })),
       total: rows.length,
+    };
+  }
+}
+
+/**
+ * Confirmation responsiveness: median time-to-decision plus pending/stale
+ * counts across the requester's bounded downline, with per-member rows
+ * and per-decider medians (grouped by who confirmed). Read-only rollup
+ * over existing stamps — no new instrumentation. Pending backlog always
+ * ships beside the median so cherry-picked approvals can't hide.
+ */
+export class GetConfirmationStatsUseCase {
+  /** @param {{progress, network}} deps */
+  constructor({ progress, network }) {
+    Object.assign(this, { progress, network });
+  }
+
+  async execute({ requesterId, now = new Date() }) {
+    const t = new Date(now).getTime();
+    const { ids } = await collectDownlineIds(this.network, requesterId);
+    const rows = await this.progress.listConfirmationStats(ids.slice(0, 2000), TRAINING_CONFIRM_KEYS);
+    const labelIds = new Set();
+    for (const r of rows) {
+      labelIds.add(String(r.partnerId));
+      for (const k of TRAINING_CONFIRM_KEYS) {
+        if (r[k]?.confirmedBy) labelIds.add(String(r[k].confirmedBy));
+      }
+    }
+    const nodes = labelIds.size > 0
+      ? await this.network.findNodesByIds([...labelIds])
+      : [];
+    const labels = Object.fromEntries(nodes.map((nd) => [String(nd.id), {
+      username: nd.username,
+      name: [nd.name, nd.surname].filter(Boolean).join(' ') || nd.username,
+    }]));
+
+    const allLatencies = [];
+    const byDecider = {};
+    let pending = 0;
+    let stale = 0;
+    const perMember = rows.map((r) => {
+      const pid = String(r.partnerId);
+      const memberLatencies = [];
+      let mPending = 0;
+      let mStale = 0;
+      for (const k of TRAINING_CONFIRM_KEYS) {
+        const s = r[k];
+        if (!s?.done) continue;
+        if (s.confirmedAt && s.at) {
+          const ms = new Date(s.confirmedAt).getTime() - new Date(s.at).getTime();
+          if (ms >= 0) {
+            memberLatencies.push(ms);
+            allLatencies.push(ms);
+            const by = String(s.confirmedBy ?? '');
+            if (by) (byDecider[by] ??= []).push(ms);
+          }
+        } else if (!s.confirmedAt) {
+          mPending += 1;
+          pending += 1;
+          if (t - new Date(s.at ?? t).getTime() > STALE_CONFIRM_MS) {
+            mStale += 1;
+            stale += 1;
+          }
+        }
+      }
+      return {
+        partnerId: pid,
+        level: r.level ?? null,
+        member: labels[pid] ?? null,
+        resolved: memberLatencies.length,
+        pending: mPending,
+        stale: mStale,
+        medianMs: medianOf(memberLatencies),
+        medianDisplay: formatLatency(medianOf(memberLatencies)),
+      };
+    });
+    const perDecider = Object.entries(byDecider).map(([uplineId, latencies]) => ({
+      uplineId,
+      member: labels[uplineId] ?? null,
+      resolved: latencies.length,
+      medianMs: medianOf(latencies),
+      medianDisplay: formatLatency(medianOf(latencies)),
+    })).sort((a, b) => b.resolved - a.resolved);
+    const medianMs = medianOf(allLatencies);
+    return {
+      overall: {
+        medianMs,
+        medianDisplay: formatLatency(medianMs),
+        resolved: allLatencies.length,
+        pending,
+        stale,
+      },
+      perMember,
+      perDecider,
     };
   }
 }

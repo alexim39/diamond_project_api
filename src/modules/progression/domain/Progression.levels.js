@@ -36,6 +36,28 @@ export const LEVEL_LABELS = {
 /** G8 nominations approve at this many distinct G8/admin approvals. */
 export const NOMINATION_APPROVALS_REQUIRED = 3;
 
+/**
+ * Confirmation responsiveness (training approvals). A pending request
+ * older than this counts as stale — the upline bottleneck signal.
+ */
+export const STALE_CONFIRM_MS = 72 * 3600000;
+
+/** Median of numbers (null when empty) — outlier-proof by construction. */
+export const medianOf = (values) => {
+  const sorted = [...(values ?? [])].filter((v) => Number.isFinite(v)).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+
+/** Display string for a latency ("26h", "3d") — null when no data. */
+export const formatLatency = (ms) => {
+  if (ms == null || !Number.isFinite(ms)) return null;
+  const hours = ms / 3600000;
+  if (hours < 48) return `${Math.round(hours * 10) / 10}h`;
+  return `${Math.round((hours / 24) * 10) / 10}d`;
+};
+
 /** Training milestones under upline confirmation (abuse-proofed). */
 export const TRAINING_CONFIRM_KEYS = ['ipo', 'qsg', 'smo'];
 export const TRAINING_KEY_LABELS = { ipo: 'IPO', qsg: 'QSG', smo: 'SMO' };

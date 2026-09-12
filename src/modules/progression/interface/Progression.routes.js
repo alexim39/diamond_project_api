@@ -4,8 +4,8 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
-  DecideNominationUseCase, DecideTrainingConfirmUseCase, GetMyProgressionUseCase, GetOversightUseCase,
-  ListPendingConfirmationsUseCase, ListPendingNominationsUseCase, RequestNominationUseCase,
+  DecideNominationUseCase, DecideTrainingConfirmUseCase, GetConfirmationStatsUseCase, GetMyProgressionUseCase,
+  GetOversightUseCase, ListPendingConfirmationsUseCase, ListPendingNominationsUseCase, RequestNominationUseCase,
   RequestTrainingConfirmUseCase, TeamDistributionUseCase, UpdateMilestonesUseCase,
 } from '../application/Progression.usecases.js';
 import { MongoProgressionStore } from '../infrastructure/Progression.mongo.repository.js';
@@ -70,6 +70,7 @@ export const buildProgressionRouter = (deps = {}) => {
   const requestTraining = new RequestTrainingConfirmUseCase({ progress, network });
   const decideTraining = new DecideTrainingConfirmUseCase({ progress, network });
   const pendingConfirmations = new ListPendingConfirmationsUseCase({ progress, network });
+  const confirmationStats = new GetConfirmationStatsUseCase({ progress, network });
   const decide = new DecideNominationUseCase({ progress, network, orders, mine });
   const team = new TeamDistributionUseCase({ progress, network });
   const partners = deps.partners ?? new MongoPartnerRepository();
@@ -115,6 +116,11 @@ export const buildProgressionRouter = (deps = {}) => {
   router.get('/team/confirmations', asyncHandler(async (req, res) => {
     const data = await pendingConfirmations.execute({ requesterId: req.auth?.partnerId });
     res.status(200).json({ message: 'Pending training confirmations retrieved successfully', data, success: true });
+  }));
+
+  router.get('/team/confirmation-stats', asyncHandler(async (req, res) => {
+    const data = await confirmationStats.execute({ requesterId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Confirmation responsiveness retrieved successfully', data, success: true });
   }));
 
   router.post('/confirmations/decision', validate({ body: TrainingDecisionSchema }), asyncHandler(async (req, res) => {
