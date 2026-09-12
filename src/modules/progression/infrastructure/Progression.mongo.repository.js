@@ -1,7 +1,14 @@
 import mongoose from 'mongoose';
 
 const stampSchema = new mongoose.Schema(
-  { done: { type: Boolean, default: false }, at: { type: Date, default: null } },
+  {
+    done: { type: Boolean, default: false },
+    at: { type: Date, default: null },
+    // Training confirmation (abuse-proofing): done = member marked it,
+    // confirmedAt/by = upline verified it. Gates check confirmed, not done.
+    confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', default: null },
+    confirmedAt: { type: Date, default: null },
+  },
   { _id: false },
 );
 
@@ -78,6 +85,59 @@ export class MongoProgressionStore {
       { new: true, upsert: true },
     ).lean();
     return shaped(row);
+  }
+
+  /**
+   * Member marks training done → pending upline confirmation. Idempotent:
+   * re-marking an already-pending stamp just refreshes its timestamp
+   * (no duplicate notifications — the event fires on transition only,
+   * decided in the use case).
+   */
+  async requestTrainingConfirm(partnerId, key) {
+    const doc = await ProgressionModel.findOneAndUpdate(
+      { partnerId },
+      {
+        $set: { [`${key}.done`]: true, [`${key}.at`]: new Date(), [`${key}.confirmedBy`]: null, [`${key}.confirmedAt`]: null },
+        $push: { events: { $each: [{ at: new Date(), by: partnerId, key: `${key}:requested` }], $slice: -100 } },
+      },
+      { new: true, upsert: true },
+    ).lean();
+    return shaped(doc);
+  }
+
+  /**
+   * Upline decision on a pending training stamp. Approve stamps the
+   * confirmation; decline resets the stamp so the member can re-mark
+   * after genuinely completing (the decline note travels by
+   * notification, not storage).
+   */
+  async confirmTraining(partnerId, key, approverId, approved) {
+    const filter = approved
+      ? { partnerId, [`${key}.done`]: true, [`${key}.confirmedAt`]: null }
+      : { partnerId, [`${key}.done`]: true };
+    const update = approved
+      ? {
+        $set: { [`${key}.confirmedBy`]: approverId, [`${key}.confirmedAt`]: new Date() },
+        $push: { events: { $each: [{ at: new Date(), by: approverId, key: `${key}:confirmed` }], $slice: -100 } },
+      }
+      : {
+        $set: { [`${key}.done`]: false, [`${key}.at`]: null, [`${key}.confirmedBy`]: null, [`${key}.confirmedAt`]: null },
+        $push: { events: { $each: [{ at: new Date(), by: approverId, key: `${key}:declined` }], $slice: -100 } },
+      };
+    const row = await ProgressionModel.findOneAndUpdate(filter, update, { new: true }).lean();
+    return shaped(row);
+  }
+
+  /** Downline training stamps awaiting confirmation (bounded). */
+  async listPendingConfirmations(partnerIds, keys, limit = 100) {
+    if (partnerIds.length === 0 || keys.length === 0) return [];
+    const or = keys.map((k) => ({ [`${k}.done`]: true, [`${k}.confirmedAt`]: null }));
+    const rows = await ProgressionModel.find({ partnerId: { $in: partnerIds }, $or: or })
+      .select('partnerId level ipo qsg smo updatedAt')
+      .sort({ updatedAt: -1 })
+      .limit(Math.min(Math.max(Number(limit) || 100, 1), 200))
+      .lean();
+    return rows.map(shaped);
   }
 
   async setLevel(partnerId, level) {

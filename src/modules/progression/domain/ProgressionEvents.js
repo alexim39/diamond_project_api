@@ -7,6 +7,10 @@
 export const PROGRESSION_EVENTS = {
   /** A member's stored level just advanced (fires exactly once per rank). */
   PROMOTED: 'progression.promoted',
+  /** A member marked training done → upline confirmation requested. */
+  TRAINING_CONFIRM_REQUESTED: 'progression.training.requested',
+  /** An upline decided a training confirmation (approved or declined). */
+  TRAINING_CONFIRM_DECIDED: 'progression.training.decided',
 };
 
 /**
@@ -21,4 +25,32 @@ export const promotedPayload = ({ partnerId, from, to, toLabel = null, memberNam
   toLabel: toLabel ? String(toLabel) : String(to),
   memberName: memberName ? String(memberName) : null,
   uplineId: uplineId ? String(uplineId) : null,
+});
+
+/**
+ * @param {{partnerId, key, keyLabel, memberName, uplineId, cycle}} input
+ * (`cycle` = the request stamp's ms — each re-mark after a decline is a
+ * new cycle, so idempotency keys never collide across cycles. Upline
+ * resolved by the emitter when cheap, else by the subscriber.)
+ */
+export const trainingRequestedPayload = ({ partnerId, key, keyLabel, memberName = null, uplineId = null, cycle = null }) => ({
+  type: PROGRESSION_EVENTS.TRAINING_CONFIRM_REQUESTED,
+  partnerId: String(partnerId),
+  key: String(key),
+  keyLabel: String(keyLabel ?? key),
+  memberName: memberName ? String(memberName) : null,
+  uplineId: uplineId ? String(uplineId) : null,
+  cycle: cycle ?? Date.now(),
+});
+
+/** @param {{partnerId, key, keyLabel, approved, note, memberName, cycle}} input */
+export const trainingDecidedPayload = ({ partnerId, key, keyLabel, approved, note = '', memberName = null, cycle = null }) => ({
+  type: PROGRESSION_EVENTS.TRAINING_CONFIRM_DECIDED,
+  partnerId: String(partnerId),
+  key: String(key),
+  keyLabel: String(keyLabel ?? key),
+  approved: approved === true,
+  note: String(note ?? '').slice(0, 500),
+  memberName: memberName ? String(memberName) : null,
+  cycle: cycle ?? Date.now(),
 });

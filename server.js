@@ -45,6 +45,7 @@ import ReservationsRouter from './src/modules/reservations/index.js';
 import SettingsV1Router from './src/modules/settings/index.js';
 import { subscribeActivation } from './src/modules/activation/index.js';
 import { subscribePromotionFanout } from './src/modules/notifications/application/PromotionFanout.js';
+import { subscribeTrainingFanout } from './src/modules/notifications/application/TrainingFanout.js';
 import { domainEvents } from './src/shared/events/DomainEvents.js';
 import { env } from './src/shared/config/env.js';
 import { sendEmail } from './src/services/emailService.js';
@@ -161,6 +162,13 @@ app.use(errorMiddleware);
     partners: lifecyclePartners,
   });
   subscribePromotionFanout({
+    events: domainEvents,
+    stored: lifecycleStore,
+    delivery: lifecycleDelivery,
+    partners: lifecyclePartners,
+    network: new MongoNetworkRepository(),
+  });
+  subscribeTrainingFanout({
     events: domainEvents,
     stored: lifecycleStore,
     delivery: lifecycleDelivery,

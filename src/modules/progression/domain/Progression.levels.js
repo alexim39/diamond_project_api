@@ -36,6 +36,10 @@ export const LEVEL_LABELS = {
 /** G8 nominations approve at this many distinct G8/admin approvals. */
 export const NOMINATION_APPROVALS_REQUIRED = 3;
 
+/** Training milestones under upline confirmation (abuse-proofed). */
+export const TRAINING_CONFIRM_KEYS = ['ipo', 'qsg', 'smo'];
+export const TRAINING_KEY_LABELS = { ipo: 'IPO', qsg: 'QSG', smo: 'SMO' };
+
 /**
  * Leadership-skills thresholds (trailing windows, tunable in one place):
  * personal volume flowing, real prospect touches, a live downline, and a
@@ -78,14 +82,21 @@ export const leadershipSkills = (signals = {}) => {
  * `signals`: {recruits, activeDownline, maintenanceOk, kingsmen, ecls}
  * `m`: milestones subdoc (all fields optional — absent means undone).
  */
+/**
+ * Confirmed training — the member marked it AND the upline verified it.
+ * Gates on training use this, never bare `done` (self-attestation alone
+ * must not open a gate).
+ */
+export const confirmed = (x) => x?.done === true && !!x?.confirmedAt;
+
 export const gate = (level, signals = {}, m = {}) => {
   const done = (x) => x?.done === true;
   const req = (key, label, action, met) => ({ key, label, action, met: met === true });
   switch (level) {
     case 'emerging_active':
       return [
-        req('ipo', 'Complete IPO', 'Take the IPO course in the Training Center', done(m.ipo)),
-        req('qsg', 'Complete QSG', 'Take the QSG course in the Training Center', done(m.qsg)),
+        req('ipo', 'Complete IPO', 'Take the IPO course in the Training Center', confirmed(m.ipo)),
+        req('qsg', 'Complete QSG', 'Take the QSG course in the Training Center', confirmed(m.qsg)),
       ];
     case 'qualified_active':
       return [
@@ -103,7 +114,7 @@ export const gate = (level, signals = {}, m = {}) => {
         req('activeTeam', 'Grow 5 active partners', 'Activate 5 team members with recent orders', (signals.activeDownline ?? 0) >= 5),
         req('accounts', 'Maintain 3 accounts', 'Record your maintained accounts', (m.accounts?.count ?? 0) >= 3),
         req('maintenance', 'Monthly maintenance compliance', 'Keep personal volume flowing monthly', signals.maintenanceOk === true),
-        req('smo', 'Complete SMO', 'Take the SMO course in the Training Center', done(m.smo)),
+        req('smo', 'Complete SMO', 'Take the SMO course in the Training Center', confirmed(m.smo)),
       ];
     case 'ecl':
       return [

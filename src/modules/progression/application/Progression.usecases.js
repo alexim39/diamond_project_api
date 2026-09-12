@@ -1,8 +1,8 @@
 import {
   ConflictException, ForbiddenException, NotFoundException, ValidationException,
 } from '../../../shared/domain/AppError.js';
-import { LEVELS, LEVEL_LABELS, NOMINATION_APPROVALS_REQUIRED, RANK, resolveProgression } from '../domain/Progression.levels.js';
-import { PROGRESSION_EVENTS, promotedPayload } from '../domain/ProgressionEvents.js';
+import { LEVELS, LEVEL_LABELS, NOMINATION_APPROVALS_REQUIRED, RANK, TRAINING_CONFIRM_KEYS, TRAINING_KEY_LABELS, confirmed, resolveProgression } from '../domain/Progression.levels.js';
+import { PROGRESSION_EVENTS, promotedPayload, trainingDecidedPayload, trainingRequestedPayload } from '../domain/ProgressionEvents.js';
 import { adminBootstrapEmails, lenientRole } from '../../identity-access/domain/PartnerRole.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
 
@@ -169,20 +169,162 @@ export class GetMyProgressionUseCase {
 }
 
 export class UpdateMilestonesUseCase {
-  /** @param {{progress}} deps */
-  constructor({ progress }) {
-    this.progress = progress;
+  /** @param {{progress, network?, events?}} deps (network/events optional — training auto-request hook) */
+  constructor({ progress, network = null, events = null }) {
+    Object.assign(this, { progress, network, events });
   }
 
   async execute({ partnerId, patch }) {
     const built = buildMilestonePatch(patch);
     const keys = Object.keys(built).map((k) => k.split('.')[0]);
+    const before = await this.progress.findByPartner(partnerId).catch(() => null);
     const doc = await this.progress.upsertMilestones(partnerId, built, {
       at: new Date(),
       by: partnerId,
       key: keys.join(','),
     });
+    // Training keys marked done through the generic path still enter
+    // confirmation — otherwise the gate would sit unmet with no request
+    // and no notification. Best-effort, never fails the write.
+    if (this.events) {
+      for (const key of TRAINING_CONFIRM_KEYS) {
+        const wasPending = before?.[key]?.done === true && !confirmed(before?.[key]);
+        if (built[key]?.done === true && !wasPending) {
+          try {
+            const node = await this.network?.findNode?.(partnerId).catch(() => null);
+            await this.events.emit(
+              PROGRESSION_EVENTS.TRAINING_CONFIRM_REQUESTED,
+              trainingRequestedPayload({
+                partnerId,
+                key,
+                keyLabel: TRAINING_KEY_LABELS[key] ?? key,
+                memberName: node
+                  ? [node.name, node.surname].filter(Boolean).join(' ') || node.username
+                  : null,
+                uplineId: node?.parentId ?? null,
+              }),
+            ).catch(() => null);
+          } catch { /* request fan-out never fails the write */ }
+        }
+      }
+    }
     return { milestones: toMilestones(doc) };
+  }
+}
+
+/** Member marks training done → pending upline confirmation (idempotent). */
+export class RequestTrainingConfirmUseCase {
+  /** @param {{progress, network?, events?}} deps */
+  constructor({ progress, network = null, events = null }) {
+    Object.assign(this, { progress, network, events });
+  }
+
+  async execute({ partnerId, key }) {
+    if (!TRAINING_CONFIRM_KEYS.includes(key)) throw new ValidationException('Invalid training key');
+    const before = await this.progress.findByPartner(partnerId).catch(() => null);
+    const wasPending = before?.[key]?.done === true && !confirmed(before?.[key]);
+    const doc = await this.progress.requestTrainingConfirm(partnerId, key);
+    if (!wasPending && this.events) {
+      try {
+        const node = await this.network?.findNode?.(partnerId).catch(() => null);
+        const stampAt = doc?.[key]?.at ? new Date(doc[key].at).getTime() : Date.now();
+        await this.events.emit(
+          PROGRESSION_EVENTS.TRAINING_CONFIRM_REQUESTED,
+          trainingRequestedPayload({
+            partnerId,
+            key,
+            keyLabel: TRAINING_KEY_LABELS[key] ?? key,
+            memberName: node
+              ? [node.name, node.surname].filter(Boolean).join(' ') || node.username
+              : null,
+            uplineId: node?.parentId ?? null,
+            cycle: stampAt,
+          }),
+        ).catch(() => null);
+      } catch { /* request fan-out never fails the write */ }
+    }
+    return { status: 'pending' };
+  }
+}
+
+/** Upline (or admin/G8 role) decides a pending training confirmation. */
+export class DecideTrainingConfirmUseCase {
+  /** @param {{progress, network, events?}} deps */
+  constructor({ progress, network, events = null }) {
+    Object.assign(this, { progress, network, events });
+  }
+
+  async execute({ approverId, partnerId, key, approved, note = '' }) {
+    if (!TRAINING_CONFIRM_KEYS.includes(key)) throw new ValidationException('Invalid training key');
+    if (String(approverId) === String(partnerId)) throw new ForbiddenException('You cannot confirm your own training');
+    const [memberNode, approverNode] = await Promise.all([
+      this.network.findNode(partnerId),
+      this.network.findNode(approverId),
+    ]);
+    if (!memberNode) throw new NotFoundException('Partner not found');
+    if (!approverNode) throw new NotFoundException('Approver not found');
+    const isDirectUpline = String(memberNode.parentId ?? '') === String(approverId);
+    const approverRole = lenientRole(approverNode.role);
+    if (!isDirectUpline && approverRole !== 'g8' && approverRole !== 'admin') {
+      throw new ForbiddenException('Only their upline, a G8 Leader or an admin may confirm training');
+    }
+    const cleanNote = String(note ?? '').trim().slice(0, 500);
+    if (approved !== true && !cleanNote) {
+      throw new ValidationException('A reason is required when declining');
+    }
+    const doc = await this.progress.confirmTraining(partnerId, key, approverId, approved === true);
+    if (!doc) throw new NotFoundException('No pending confirmation for this training');
+    if (this.events) {
+      try {
+        // Approve keeps the request stamp (cycle = its `at`); decline
+        // resets it, so fall back to now for the outcome key.
+        const stampAt = doc?.[key]?.at ? new Date(doc[key].at).getTime() : Date.now();
+        await this.events.emit(
+          PROGRESSION_EVENTS.TRAINING_CONFIRM_DECIDED,
+          trainingDecidedPayload({
+            partnerId,
+            key,
+            keyLabel: TRAINING_KEY_LABELS[key] ?? key,
+            approved: approved === true,
+            note: cleanNote,
+            memberName: [memberNode.name, memberNode.surname].filter(Boolean).join(' ') || memberNode.username,
+            cycle: stampAt,
+          }),
+        ).catch(() => null);
+      } catch { /* outcome fan-out never fails the decision */ }
+    }
+    return { status: approved === true ? 'confirmed' : 'declined' };
+  }
+}
+
+/** Pending training confirmations across the requester's bounded downline. */
+export class ListPendingConfirmationsUseCase {
+  /** @param {{progress, network}} deps */
+  constructor({ progress, network }) {
+    Object.assign(this, { progress, network });
+  }
+
+  async execute({ requesterId, limit = 100 }) {
+    const { ids } = await collectDownlineIds(this.network, requesterId);
+    const rows = await this.progress.listPendingConfirmations(ids.slice(0, 2000), TRAINING_CONFIRM_KEYS, limit);
+    if (rows.length === 0) return { items: [], total: 0 };
+    const nodes = await this.network.findNodesByIds(rows.map((r) => r.partnerId));
+    const labels = Object.fromEntries(nodes.map((nd) => [String(nd.id), {
+      username: nd.username,
+      name: [nd.name, nd.surname].filter(Boolean).join(' ') || nd.username,
+    }]));
+    const pendingKeysOf = (r) => TRAINING_CONFIRM_KEYS
+      .filter((k) => r[k]?.done === true && !confirmed(r[k]))
+      .map((k) => ({ key: k, label: TRAINING_KEY_LABELS[k] ?? k, requestedAt: r[k]?.at ?? r.updatedAt ?? null }));
+    return {
+      items: rows.map((r) => ({
+        partnerId: String(r.partnerId),
+        level: r.level ?? null,
+        pending: pendingKeysOf(r),
+        member: labels[String(r.partnerId)] ?? null,
+      })),
+      total: rows.length,
+    };
   }
 }
 

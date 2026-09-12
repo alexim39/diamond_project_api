@@ -78,3 +78,43 @@ export const buildPromotionUpline = ({ memberName, toLabel, uplineName }) => ({
     ${footer('You get this because someone in your downline earned a promotion.')}
   `,
 });
+
+export const buildTrainingRequest = ({ memberName, uplineName, keyLabel }) => ({
+  subject: `${memberName} completed ${keyLabel} — please confirm`,
+  html: `
+    <p>Hi ${escapeHtml(uplineName)},</p>
+    <p><strong>${escapeHtml(memberName)}</strong> marked <strong>${escapeHtml(keyLabel)}</strong> as complete and is waiting on your confirmation to unlock their next gate:</p>
+    ${steps([
+      `Confirm ${keyLabel} on the training confirmations page if they genuinely completed it.`,
+      'If not yet, decline with a clear reason so they know what remains.',
+      'Use the moment — a quick call here compounds into momentum.',
+    ])}
+    <p><a href="/dashboard/mentorship/team/confirmations">Review pending confirmations</a></p>
+    ${footer('You get this because someone in your downline needs your confirmation.')}
+  `,
+});
+
+export const buildTrainingOutcome = ({ memberName, keyLabel, approved, note }) => ({
+  subject: approved
+    ? `Your ${keyLabel} is confirmed — well done!`
+    : `Your ${keyLabel} needs a little more — see why`,
+  html: approved
+    ? `
+    <p>Hi ${escapeHtml(memberName)},</p>
+    <p>Thank you for taking the next step — your upline has confirmed your <strong>${escapeHtml(keyLabel)}</strong> completion. Your journey progress is updated:</p>
+    ${steps([
+      'Open My Journey to see your next requirement.',
+      'Keep the streak — book your next training or action today.',
+    ])}
+    <p><a href="/dashboard/progress">View your journey</a></p>
+    ${footer('You get this because your training was confirmed.')}
+  `
+    : `
+    <p>Hi ${escapeHtml(memberName)},</p>
+    <p>Thank you for taking the next step. Your upline reviewed your <strong>${escapeHtml(keyLabel)}</strong> and feels it is not quite complete yet. Their reason:</p>
+    <blockquote>${escapeHtml(note) || 'No reason given — please ask your upline directly.'}</blockquote>
+    <p>Finish the outstanding part and mark it done again — your upline will be notified.</p>
+    <p><a href="/dashboard/progress">Back to your journey</a></p>
+    ${footer('You get this because your training review needs another pass.')}
+  `,
+});
