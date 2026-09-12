@@ -27,6 +27,8 @@ export class ProspectRepository {
   async updateStatus(id, overlay) { throw new Error('Not implemented'); }
   /** @returns {Promise<any|null>} updated prospect or null */
   async pushCommunication(id, communication) { throw new Error('Not implemented'); }
+  /** Prospects with any touch (communication) since `since` — leadership signal. */
+  async countTouchedSince(partnerId, since) { throw new Error('Not implemented'); }
   /** @returns {Promise<{prospect:any|null, removed:boolean}>} */
   async pullCommunication(prospectId, communicationId) { throw new Error('Not implemented'); }
   /** @returns {Promise<boolean>} true when something was deleted */

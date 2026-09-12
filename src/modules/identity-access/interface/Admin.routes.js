@@ -3,6 +3,7 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { requireRole } from './RequireRole.js';
 import { z } from 'zod';
+import { ROLES } from '../domain/PartnerRole.js';
 import { makeAdminController } from './Admin.controller.js';
 import { ListPartnersUseCase, SetPartnerRoleUseCase } from '../application/Admin.usecase.js';
 import { MongoPartnerRepository } from '../infrastructure/Auth.mongo.repository.js';
@@ -11,8 +12,8 @@ const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 
 const PartnerIdParam = z.object({ partnerId: objectId });
 const SetRoleSchema = z.object({
-  role: z.string().trim().toLowerCase().refine((v) => ['user', 'leader', 'admin'].includes(v), {
-    message: 'Invalid role (expected one of: user, leader, admin)',
+  role: z.string().trim().toLowerCase().refine((v) => ROLES.includes(v), {
+    message: `Invalid role (expected one of: ${ROLES.join(', ')})`,
   }),
 });
 const AdminListQuery = z.object({

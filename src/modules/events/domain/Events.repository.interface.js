@@ -12,5 +12,7 @@ export class EventStore {
   async upcomingRsvps(partnerId, now, horizonDays, limit) { throw new Error('Not implemented'); }
   async rsvpCounts(eventIds) { throw new Error('Not implemented'); }
   async myRsvps(eventIds, partnerId) { throw new Error('Not implemented'); }
+  /** RSVPs (going/interested) since `since` — leadership footprint. */
+  async countRsvpsSince(partnerId, since) { throw new Error('Not implemented'); }
   async authorLabels(ids) { throw new Error('Not implemented'); }
 }

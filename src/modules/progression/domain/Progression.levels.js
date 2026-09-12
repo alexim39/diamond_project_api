@@ -33,6 +33,46 @@ export const LEVEL_LABELS = {
   g8: 'G8 Leader',
 };
 
+/** G8 nominations approve at this many distinct G8/admin approvals. */
+export const NOMINATION_APPROVALS_REQUIRED = 3;
+
+/**
+ * Leadership-skills thresholds (trailing windows, tunable in one place):
+ * personal volume flowing, real prospect touches, a live downline, and a
+ * visible community footprint (posts, event RSVPs or team reports).
+ */
+export const LEADERSHIP_THRESHOLDS = {
+  touchesDays: 30,
+  touchesMin: 3,
+  communityDays: 30,
+  communityMin: 1,
+  rsvpDays: 90,
+  rsvpMin: 1,
+  reportsDays: 60,
+  reportsMin: 1,
+};
+
+/**
+ * Demonstrated leadership from live signals — pure, unit-testable.
+ * Every leg must hold: active in business, working with people, someone
+ * to support, and a community footprint. Prior-rank completion is
+ * structural (the upward walk guarantees it).
+ * @returns {{met, missing}} `missing` holds human-readable shortfalls.
+ */
+export const leadershipSkills = (signals = {}) => {
+  const missing = [];
+  if (signals.maintenanceOk !== true) missing.push('personal volume flowing');
+  if ((signals.touchedProspects ?? 0) < LEADERSHIP_THRESHOLDS.touchesMin) {
+    missing.push(`${LEADERSHIP_THRESHOLDS.touchesMin}+ prospects touched in ${LEADERSHIP_THRESHOLDS.touchesDays}d`);
+  }
+  if ((signals.activeDownline ?? 0) < 1) missing.push('at least one active downline member');
+  const footprint = (signals.communityPosts ?? 0) + (signals.eventRsvps ?? 0) + (signals.reportsSubmitted ?? 0);
+  if (footprint < LEADERSHIP_THRESHOLDS.communityMin) {
+    missing.push('a visible community footprint (posts, events or team reports)');
+  }
+  return { met: missing.length === 0, missing };
+};
+
 /**
  * Entry gates. Each requirement: {key, label, action, met}.
  * `signals`: {recruits, activeDownline, maintenanceOk, kingsmen, ecls}
@@ -50,12 +90,13 @@ export const gate = (level, signals = {}, m = {}) => {
     case 'qualified_active':
       return [
         req('recruits', 'Connect one new partner', 'Recruit your first partner from the pipeline', (signals.recruits ?? 0) >= 1),
-        req('g8Request', 'Submit request to G8 Leader', 'Send your qualification request', m.g8Request?.status === 'submitted' || m.g8Request?.status === 'approved'),
-        req('onboardingSession', 'Attend onboarding session', 'Schedule your onboarding session', done(m.onboardingSession)),
       ];
     case 'active':
+      // The letter is the member's action: `submitted` passes. An `approved`
+      // value is inert here on purpose — only an elevated path may grant it.
       return [
-        req('qualifiedConfirmed', 'Complete qualification', 'Confirm your qualified-active process', done(m.qualifiedConfirmed)),
+        req('g8Request', 'Submit request letter to G8 Leader', 'Send your qualification request letter', m.g8Request?.status === 'submitted'),
+        req('onboardingSession', 'Attend onboarding session', 'Schedule your onboarding session', done(m.onboardingSession)),
       ];
     case 'kingsman':
       return [
@@ -70,17 +111,26 @@ export const gate = (level, signals = {}, m = {}) => {
         req('fullTime', 'Full-time participation', 'Commit to full-time business participation', done(m.fullTime)),
         req('office', 'Office ownership', 'Register your office', done(m.office)),
       ];
-    case 'cell_leader':
+    case 'cell_leader': {
+      const skills = leadershipSkills(signals);
       return [
-        req('ecls', 'Raise 5 Emerging Cell Leaders', 'Develop 5 downline ECLs', (signals.ecls ?? 0) >= 5),
+        req('kingsmenTeam', 'Manage 5 downline Kingsmen', 'Develop 5 downline members to Kingsman', (signals.kingsmenExact ?? 0) >= 5),
+        req('office', 'Office ownership', 'Register your office (1 or more)', done(m.office)),
+        req('leadership', 'Demonstrated leadership', skills.missing.length > 0 ? `To demonstrate: ${skills.missing.join('; ')}` : 'Keep leading visibly', skills.met),
       ];
-    case 'g_leader':
+    }
+    case 'g_leader': {
+      const skills = leadershipSkills(signals);
       return [
-        req('nomination', 'Nominated by a G8 Leader', 'Request nomination from your G8 Leader', m.nomination?.status === 'approved'),
+        req('eclTeam', 'Manage 5 Emerging Cell Leaders', 'Develop 5 downline members to ECL', (signals.eclsExact ?? 0) >= 5),
+        req('office', 'Office ownership', 'Register your office (1 or more)', done(m.office)),
+        req('leadership', 'Demonstrated leadership', skills.missing.length > 0 ? `To demonstrate: ${skills.missing.join('; ')}` : 'Keep leading visibly', skills.met),
+        req('nomination', 'Nominated by your G8 Leader', 'Request nomination from a G8 Leader', (m.nomination?.approvals?.length ?? 0) >= 1),
       ];
+    }
     case 'g8':
       return [
-        req('appointment', 'G8 appointment', 'Complete your G8 appointment record', done(m.appointment)),
+        req('nominations', `Nominated by ${NOMINATION_APPROVALS_REQUIRED}+ G8 Leaders`, 'Collect G8 approvals on your nomination', (m.nomination?.approvals?.length ?? 0) >= NOMINATION_APPROVALS_REQUIRED),
       ];
     default:
       return [];

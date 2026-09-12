@@ -1,7 +1,7 @@
 import {
   ConflictException, ForbiddenException, NotFoundException, ValidationException,
 } from '../../../shared/domain/AppError.js';
-import { LEVELS, LEVEL_LABELS, RANK, resolveProgression } from '../domain/Progression.levels.js';
+import { LEVELS, LEVEL_LABELS, NOMINATION_APPROVALS_REQUIRED, RANK, resolveProgression } from '../domain/Progression.levels.js';
 import { PROGRESSION_EVENTS, promotedPayload } from '../domain/ProgressionEvents.js';
 import { adminBootstrapEmails, lenientRole } from '../../identity-access/domain/PartnerRole.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -11,21 +11,38 @@ const DAY = 86400000;
 /**
  * Live signals from source aggregates (never stored).
  * Bounded: downline BFS is depth- + cap-limited like everywhere else.
+ * Leadership legs (`prospects`, `community`, `events`, `reports`) are
+ * optional — absent deps degrade to zero (skills gate unmet, never a
+ * crash), so old constructions and unit fakes keep working.
  */
-export async function assembleSignals(partnerId, { network, orders, progress }, now = new Date()) {
+export async function assembleSignals(
+  partnerId,
+  { network, orders, progress, prospects, community, eventStore, reports },
+  now = new Date(),
+) {
   const end = new Date(now);
   const start30 = new Date(end.getTime() - 30 * DAY);
   const start60 = new Date(end.getTime() - 60 * DAY);
+  const start90 = new Date(end.getTime() - 90 * DAY);
+  const safe = (promise, fallback) => Promise.resolve(promise).then((v) => v ?? fallback, () => fallback);
   const [{ ids: downline }] = await Promise.all([collectDownlineIds(network, partnerId)]);
-  const [recruits, cur, prev, active, levels] = await Promise.all([
+  const [recruits, cur, prev, active, levels, touched, posts, rsvps, authored] = await Promise.all([
     network.countChildren(partnerId),
     orders.volumeBetween(partnerId, start30, end),
     orders.volumeBetween(partnerId, start60, start30),
     orders.activeMemberCount(downline, start30, end),
     progress.levelsFor(downline.slice(0, 2000)),
+    safe(prospects?.countTouchedSince?.(partnerId, start30), 0),
+    safe(community?.countPostsByAuthorSince?.(partnerId, start30), 0),
+    safe(eventStore?.countRsvpsSince?.(partnerId, start90), 0),
+    safe(reports?.listByAuthor?.(partnerId, 50), []),
   ]);
   const counts = {};
   for (const lvl of Object.values(levels)) counts[lvl] = (counts[lvl] ?? 0) + 1;
+  const reportsSubmitted = (authored ?? []).filter((r) => {
+    const t = new Date(r.createdAt ?? 0).getTime();
+    return !Number.isNaN(t) && t >= end.getTime() - 60 * DAY;
+  }).length;
   return {
     recruits,
     activeDownline: active,
@@ -33,6 +50,12 @@ export async function assembleSignals(partnerId, { network, orders, progress }, 
     maintenanceOk: cur.total > 0 && prev.total > 0,
     kingsmen: (counts.kingsman ?? 0) + (counts.ecl ?? 0) + (counts.cell_leader ?? 0) + (counts.g_leader ?? 0) + (counts.g8 ?? 0),
     ecls: (counts.ecl ?? 0) + (counts.cell_leader ?? 0) + (counts.g_leader ?? 0) + (counts.g8 ?? 0),
+    kingsmenExact: counts.kingsman ?? 0,
+    eclsExact: counts.ecl ?? 0,
+    touchedProspects: touched,
+    communityPosts: posts,
+    eventRsvps: rsvps,
+    reportsSubmitted,
   };
 }
 
@@ -44,6 +67,7 @@ const toMilestones = (doc = {}) => {
   if (doc.accounts !== undefined) m.accounts = doc.accounts;
   if (doc.officeAddress !== undefined) m.officeAddress = doc.officeAddress;
   if (doc.g8Request !== undefined) m.g8Request = doc.g8Request;
+  if (doc.nomination !== undefined) m.nomination = doc.nomination;
   if (doc.appointedBy !== undefined) m.appointedBy = doc.appointedBy;
   return m;
 };
@@ -182,20 +206,36 @@ export class RequestNominationUseCase {
   }
 }
 
-/** Only a G8 Leader may decide nominations (never their own). */
+/**
+ * Only the G8 role (or admin) may decide nominations — never their own,
+ * never twice. Approvals accumulate per approver; `approved` flips at the
+ * counted threshold. Authority is role-based, not ladder-based: only an
+ * admin-bestowed role can approve.
+ */
 export class DecideNominationUseCase {
-  /** @param {{progress, network, orders, mine}} deps */
+  /** @param {{progress, network, orders, mine}} deps (`mine` kept for signature stability) */
   constructor({ progress, network, orders, mine }) {
     Object.assign(this, { progress, network, orders, mine });
   }
 
   async execute({ approverId, partnerId, approved }) {
     if (String(approverId) === String(partnerId)) throw new ForbiddenException('You cannot decide your own nomination');
-    const approver = await this.mine.execute({ partnerId: approverId });
-    if (approver.level !== 'g8') throw new ForbiddenException('Only a G8 Leader may decide nominations');
-    const doc = await this.progress.decideNomination(partnerId, approved === true, approverId);
+    const node = await this.network.findNode(approverId);
+    if (!node) throw new NotFoundException('Approver not found');
+    const role = lenientRole(node.role);
+    if (role !== 'g8' && role !== 'admin') {
+      throw new ForbiddenException('Only a G8 Leader or admin may decide nominations');
+    }
+    if (approved === true) {
+      const result = await this.progress.approveNomination(partnerId, approverId, NOMINATION_APPROVALS_REQUIRED);
+      if (!result) throw new NotFoundException('No pending nomination');
+      if (result.duplicate) throw new ConflictException('You have already approved this nomination');
+      const approvals = result.doc.nomination?.approvals?.length ?? 0;
+      return { status: result.doc.nomination.status, approvals, required: NOMINATION_APPROVALS_REQUIRED };
+    }
+    const doc = await this.progress.rejectNomination(partnerId, approverId);
     if (!doc) throw new NotFoundException('No pending nomination');
-    return { status: doc.nomination.status };
+    return { status: doc.nomination.status, approvals: 0, required: NOMINATION_APPROVALS_REQUIRED };
   }
 }
 
@@ -221,6 +261,8 @@ export class ListPendingNominationsUseCase {
         level: r.level ?? null,
         note: r.nomination?.note ?? '',
         requestedAt: r.nomination?.at ?? r.updatedAt ?? null,
+        approvals: (r.nomination?.approvals ?? []).length,
+        required: NOMINATION_APPROVALS_REQUIRED,
         member: labels[String(r.partnerId)] ?? null,
       })),
       total: rows.length,
@@ -230,8 +272,8 @@ export class ListPendingNominationsUseCase {
 
 /**
  * G8 oversight rollup: distribution + leaders + pending nominations.
- * Gated to ladder-g8 members and admins (with bootstrap-email parity,
- * mirroring requireRole) — everyone else gets 403.
+ * Gated to ladder-g8 members, the admin-bestowed G8 role, and admins
+ * (with bootstrap-email parity, mirroring requireRole) — else 403.
  */
 export class GetOversightUseCase {
   /** @param {{mine, partners, distribution, pending}} deps (composed use cases) */
@@ -247,7 +289,8 @@ export class GetOversightUseCase {
     const role = lenientRole(adminDoc?.role);
     const isAdmin = role === 'admin'
       || adminBootstrapEmails().includes(String(adminDoc?.email ?? '').toLowerCase());
-    if (me.level !== 'g8' && !isAdmin) {
+    const isG8 = role === 'g8';
+    if (me.level !== 'g8' && !isAdmin && !isG8) {
       throw new ForbiddenException('Oversight is available to G8 Leaders and admins');
     }
     const [dist, nominations] = await Promise.all([
@@ -257,6 +300,7 @@ export class GetOversightUseCase {
     return {
       level: me.level,
       isAdmin,
+      isG8,
       total: dist.total,
       capped: dist.capped,
       distribution: dist.distribution,

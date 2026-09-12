@@ -294,6 +294,15 @@ export class MongoCommunityStore {
     }]));
   }
 
+  /** Posts + comments authored since `since` — leadership footprint. */
+  async countPostsByAuthorSince(authorId, since) {
+    const [posts, comments] = await Promise.all([
+      PostModel.countDocuments({ authorId, createdAt: { $gte: since } }),
+      CommentModel.countDocuments({ authorId, createdAt: { $gte: since } }),
+    ]);
+    return posts + comments;
+  }
+
   /** Raw engagement rows for analytics (bounded window). */
   async engagementSince(since) {
     const [posts, likes, comments] = await Promise.all([

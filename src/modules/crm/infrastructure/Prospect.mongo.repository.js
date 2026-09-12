@@ -33,6 +33,14 @@ export class MongoProspectRepository {
     });
   }
 
+  /** Prospects touched (any communication logged) since `since` — leadership signal. */
+  async countTouchedSince(partnerId, since) {
+    return ProspectModel.countDocuments({
+      partnerId,
+      communications: { $elemMatch: { date: { $gte: since } } },
+    });
+  }
+
   /**
    * Cohort funnel: prospects created in-window grouped by current stage.
    * Documents without a stage overlay (legacy) count as 'New'.

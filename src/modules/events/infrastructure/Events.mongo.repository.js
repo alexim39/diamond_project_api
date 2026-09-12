@@ -133,6 +133,15 @@ export class MongoEventStore {
     return docs.map((d) => ({ ...shaped(d), myRsvp: mine[oid(d._id)] }));
   }
 
+  /** RSVPs (going/interested) since `since` — leadership footprint. */
+  async countRsvpsSince(partnerId, since) {
+    return EventRsvpModel.countDocuments({
+      partnerId,
+      status: { $in: ['going', 'interested'] },
+      createdAt: { $gte: since },
+    });
+  }
+
   async authorLabels(ids) {
     const uniq = [...new Set(ids.map(String))].filter(Boolean);
     if (uniq.length === 0) return {};

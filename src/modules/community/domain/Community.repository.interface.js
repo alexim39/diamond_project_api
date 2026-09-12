@@ -25,4 +25,6 @@ export class CommunityStore {
   async reportedByMe(partnerId) { throw new Error('Not implemented'); }
   async authorLabels(ids) { throw new Error('Not implemented'); }
   async engagementSince(since) { throw new Error('Not implemented'); }
+  /** Posts authored since `since` — leadership signal. */
+  async countPostsByAuthorSince(authorId, since) { throw new Error('Not implemented'); }
 }

@@ -8,6 +8,8 @@ export class ProgressionStore {
   async setLevel(partnerId, level) { throw new Error('Not implemented'); }
   async levelsFor(partnerIds) { throw new Error('Not implemented'); }
   async requestNomination(partnerId, note) { throw new Error('Not implemented'); }
-  async decideNomination(partnerId, approved, decidedBy) { throw new Error('Not implemented'); }
+  /** Counted approval — returns `{doc, duplicate}` (null doc = nothing pending). */
+  async approveNomination(partnerId, approverId, required) { throw new Error('Not implemented'); }
+  async rejectNomination(partnerId, decidedBy) { throw new Error('Not implemented'); }
   async listPendingNominations(partnerIds, limit) { throw new Error('Not implemented'); }
 }

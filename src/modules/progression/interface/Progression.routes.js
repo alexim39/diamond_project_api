@@ -10,6 +10,9 @@ import {
 import { MongoProgressionStore } from '../infrastructure/Progression.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoOrderReader } from '../../billing/infrastructure/Billing.mongo.repository.js';
+import { MongoProspectRepository } from '../../crm/infrastructure/Prospect.mongo.repository.js';
+import { MongoEventStore } from '../../events/infrastructure/Events.mongo.repository.js';
+import { MongoReportStore } from '../../reports/infrastructure/Reports.mongo.repository.js';
 import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
 import { RecognitionUseCases } from '../../community/application/Community.usecases.js';
 import { MongoCommunityStore } from '../../community/infrastructure/Community.mongo.repository.js';
@@ -40,11 +43,16 @@ export const buildProgressionRouter = (deps = {}) => {
   const network = deps.network ?? new MongoNetworkRepository();
   const orders = deps.orders ?? new MongoOrderReader();
 
+  const community = deps.community ?? new MongoCommunityStore();
   const mine = deps.mine ?? new GetMyProgressionUseCase({
     progress,
     network,
     orders,
-    recognition: deps.recognition ?? new RecognitionUseCases({ community: deps.community ?? new MongoCommunityStore() }),
+    recognition: deps.recognition ?? new RecognitionUseCases({ community }),
+    prospects: deps.prospects ?? new MongoProspectRepository(),
+    community,
+    eventStore: deps.eventStore ?? new MongoEventStore(),
+    reports: deps.reports ?? new MongoReportStore(),
   });
   const update = new UpdateMilestonesUseCase({ progress });
   const nominate = new RequestNominationUseCase({ progress, network, orders, mine });

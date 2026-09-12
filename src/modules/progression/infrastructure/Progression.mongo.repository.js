@@ -26,6 +26,12 @@ const progressionSchema = new mongoose.Schema(
       note: { type: String, default: '', maxlength: 500 },
       by: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', default: null },
       at: { type: Date, default: null },
+      // Counted G8 approvals — distinct approvers, threshold in levels.js.
+      approvals: [{
+        by: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true },
+        at: { type: Date, default: Date.now },
+        _id: false,
+      }],
       decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', default: null },
       decidedAt: { type: Date, default: null },
     },
@@ -95,16 +101,43 @@ export class MongoProgressionStore {
   async requestNomination(partnerId, note) {
     const row = await ProgressionModel.findOneAndUpdate(
       { partnerId },
-      { $set: { nomination: { status: 'pending', note, by: partnerId, at: new Date(), decidedBy: null, decidedAt: null } } },
+      { $set: { nomination: { status: 'pending', note, by: partnerId, at: new Date(), approvals: [], decidedBy: null, decidedAt: null } } },
       { new: true, upsert: true },
     ).lean();
     return shaped(row);
   }
 
-  async decideNomination(partnerId, approved, decidedBy) {
+  /**
+   * One approval from a distinct G8/admin approver (`$ne` guard makes
+   * concurrent double-approvals impossible). Flips to approved at the
+   * required count. Returns `{doc, duplicate}` — null doc = nothing pending.
+   */
+  async approveNomination(partnerId, approverId, required) {
+    const before = await ProgressionModel.findOne({ partnerId }).lean();
+    if (!before || before.nomination?.status !== 'pending') return null;
+    const duplicate = (before.nomination.approvals ?? []).some((a) => String(a.by) === String(approverId));
+    if (!duplicate) {
+      await ProgressionModel.updateOne(
+        { partnerId, 'nomination.status': 'pending', 'nomination.approvals.by': { $ne: approverId } },
+        { $push: { 'nomination.approvals': { by: approverId, at: new Date() } } },
+      );
+    }
+    const after = await ProgressionModel.findOne({ partnerId }).lean();
+    const count = after?.nomination?.approvals?.length ?? 0;
+    if (!duplicate && after?.nomination?.status === 'pending' && count >= required) {
+      await ProgressionModel.updateOne(
+        { partnerId },
+        { $set: { 'nomination.status': 'approved', 'nomination.decidedAt': new Date() } },
+      );
+      after.nomination.status = 'approved';
+    }
+    return { doc: shaped(after), duplicate };
+  }
+
+  async rejectNomination(partnerId, decidedBy) {
     const row = await ProgressionModel.findOneAndUpdate(
       { partnerId, 'nomination.status': 'pending' },
-      { $set: { 'nomination.status': approved ? 'approved' : 'rejected', 'nomination.decidedBy': decidedBy, 'nomination.decidedAt': new Date() } },
+      { $set: { 'nomination.status': 'rejected', 'nomination.decidedBy': decidedBy, 'nomination.decidedAt': new Date() } },
       { new: true },
     ).lean();
     return shaped(row);
