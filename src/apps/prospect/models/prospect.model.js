@@ -25,6 +25,48 @@ const prospectSchema = mongoose.Schema(
             type: String,
             required: [true, "Please enter source"]
         },
+        // Contact-list enrichment (onboarding): relationship context for the
+        // upline working the list. Sparse — absent historically.
+        relationship: {
+            type: String,
+            enum: ['Family', 'Friend', 'Colleague', 'Church', 'Neighbour', 'Referral', 'Other'],
+            default: 'Other',
+        },
+        priority: {
+            type: String,
+            enum: ['high', 'normal'],
+            default: 'normal',
+        },
+        bestTimeToCall: {
+            type: String,
+            maxlength: 120,
+            default: '',
+        },
+        consentToContact: {
+            type: Boolean,
+            default: false,
+        },
+        notes: {
+            type: String,
+            maxlength: 2000,
+            default: '',
+        },
+        // Contact-list submission grouping: which submitted batch (if any)
+        // this prospect belongs to. Sparse — absent historically.
+        listBatch: {
+            type: String,
+            default: null,
+            index: true,
+            sparse: true,
+        },
+        listSubmitted: {
+            type: Boolean,
+            default: false,
+        },
+        listSubmittedAt: {
+            type: Date,
+            default: null,
+        },
         communications: [CommunicationSchema],
         partnerId: {
             type: mongoose.Schema.Types.ObjectId,

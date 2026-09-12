@@ -31,6 +31,14 @@ export class ProspectRepository {
   async firstProspectDates(ids) { throw new Error('Not implemented'); }
   /** Prospects with any touch (communication) since `since` — leadership signal. */
   async countTouchedSince(partnerId, since) { throw new Error('Not implemented'); }
+  /** Unsubmitted onboarding-list rows, oldest first. */
+  async listUnsubmitted(partnerId) { throw new Error('Not implemented'); }
+  /** Submitted batches with per-stage progress, newest first. */
+  async submittedBatches(partnerId) { throw new Error('Not implemented'); }
+  /** Stamp unsubmitted rows as one batch → {count, submittedAt}. */
+  async submitContactList(partnerId, batch) { throw new Error('Not implemented'); }
+  /** Submitted batches across partners (upline view, bounded). */
+  async downlineSubmittedBatches(partnerIds) { throw new Error('Not implemented'); }
   /** @returns {Promise<{prospect:any|null, removed:boolean}>} */
   async pullCommunication(prospectId, communicationId) { throw new Error('Not implemented'); }
   /** @returns {Promise<boolean>} true when something was deleted */

@@ -81,4 +81,19 @@ export const makeProspectController = (uc) => ({
       success: true,
     });
   }),
+
+  contactListMine: asyncHandler(async (req, res) => {
+    const data = await uc.contactListMine.execute({ partnerId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Contact list retrieved successfully', data, success: true });
+  }),
+
+  contactListSubmit: asyncHandler(async (req, res) => {
+    const data = await uc.contactListSubmit.execute({ partnerId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Contact list submitted to your upline', data, success: true });
+  }),
+
+  contactListDownline: asyncHandler(async (req, res) => {
+    const data = await uc.contactListDownline.execute({ requesterId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Downline contact lists retrieved successfully', data, success: true });
+  }),
 });

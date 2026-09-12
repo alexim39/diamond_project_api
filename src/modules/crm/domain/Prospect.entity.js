@@ -25,6 +25,10 @@ const optDate = (value, field) => {
   return d;
 };
 
+/** Contact-list enrichment vocab (fixed tag set — free text fragments reporting). */
+export const RELATIONSHIP_TAGS = ['Family', 'Friend', 'Colleague', 'Church', 'Neighbour', 'Referral', 'Other'];
+export const CONTACT_PRIORITIES = ['high', 'normal'];
+
 /** Value Object: prospect contact core. */
 export const createProspectEntity = (input) => {
   if (!input || typeof input !== 'object') throw new ValidationException('Invalid prospect data');
@@ -40,6 +44,11 @@ export const createProspectEntity = (input) => {
     prospectPhone: text(input.prospectPhone, 'prospectPhone', { min: 7, max: 20 }),
     prospectEmail: email,
     prospectSource: text(input.prospectSource, 'prospectSource', { min: 2, max: 120 }),
+    relationship: RELATIONSHIP_TAGS.includes(input.relationship) ? input.relationship : 'Other',
+    priority: CONTACT_PRIORITIES.includes(input.priority) ? input.priority : 'normal',
+    bestTimeToCall: String(input.bestTimeToCall ?? '').trim().slice(0, 120),
+    consentToContact: input.consentToContact === true,
+    notes: String(input.notes ?? '').trim().slice(0, 2000),
     partnerId: PartnerId.create(input.partnerId),
     ...(input.surverId !== undefined && input.surverId !== null && input.surverId !== ''
       ? { surverId: String(input.surverId) }

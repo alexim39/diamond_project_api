@@ -47,6 +47,7 @@ import { subscribeActivation } from './src/modules/activation/index.js';
 import { subscribePromotionFanout } from './src/modules/notifications/application/PromotionFanout.js';
 import { subscribeTrainingFanout } from './src/modules/notifications/application/TrainingFanout.js';
 import { subscribeGoalFanout } from './src/modules/notifications/application/GoalFanout.js';
+import { subscribeContactListFanout } from './src/modules/notifications/application/ContactListFanout.js';
 import { domainEvents } from './src/shared/events/DomainEvents.js';
 import { env } from './src/shared/config/env.js';
 import { sendEmail } from './src/services/emailService.js';
@@ -177,6 +178,13 @@ app.use(errorMiddleware);
     network: new MongoNetworkRepository(),
   });
   subscribeGoalFanout({
+    events: domainEvents,
+    stored: lifecycleStore,
+    delivery: lifecycleDelivery,
+    partners: lifecyclePartners,
+    network: new MongoNetworkRepository(),
+  });
+  subscribeContactListFanout({
     events: domainEvents,
     stored: lifecycleStore,
     delivery: lifecycleDelivery,

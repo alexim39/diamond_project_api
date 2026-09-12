@@ -9,6 +9,8 @@ import {
   CreateProspectUseCase, UpdateProspectUseCase, UpdateProspectStatusUseCase, DeleteProspectUseCase,
 } from '../application/Prospect.commands.js';
 import { LogCommunicationUseCase, RemoveCommunicationUseCase } from '../application/Prospect.communications.js';
+import { GetMyContactListUseCase, ListDownlineContactListsUseCase, SubmitContactListUseCase } from '../application/ContactList.usecases.js';
+import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import {
   GetProspectByIdUseCase, GetProspectsByPartnerUseCase, GetProspectNotificationsUseCase,
   GetStuckProspectsUseCase,
@@ -32,6 +34,7 @@ export const buildProspectRouter = (deps = {}) => {
   const reservations = deps.reservations ?? new MongoReservationCodes();
   const campaigns = deps.campaigns ?? new MongoCampaignLookup();
 
+  const network = deps.network ?? new MongoNetworkRepository();
   const c = makeProspectController({
     create: new CreateProspectUseCase({ prospects, campaigns }),
     update: new UpdateProspectUseCase({ prospects }),
@@ -44,6 +47,9 @@ export const buildProspectRouter = (deps = {}) => {
     notifications: new GetProspectNotificationsUseCase({ prospects }),
     stuck: new GetStuckProspectsUseCase({ prospects }),
     convert: new ConvertProspectToPartnerUseCase({ prospects, reservations }),
+    contactListMine: new GetMyContactListUseCase({ prospects }),
+    contactListSubmit: deps.contactListSubmit ?? new SubmitContactListUseCase({ prospects, network }),
+    contactListDownline: new ListDownlineContactListsUseCase({ prospects, network }),
   });
 
   const router = express.Router();
@@ -52,6 +58,10 @@ export const buildProspectRouter = (deps = {}) => {
   router.post('/create', validate({ body: CreateProspectSchema }), c.create);
 
   // NOTE: static single-segment aliases MUST precede `/:prospectId` or Express swallows them as ids.
+  // Contact-list endpoints likewise precede every `/:prospectId/*` route.
+  router.get('/contact-list/mine', c.contactListMine);
+  router.post('/contact-list/submit', c.contactListSubmit);
+  router.get('/contact-list/downline', c.contactListDownline);
   router.put('/update', validate({ body: UpdateProspectSchema }), c.update);
   router.put('/:prospectId', validate({ params: ProspectIdParam, body: UpdateProspectSchema }), c.update);
 

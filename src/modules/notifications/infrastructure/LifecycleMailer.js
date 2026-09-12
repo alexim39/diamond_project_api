@@ -46,6 +46,21 @@ export const buildGoalDone = ({ memberName, title }) => ({
   `,
 });
 
+export const buildContactListSubmitted = ({ memberName, uplineName, count }) => ({
+  subject: `${memberName} submitted a contact list (${count} contacts) — start calling`,
+  html: `
+    <p>Hi ${escapeHtml(uplineName)},</p>
+    <p><strong>${escapeHtml(memberName)}</strong> just submitted their onboarding contact list with <strong>${escapeHtml(count)} contacts</strong>. Early calls book the sessions that build the business:</p>
+    ${steps([
+      `Start calling today — hottest relationships first.`,
+      `Book sessions straight into their calendar and confirm the night before.`,
+      `Mark each outcome in the pipeline so ${escapeHtml(memberName)} sees progress.`,
+    ])}
+    <p><a href="/dashboard/mentorship/team/contact-lists">Work their contact list</a></p>
+    ${footer('You get this because someone in your downline submitted a contact list.')}
+  `,
+});
+
 export const buildTrackComplete = ({ memberName }) => ({
   subject: `${memberName}, your full training track is complete!`,
   html: `

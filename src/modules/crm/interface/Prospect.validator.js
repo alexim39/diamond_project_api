@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CONTACT_PRIORITIES, RELATIONSHIP_TAGS } from '../domain/Prospect.entity.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 const email = z.string().trim().toLowerCase().email().max(254);
@@ -16,6 +17,12 @@ export const CreateProspectSchema = z.object({
   surverId: z.string().trim().optional(),
   survey: z.unknown().optional(),
   campaignId: objectId.optional(),
+  // Contact-list enrichment (all optional — quick-add stays fast).
+  relationship: z.enum(RELATIONSHIP_TAGS).optional().default('Other'),
+  priority: z.enum(CONTACT_PRIORITIES).optional().default('normal'),
+  bestTimeToCall: z.string().trim().max(120).optional().default(''),
+  consentToContact: z.boolean().optional().default(false),
+  notes: z.string().trim().max(2000).optional().default(''),
 });
 
 export const UpdateProspectSchema = z.object({
