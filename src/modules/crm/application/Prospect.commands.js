@@ -22,7 +22,13 @@ export class CreateProspectUseCase {
       const name = `${dupePhone.prospectName ?? ''} ${dupePhone.prospectSurname ?? ''}`.trim() || 'Existing contact';
       throw new ConflictException(`You already have a contact with this phone number: ${name} (${dupePhone.prospectPhone}).`);
     }
-    const dupeEmail = entity.prospectEmail
+    // Email uniqueness is enforced only when an email is actually provided.
+    // For the onboarding contact list (Contact List source) the email is
+    // optional and often blank — an empty inbox must never block a save.
+    // We also allow the same email for different phones on that list on
+    // purpose: families share inboxes, and the phone is the true key there.
+    const isContactList = entity.prospectSource === 'Contact List';
+    const dupeEmail = entity.prospectEmail && !isContactList
       ? await this.prospects.findDuplicate(entity.partnerId, { phone: null, email: entity.prospectEmail })
       : null;
     if (dupeEmail) {
