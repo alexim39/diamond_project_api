@@ -15,7 +15,7 @@ import ProspectRouter from './src/apps/prospect/index.js';
 import ProductRouter from './src/apps/product/index.js';
 import SurveyRouter from './src/apps/survey/index.js';
 import EmailSubscriptionRouter from './src/apps/email-subscription/index.js';
-import ReservationCodeRouter from './src/apps/reservation-code/index.js';
+
 import EmailRouter from './src/apps/email/index.js';
 import SmsRouter from './src/apps/sms/index.js';
 import ProfileImageRouter from './src/services/upload-profile-picture.js';
@@ -84,7 +84,7 @@ app.use('/prospect', ProspectRouter);
 app.use('/products', ProductRouter);
 app.use('/survey', SurveyRouter);
 app.use('/emailSubscription', EmailSubscriptionRouter);
-app.use('/reservationCode', ReservationCodeRouter);
+
 app.use('/emails', EmailRouter);
 app.use('/sms', SmsRouter);
 app.use('/image', ProfileImageRouter);
