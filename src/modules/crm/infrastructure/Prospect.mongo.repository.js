@@ -172,6 +172,18 @@ export class MongoProspectRepository {
     return { count: res.modifiedCount ?? 0, submittedAt: now };
   }
 
+  /** Submitted contact rows across partners, oldest first (bounded). */
+  async submittedContacts(partnerIds, limit = 500) {
+    if (partnerIds.length === 0) return [];
+    const lim = Math.min(Math.max(Number(limit) || 500, 1), 1000);
+    const docs = await ProspectModel.find({ partnerId: { $in: partnerIds.map(String) }, listSubmitted: true })
+      .select('partnerId prospectName prospectSurname prospectPhone relationship priority bestTimeToCall consentToContact listBatch status createdAt')
+      .sort({ createdAt: 1 })
+      .limit(lim)
+      .lean();
+    return docs.map(ProspectMapper.toDomain);
+  }
+
   /** Submitted batches across many partners (upline view, bounded). */
   async downlineSubmittedBatches(partnerIds) {
     if (partnerIds.length === 0) return [];

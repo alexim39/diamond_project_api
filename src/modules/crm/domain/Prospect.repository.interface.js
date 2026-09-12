@@ -39,6 +39,8 @@ export class ProspectRepository {
   async submitContactList(partnerId, batch) { throw new Error('Not implemented'); }
   /** Submitted batches across partners (upline view, bounded). */
   async downlineSubmittedBatches(partnerIds) { throw new Error('Not implemented'); }
+  /** Submitted contact rows across partners, oldest first (bounded). */
+  async submittedContacts(partnerIds, limit) { throw new Error('Not implemented'); }
   /** @returns {Promise<{prospect:any|null, removed:boolean}>} */
   async pullCommunication(prospectId, communicationId) { throw new Error('Not implemented'); }
   /** @returns {Promise<boolean>} true when something was deleted */
