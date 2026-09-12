@@ -5,12 +5,12 @@ import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { env } from '../../../shared/config/env.js';
 import {
-  AskOraUseCase, DeleteOraConversationUseCase, GetOraContextUseCase, GetOraConversationUseCase,
-  ListOraConversationsUseCase,
+  AskOraUseCase, DeleteOraConversationUseCase, GetOraAnalyticsUseCase, GetOraContextUseCase,
+  GetOraConversationUseCase, ListOraConversationsUseCase, PinOraConversationUseCase,
 } from '../application/Ora.usecases.js';
 import { OraContextAssembler } from '../application/Ora.context.js';
 import { DeepSeekClient } from '../infrastructure/DeepSeek.client.js';
-import { MongoOraConversationStore } from '../infrastructure/Ora.mongo.repository.js';
+import { MongoOraAnalyticsStore, MongoOraConversationStore } from '../infrastructure/Ora.mongo.repository.js';
 import { GetMyProgressionUseCase } from '../../progression/application/Progression.usecases.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
 import { ListGoalsUseCase } from '../../goals/application/Goals.usecases.js';
@@ -32,6 +32,11 @@ const ChatSchema = z.object({
 const ConversationIdParam = z.object({ conversationId: objectId });
 const ConversationsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
+  q: z.string().trim().max(80).optional().default(''),
+});
+const PinSchema = z.object({ pinned: z.boolean() });
+const AnalyticsQuery = z.object({
+  days: z.coerce.number().int().min(1).max(90).optional().default(30),
 });
 
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
@@ -56,11 +61,14 @@ export const buildOraRouter = (deps = {}) => {
 
   const context = deps.context ?? new OraContextAssembler({ journey, goals, prospects, events, notifications, partners });
   const client = deps.client ?? new DeepSeekClient({ ...env.ora, post: deps.post });
-  const ask = deps.ask ?? new AskOraUseCase({ conversations, client, context, dailyLimit: env.ora.dailyLimit });
+  const analytics = deps.analytics ?? new MongoOraAnalyticsStore();
+  const ask = deps.ask ?? new AskOraUseCase({ conversations, client, context, analytics, dailyLimit: env.ora.dailyLimit });
   const oraContext = new GetOraContextUseCase({ context });
   const list = new ListOraConversationsUseCase({ conversations });
   const detail = new GetOraConversationUseCase({ conversations });
+  const pin = new PinOraConversationUseCase({ conversations });
   const remove = new DeleteOraConversationUseCase({ conversations });
+  const stats = new GetOraAnalyticsUseCase({ analytics });
 
   const router = express.Router();
   // Session identity only — every partner chats as themselves.
@@ -81,10 +89,23 @@ export const buildOraRouter = (deps = {}) => {
     res.status(200).json({ message: 'Ora replied successfully', data, success: true });
   }));
 
+  router.get('/analytics', validate({ query: AnalyticsQuery }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const data = await stats.execute({ partnerId: req.auth?.partnerId, days: q?.days });
+    res.status(200).json({ message: 'Ora analytics retrieved successfully', data, success: true });
+  }));
+
   router.get('/conversations', validate({ query: ConversationsQuery }), asyncHandler(async (req, res) => {
     const q = req.validated?.query ?? req.query;
-    const data = await list.execute({ partnerId: req.auth?.partnerId, limit: q?.limit });
+    const data = await list.execute({ partnerId: req.auth?.partnerId, limit: q?.limit, q: q?.q });
     res.status(200).json({ message: 'Conversations retrieved successfully', data, success: true });
+  }));
+
+  router.put('/conversations/:conversationId/pin', validate({ params: ConversationIdParam, body: PinSchema }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const data = await pin.execute({ partnerId: req.auth?.partnerId, conversationId: params.conversationId, pinned: body?.pinned });
+    res.status(200).json({ message: body?.pinned ? 'Conversation pinned' : 'Conversation unpinned', data, success: true });
   }));
 
   router.get('/conversations/:conversationId', validate({ params: ConversationIdParam }), asyncHandler(async (req, res) => {

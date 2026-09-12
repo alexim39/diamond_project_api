@@ -1,5 +1,7 @@
 import { AppError, ForbiddenException, NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 import { buildSystemPrompt, greetingFor, startersForLevel } from '../domain/Ora.persona.js';
+import { extractActions } from '../domain/Ora.actions.js';
+import { classifyTopic, summarizeAnalytics } from '../domain/Ora.analytics.js';
 
 /** Recent window sent to the model — bounds tokens per call. */
 export const HISTORY_WINDOW = 12;
@@ -21,14 +23,14 @@ const titleOf = (message) => {
   return s.length > 60 ? `${s.slice(0, 59)}…` : (s || 'New conversation');
 };
 
-/** Core chat turn: rate-limit → history → context → model → persist. */
+/** Core chat turn: rate-limit → history → context → model → parse → persist + track. */
 export class AskOraUseCase {
   /**
-   * @param {{conversations, client, context, dailyLimit?, usage?}} deps
+   * @param {{conversations, client, context, analytics?, dailyLimit?, usage?}} deps
    * (`usage` is a Map for tests; defaults to a module counter.)
    */
-  constructor({ conversations, client, context, dailyLimit = DEFAULT_DAILY_LIMIT, usage = null }) {
-    Object.assign(this, { conversations, client, context, dailyLimit });
+  constructor({ conversations, client, context, analytics = null, dailyLimit = DEFAULT_DAILY_LIMIT, usage = null }) {
+    Object.assign(this, { conversations, client, context, analytics, dailyLimit });
     this.usage = usage ?? new Map();
   }
 
@@ -48,16 +50,26 @@ export class AskOraUseCase {
     } else {
       convo = await this.conversations.create(partnerId, titleOf(text));
     }
+    const started = Date.now();
     const history = toHistory(convo.messages ?? []);
     const snapshot = await this.context.assemble({ partnerId, now });
-    const reply = await this.client.complete({
+    const raw = await this.client.complete({
       system: buildSystemPrompt(snapshot),
       messages: [...history, { role: 'user', content: text }],
     });
+    const { text: reply, actions } = extractActions(raw);
     await this.conversations.appendMessage(convo.id, { role: 'user', content: text, at: now });
     await this.conversations.appendMessage(convo.id, { role: 'assistant', content: reply, at: new Date() });
     this.usage.set(key, used + 1);
-    return { conversationId: convo.id, reply };
+    // Analytics never fail the turn — fire and forget.
+    if (this.analytics) {
+      this.analytics.recordEvent({
+        partnerId, conversationId: convo.id, topic: classifyTopic(text),
+        messageChars: text.length, replyChars: reply.length,
+        latencyMs: Date.now() - started, at: new Date(),
+      }).catch(() => null);
+    }
+    return { conversationId: convo.id, reply, actions };
   }
 }
 
@@ -89,13 +101,28 @@ export class ListOraConversationsUseCase {
     this.conversations = conversations;
   }
 
-  async execute({ partnerId, limit = 20 }) {
-    const items = await this.conversations.listByPartner(partnerId, limit);
+  async execute({ partnerId, limit = 20, q = '' }) {
+    const items = await this.conversations.listByPartner(partnerId, { limit, q });
     return {
       items: items.map((c) => ({
-        id: String(c.id), title: c.title, updatedAt: c.updatedAt ?? null,
+        id: String(c.id), title: c.title, pinned: c.pinned === true, updatedAt: c.updatedAt ?? null,
       })),
     };
+  }
+}
+
+export class PinOraConversationUseCase {
+  /** @param {{conversations}} deps */
+  constructor({ conversations }) {
+    this.conversations = conversations;
+  }
+
+  async execute({ partnerId, conversationId, pinned }) {
+    const convo = await this.conversations.findById(conversationId);
+    if (!convo) throw new NotFoundException('Conversation not found');
+    if (String(convo.partnerId) !== String(partnerId)) throw new ForbiddenException('Not your conversation');
+    const updated = await this.conversations.setPinned(partnerId, conversationId, pinned === true);
+    return { id: String(updated?.id ?? conversationId), pinned: updated?.pinned === true };
   }
 }
 
@@ -128,5 +155,20 @@ export class DeleteOraConversationUseCase {
     if (!convo) throw new NotFoundException('Conversation not found');
     if (String(convo.partnerId) !== String(partnerId)) throw new ForbiddenException('Not your conversation');
     return this.conversations.remove(partnerId, conversationId);
+  }
+}
+
+/** Personal Ora journey: questions, topics and active days over a window. */
+export class GetOraAnalyticsUseCase {
+  /** @param {{analytics}} deps */
+  constructor({ analytics }) {
+    this.analytics = analytics;
+  }
+
+  async execute({ partnerId, days = 30, now = new Date() }) {
+    const windowDays = Math.min(Math.max(Number(days) || 30, 1), 90);
+    const since = new Date(new Date(now).getTime() - windowDays * 86400000);
+    const events = await this.analytics.eventsFor(partnerId, since);
+    return summarizeAnalytics({ events, days: windowDays });
   }
 }

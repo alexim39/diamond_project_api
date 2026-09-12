@@ -7,9 +7,15 @@
 export class OraConversationStore {
   async create(partnerId, title) { throw new Error('Not implemented'); }
   async findById(id) { throw new Error('Not implemented'); }
-  async listByPartner(partnerId, limit) { throw new Error('Not implemented'); }
+  async listByPartner(partnerId, { limit, q } = {}) { throw new Error('Not implemented'); }
   async appendMessage(id, message) { throw new Error('Not implemented'); }
+  async setPinned(partnerId, id, pinned) { throw new Error('Not implemented'); }
   async remove(partnerId, id) { throw new Error('Not implemented'); }
+}
+
+export class OraAnalyticsStore {
+  async recordEvent(event) { throw new Error('Not implemented'); }
+  async eventsFor(partnerId, since) { throw new Error('Not implemented'); }
 }
 
 export class OraClient {
