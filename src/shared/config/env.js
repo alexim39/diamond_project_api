@@ -59,6 +59,25 @@ export const env = {
     return (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
   },
   /**
+   * Cloudinary (profile photos). Server-side ONLY — the secret never
+   * leaves this process. Accepts the standard CLOUDINARY_URL
+   * (`cloudinary://key:secret@cloud`) or individual vars. Empty =
+   * the upload endpoint answers 503 instead of failing obscurely.
+   */
+  get cloudinary() {
+    const fromUrl = /cloudinary:\/\/([^:]+):([^@]+)@(.+)/.exec(process.env.CLOUDINARY_URL || '');
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || (fromUrl ? fromUrl[3] : '');
+    const apiKey = process.env.CLOUDINARY_API_KEY || (fromUrl ? fromUrl[1] : '');
+    const apiSecret = process.env.CLOUDINARY_API_SECRET || (fromUrl ? fromUrl[2] : '');
+    return {
+      cloudName,
+      apiKey,
+      apiSecret,
+      folder: process.env.CLOUDINARY_FOLDER || 'diamond-projects',
+      enabled: Boolean(cloudName && apiKey && apiSecret),
+    };
+  },
+  /**
    * SMS via a generic HTTP provider (Termii-compatible shape documented
    * in .env.example). `disabled` (default) logs instead of sending.
    */
