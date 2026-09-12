@@ -13,10 +13,17 @@ export class MongoProspectRepository {
     return ProspectMapper.toDomain(await ProspectModel.findById(id).lean());
   }
 
-  async findByPartnerId(partnerId, { limit = 100, skip = 0 } = {}) {
+  async findByPartnerId(partnerId, { limit = 100, skip = 0, q, stage } = {}) {
+    const filter = { partnerId };
+    if (q) {
+      const escaped = String(q).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(escaped, 'i');
+      filter.$or = [{ prospectName: re }, { prospectSurname: re }, { prospectPhone: re }, { prospectEmail: re }];
+    }
+    if (stage) filter['status.stage'] = stage;
     const [items, total] = await Promise.all([
-      ProspectModel.find({ partnerId }).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      ProspectModel.countDocuments({ partnerId }),
+      ProspectModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      ProspectModel.countDocuments(filter),
     ]);
     return { items: items.map(ProspectMapper.toDomain), total };
   }

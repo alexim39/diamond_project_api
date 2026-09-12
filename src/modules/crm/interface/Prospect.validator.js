@@ -60,8 +60,10 @@ export const LogCommunicationSchema = z.object({
 });
 
 export const PaginationQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(500).optional().default(100),
+  limit: z.coerce.number().int().min(1).max(500).optional().default(50),
   skip: z.coerce.number().int().min(0).optional().default(0),
+  q: z.string().trim().max(80).optional().default(''),
+  stage: z.enum(['New', 'Contacted', 'Interested', 'In Negotiation', 'Converted', 'Closed']).optional(),
 });
 
 export const StuckQuery = z.object({

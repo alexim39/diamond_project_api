@@ -29,12 +29,15 @@ export class GetProspectByIdUseCase {
 export class GetProspectsByPartnerUseCase {
   /** @param {{prospects, partners}} deps */
   constructor({ prospects, partners }) { this.prospects = prospects; this.partners = partners; }
-  async execute({ partnerId, limit = 100, skip = 0 }) {
+  async execute({ partnerId, limit = 100, skip = 0, q, stage }) {
     const pid = PartnerId.create(partnerId);
     if (!(await this.partners.exists(pid))) throw new NotFoundException('Partner not found');
     const lim = Math.min(Math.max(Number(limit) || 100, 1), 500);
     const sk = Math.max(Number(skip) || 0, 0);
-    return this.prospects.findByPartnerId(pid, { limit: lim, skip: sk });
+    const query = { limit: lim, skip: sk };
+    if (q) query.q = String(q).trim().slice(0, 80);
+    if (stage) query.stage = String(stage).trim();
+    return this.prospects.findByPartnerId(pid, query);
   }
 }
 

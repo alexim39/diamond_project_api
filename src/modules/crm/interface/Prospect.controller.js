@@ -44,12 +44,12 @@ export const makeProspectController = (uc) => ({
   getByPartner: asyncHandler(async (req, res) => {
     const partnerId = req.validated?.params?.partnerId ?? req.params.partnerId ?? req.params.createdBy;
     const q = req.validated?.query ?? req.query;
-    const { items, total } = await uc.getByPartner.execute({ partnerId, limit: q?.limit, skip: q?.skip });
+    const { items, total } = await uc.getByPartner.execute({ partnerId, limit: q?.limit, skip: q?.skip, q: q?.q, stage: q?.stage });
     res.status(200).json({
       message: 'Prospects retrieved successfully!',
       data: items,
       success: true,
-      meta: { total, limit: q?.limit ?? 100, skip: q?.skip ?? 0 },
+      meta: { total, limit: q?.limit ?? 50, skip: q?.skip ?? 0 },
     });
   }),
 
