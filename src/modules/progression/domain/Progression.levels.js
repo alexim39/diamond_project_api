@@ -76,13 +76,17 @@ export const LEADERSHIP_THRESHOLDS = {
   rsvpMin: 1,
   reportsDays: 60,
   reportsMin: 1,
+  responsiveDays: 90,
 };
 
 /**
  * Demonstrated leadership from live signals — pure, unit-testable.
  * Every leg must hold: active in business, working with people, someone
- * to support, and a community footprint. Prior-rank completion is
- * structural (the upward walk guarantees it).
+ * to support, a community footprint, and responsiveness to the downline.
+ * `responsive` is `{medianMs|null, directStale}`: a null median (no
+ * decisions in window) passes vacuously — there was nothing to respond
+ * to — but a stale backlog fails unconditionally. Prior-rank completion
+ * is structural (the upward walk guarantees it).
  * @returns {{met, missing}} `missing` holds human-readable shortfalls.
  */
 export const leadershipSkills = (signals = {}) => {
@@ -95,6 +99,13 @@ export const leadershipSkills = (signals = {}) => {
   const footprint = (signals.communityPosts ?? 0) + (signals.eventRsvps ?? 0) + (signals.reportsSubmitted ?? 0);
   if (footprint < LEADERSHIP_THRESHOLDS.communityMin) {
     missing.push('a visible community footprint (posts, events or team reports)');
+  }
+  const responsive = signals.responsive ?? null;
+  const directStale = responsive?.directStale ?? 0;
+  if (directStale > 0) {
+    missing.push(`${directStale} overdue training confirmation${directStale === 1 ? '' : 's'} awaiting your decision`);
+  } else if (responsive?.medianMs != null && responsive.medianMs > STALE_CONFIRM_MS) {
+    missing.push(`confirmation median ${formatLatency(responsive.medianMs)} — decide within 72h`);
   }
   return { met: missing.length === 0, missing };
 };

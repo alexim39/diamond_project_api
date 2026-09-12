@@ -26,7 +26,7 @@ export async function assembleSignals(
   const start90 = new Date(end.getTime() - 90 * DAY);
   const safe = (promise, fallback) => Promise.resolve(promise).then((v) => v ?? fallback, () => fallback);
   const [{ ids: downline }] = await Promise.all([collectDownlineIds(network, partnerId)]);
-  const [recruits, cur, prev, active, levels, touched, posts, rsvps, authored] = await Promise.all([
+  const [recruits, cur, prev, active, levels, touched, posts, rsvps, authored, decisions, pendingRows] = await Promise.all([
     network.countChildren(partnerId),
     orders.volumeBetween(partnerId, start30, end),
     orders.volumeBetween(partnerId, start60, start30),
@@ -36,6 +36,8 @@ export async function assembleSignals(
     safe(community?.countPostsByAuthorSince?.(partnerId, start30), 0),
     safe(eventStore?.countRsvpsSince?.(partnerId, start90), 0),
     safe(reports?.listByAuthor?.(partnerId, 50), []),
+    safe(progress.decisionsByApprover?.(partnerId, start90), []),
+    safe(progress.listPendingConfirmations?.(downline.slice(0, 2000), TRAINING_CONFIRM_KEYS, 200), []),
   ]);
   const counts = {};
   for (const lvl of Object.values(levels)) counts[lvl] = (counts[lvl] ?? 0) + 1;
@@ -43,6 +45,28 @@ export async function assembleSignals(
     const t = new Date(r.createdAt ?? 0).getTime();
     return !Number.isNaN(t) && t >= end.getTime() - 60 * DAY;
   }).length;
+  // Responsiveness: own decision latencies plus stale backlog among direct
+  // reports only (parentId match — deeper uplines own deeper members).
+  const decisionLatencies = (decisions ?? [])
+    .map((d) => new Date(d.confirmedAt).getTime() - new Date(d.at).getTime())
+    .filter((ms) => Number.isFinite(ms) && ms >= 0);
+  let directStale = 0;
+  if ((pendingRows ?? []).length > 0 && network?.findNodesByIds) {
+    try {
+      const nodes = await network.findNodesByIds(pendingRows.map((r) => r.partnerId));
+      const parents = Object.fromEntries(nodes.map((nd) => [String(nd.id), nd.parentId ? String(nd.parentId) : null]));
+      for (const r of pendingRows) {
+        if (parents[String(r.partnerId)] !== String(partnerId)) continue;
+        for (const k of TRAINING_CONFIRM_KEYS) {
+          const s = r[k];
+          if (s?.done === true && !s.confirmedAt && end.getTime() - new Date(s.at ?? end).getTime() > STALE_CONFIRM_MS) {
+            directStale += 1;
+          }
+        }
+      }
+    } catch { /* responsiveness degrades to observed decisions only */ }
+  }
+  const responsiveMedian = medianOf(decisionLatencies);
   return {
     recruits,
     activeDownline: active,
@@ -56,6 +80,7 @@ export async function assembleSignals(
     communityPosts: posts,
     eventRsvps: rsvps,
     reportsSubmitted,
+    responsive: { medianMs: responsiveMedian, decided: decisionLatencies.length, directStale },
   };
 }
 

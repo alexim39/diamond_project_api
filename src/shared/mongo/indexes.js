@@ -16,6 +16,7 @@
  * - notification-preferences (N5): digest-subscriber sweep leg.
  * - partners.status+_id (N2/N3): active-partner job sweeps.
  * - partners.username (N4): @mention handle resolution.
+ * - progressions confirmedBy legs: responsiveness signal (own decisions).
  * Read-state TTL + request/report indexes already exist — untouched.
  */
 export const INDEXES = [
@@ -46,6 +47,9 @@ export const INDEXES = [
   { collection: 'partners', keys: { username: 1 }, options: {} },
   { collection: 'ora-conversations', keys: { partnerId: 1, updatedAt: -1 }, options: {} },
   { collection: 'reservation-codes', keys: { partnerId: 1, createdAt: -1 }, options: {} },
+  { collection: 'progressions', keys: { 'ipo.confirmedBy': 1, 'ipo.confirmedAt': 1 }, options: {} },
+  { collection: 'progressions', keys: { 'qsg.confirmedBy': 1, 'qsg.confirmedAt': 1 }, options: {} },
+  { collection: 'progressions', keys: { 'smo.confirmedBy': 1, 'smo.confirmedAt': 1 }, options: {} },
   { collection: 'events', keys: { startsAt: 1 }, options: {} },
   { collection: 'events', keys: { authorId: 1, startsAt: -1 }, options: {} },
   { collection: 'eventrsvps', keys: { eventId: 1 }, options: {} },

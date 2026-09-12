@@ -153,6 +153,32 @@ export class MongoProgressionStore {
     return rows.map(shaped);
   }
 
+  /**
+   * Own confirmations decided since `since`: [{at, confirmedAt}] for the
+   * responsiveness leg. Bounded; sparse confirmedBy legs live in the manifest.
+   */
+  async decisionsByApprover(approverId, since) {
+    const keys = ['ipo', 'qsg', 'smo'];
+    const rows = await ProgressionModel.find({
+      $or: keys.map((k) => ({
+        [`${k}.confirmedBy`]: approverId,
+        [`${k}.confirmedAt`]: { $gte: since },
+      })),
+    })
+      .select('ipo qsg smo')
+      .limit(500)
+      .lean();
+    const out = [];
+    for (const r of rows) {
+      for (const k of keys) {
+        const s = r[k];
+        if (String(s?.confirmedBy ?? '') === String(approverId) && s?.confirmedAt && s?.at) {
+          out.push({ at: s.at, confirmedAt: s.confirmedAt });
+        }
+      }
+    }
+    return out;
+  }
   async setLevel(partnerId, level) {
     const row = await ProgressionModel.findOneAndUpdate(
       { partnerId },
