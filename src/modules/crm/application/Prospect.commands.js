@@ -19,8 +19,13 @@ export class CreateProspectUseCase {
       phone: entity.prospectPhone,
       email: entity.prospectEmail,
     });
-    if (dupe) throw new ConflictException('Prospect with this phone number or email already exist!');
-    return this.prospects.create(entity);
+    if (dupe) throw new ConflictException('You already have a contact with this phone number or email.');
+    try {
+      return await this.prospects.create(entity);
+    } catch (error) {
+      if (error?.code === 11000) throw new ConflictException('You already have a contact with this phone number.');
+      throw error;
+    }
   }
 }
 
@@ -28,18 +33,39 @@ export class CreateProspectUseCase {
  * PUT /v1/prospects/:id — legacy wrote `body._prospectSourceid`
  * (always undefined → wiped prospectSource) and a phantom `prospectRemark`.
  * New: explicit field map, undefined keys never touch the document.
+ * Scoped duplicate check prevents only your own phone/email collision;
+ * cross-partner same phone is allowed (compound index enforces the scope).
  */
 export class UpdateProspectUseCase {
   /** @param {{prospects}} deps */
   constructor({ prospects }) { this.prospects = prospects; }
   async execute({ prospectId, ...fields }) {
     const patch = {};
-    for (const key of ['prospectName', 'prospectSurname', 'prospectPhone', 'prospectEmail', 'prospectSource']) {
+    for (const key of [
+      'prospectName', 'prospectSurname', 'prospectPhone', 'prospectEmail', 'prospectSource',
+      'relationship', 'priority', 'bestTimeToCall', 'consentToContact', 'notes',
+    ]) {
       if (fields[key] !== undefined) patch[key] = fields[key];
     }
-    const updated = await this.prospects.updateFields(prospectId, patch);
-    if (!updated) throw new NotFoundException('Prospect not found');
-    return updated;
+    if (patch.prospectPhone || patch.prospectEmail) {
+      const existing = await this.prospects.findById(prospectId);
+      if (!existing) throw new NotFoundException('Prospect not found');
+      const dupe = await this.prospects.findDuplicate(existing.partnerId, {
+        phone: patch.prospectPhone ?? existing.prospectPhone,
+        email: patch.prospectEmail ?? existing.prospectEmail,
+      });
+      if (dupe && String(dupe.id ?? dupe._id) !== String(prospectId)) {
+        throw new ConflictException('You already have a contact with this phone number or email.');
+      }
+    }
+    try {
+      const updated = await this.prospects.updateFields(prospectId, patch);
+      if (!updated) throw new NotFoundException('Prospect not found');
+      return updated;
+    } catch (error) {
+      if (error?.code === 11000) throw new ConflictException('You already have a contact with this phone number.');
+      throw error;
+    }
   }
 }
 

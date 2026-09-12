@@ -19,6 +19,14 @@
  * - progressions confirmedBy legs: responsiveness signal (own decisions).
  * Read-state TTL + request/report indexes already exist — untouched.
  */
+/**
+ * Legacy global phone uniqueness (prevents cross-partner same phone).
+ * Must be dropped — scoped check in the crm slice owns this now.
+ */
+const LEGACY_DROP = [
+  { collection: 'prospects', indexName: 'prospectPhone_1' },
+];
+
 export const INDEXES = [
   { collection: 'partners', keys: { partnerOf: 1 }, options: {} },
   { collection: 'partners', keys: { partnerOf: 1, createdAt: -1 }, options: {} },
@@ -28,6 +36,7 @@ export const INDEXES = [
   { collection: 'prospects', keys: { partnerId: 1, updatedAt: -1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, prospectSource: 1, createdAt: -1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, campaignId: 1, createdAt: -1 }, options: {} },
+  { collection: 'prospects', keys: { partnerId: 1, prospectPhone: 1 }, options: { unique: true } },
   { collection: 'carts', keys: { partner: 1, orderStatus: 1, createdAt: -1 }, options: {} },
   { collection: 'commissions', keys: { earnerId: 1, status: 1, releasedAt: -1 }, options: {} },
   { collection: 'goals', keys: { partnerId: 1, endDate: 1 }, options: {} },
@@ -64,6 +73,16 @@ export async function ensureIndexes(mongoose, { collections = INDEXES } = {}) {
   const failed = [];
   const db = mongoose.connection?.db;
   if (!db) throw new Error('ensureIndexes requires a connected mongoose instance');
+  for (const { collection, indexName } of LEGACY_DROP) {
+    try {
+      await db.collection(collection).dropIndex(indexName);
+      created.push(`${collection}:dropped:${indexName}`);
+    } catch (error) {
+      if (!/index not found/i.test(error?.message ?? '')) {
+        failed.push({ index: `${collection}:${indexName}`, error: error?.message ?? String(error) });
+      }
+    }
+  }
   for (const { collection, keys, options } of collections) {
     const name = `${collection}:${JSON.stringify(keys)}`;
     try {

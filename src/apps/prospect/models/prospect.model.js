@@ -15,7 +15,6 @@ const prospectSchema = mongoose.Schema(
         },
         prospectPhone: {
             type: String,
-            unique: true,
             required: [true, "Please enter phone number"]
         },
         prospectEmail: {
