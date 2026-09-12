@@ -162,6 +162,17 @@ export class MongoProgressionStore {
     return shaped(row);
   }
 
+  /** IPO stamp per partner: {partnerId: ms|null} (one query). */
+  async trainingDates(ids) {
+    if (ids.length === 0) return {};
+    const rows = await ProgressionModel.find({ partnerId: { $in: ids } })
+      .select('partnerId ipo')
+      .lean();
+    return Object.fromEntries(rows.map((r) => [
+      String(r.partnerId),
+      r.ipo?.done === true && r.ipo?.at ? new Date(r.ipo.at).getTime() : null,
+    ]));
+  }
   /** Stored levels for a bounded id set (distribution reads this). */
   async levelsFor(partnerIds) {
     if (partnerIds.length === 0) return {};

@@ -209,3 +209,70 @@ export class GetActionsUseCase {
     return { actions: actions.slice(0, lim), total: actions.length };
   }
 }
+
+const ACTIVATION_WINDOW_DAYS = 7;
+const filled = (v) => String(v ?? '').trim().length > 0;
+
+/**
+ * Onboarding activation: share of the trailing signup cohort that completed
+ * profile + first prospect + IPO within 7 days. Distinct from the team-health
+ * `activationRate` (share of downline currently active) — this one measures
+ * the signup funnel, per member, with timestamps. Profile completion is
+ * current-state (we don't track when it happened) — documented, not hidden.
+ */
+export class GetActivationUseCase {
+  /** @param {{partners, prospects, progress, network}} deps */
+  constructor({ partners, prospects, progress, network }) {
+    Object.assign(this, { partners, prospects, progress, network });
+  }
+
+  async execute({ partnerId, days = 90, now = new Date() }) {
+    const d = Math.min(Math.max(Number(days) || 90, 7), 365);
+    const t = new Date(now).getTime();
+    const since = new Date(t - d * 86400000);
+    const { ids } = await collectDownlineIds(this.network, partnerId);
+    const bounded = ids.slice(0, 2000);
+    const [cohort, firstDates, ipoDates] = await Promise.all([
+      this.partners.activationCohort(bounded, since),
+      this.prospects.firstProspectDates(bounded),
+      this.progress.trainingDates(bounded),
+    ]);
+    const deadline = (signedUp) => signedUp + ACTIVATION_WINDOW_DAYS * 86400000;
+    let activated = 0;
+    const legs = { profile: 0, prospect: 0, ipo: 0 };
+    const perMember = cohort.rows.map((m) => {
+      const signedUp = new Date(m.createdAt).getTime();
+      const profileDone = filled(m.phone)
+        && filled(m.address?.street) && filled(m.address?.city) && filled(m.address?.state);
+      const firstAt = firstDates[m.id] ?? null;
+      const prospectAdded = firstAt !== null && firstAt <= deadline(signedUp);
+      const ipoAt = ipoDates[m.id] ?? null;
+      const ipoDone = ipoAt !== null && ipoAt <= deadline(signedUp);
+      if (profileDone) legs.profile += 1;
+      if (prospectAdded) legs.prospect += 1;
+      if (ipoDone) legs.ipo += 1;
+      const done = profileDone && prospectAdded && ipoDone;
+      if (done) activated += 1;
+      const lastDated = Math.max(firstAt ?? 0, ipoAt ?? 0);
+      return {
+        partnerId: m.id,
+        member: { name: m.name, username: m.username },
+        signedUpAt: m.createdAt,
+        profileDone,
+        prospectAdded,
+        ipoDone,
+        activated: done,
+        daysToActivate: done && lastDated > 0 ? Math.max(0, Math.round((lastDated - signedUp) / 86400000)) : null,
+      };
+    });
+    return {
+      days: d,
+      cohort: cohort.total,
+      capped: cohort.capped,
+      activated,
+      rate: cohort.total > 0 ? Math.round((activated / cohort.total) * 1000) / 10 : null,
+      legs,
+      perMember,
+    };
+  }
+}

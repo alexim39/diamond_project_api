@@ -25,6 +25,15 @@ export class MongoProspectRepository {
     return ProspectModel.countDocuments({ partnerId, createdAt: { $gte: start, $lte: end } });
   }
 
+  /** Earliest prospect per partner: {partnerId: ms} (one aggregate). */
+  async firstProspectDates(ids) {
+    if (ids.length === 0) return {};
+    const rows = await ProspectModel.aggregate([
+      { $match: { partnerId: { $in: ids.map(String) } } },
+      { $group: { _id: '$partnerId', firstAt: { $min: '$createdAt' } } },
+    ]);
+    return Object.fromEntries(rows.map((r) => [String(r._id), new Date(r.firstAt).getTime()]));
+  }
   async countConverted(partnerId, start, end) {
     return ProspectModel.countDocuments({
       partnerId,

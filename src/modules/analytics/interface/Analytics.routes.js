@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
-import { GetActionsUseCase, GetFunnelUseCase, GetTeamUseCase } from '../application/Analytics.usecases.js';
+import { GetActionsUseCase, GetActivationUseCase, GetFunnelUseCase, GetTeamUseCase } from '../application/Analytics.usecases.js';
 import { GetStuckProspectsUseCase } from '../../crm/application/Prospect.queries.js';
 import { GetMyProgressionUseCase } from '../../progression/application/Progression.usecases.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
@@ -13,6 +13,7 @@ import { MongoOrderReader, MongoCommissionLedger } from '../../billing/infrastru
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoGoalStore } from '../../goals/infrastructure/Goals.mongo.repository.js';
 import { MongoNotificationStore } from '../../notifications/infrastructure/Notifications.mongo.repository.js';
+import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
 import { MongoEventStore } from '../../events/infrastructure/Events.mongo.repository.js';
 import { GetNotificationFeedUseCase } from '../../notifications/application/Notifications.usecases.js';
 import { ListGoalsUseCase } from '../../goals/application/Goals.usecases.js';
@@ -45,6 +46,8 @@ export const buildAnalyticsRouter = (deps = {}) => {
   const team = new GetTeamUseCase({ orders, network, prospects, snapshots, goalProgress: (pid) => goals.execute({ partnerId: pid }) });
   const eventStore = deps.eventStore ?? new MongoEventStore();
   const actions = new GetActionsUseCase({ feed, goals, prospects, stuck, progression, events: eventStore });
+  const partners = deps.partners ?? new MongoPartnerRepository();
+  const activation = new GetActivationUseCase({ partners, prospects, progress: progressStore, network });
 
   const router = express.Router();
   router.use(requireAuth);
@@ -65,6 +68,12 @@ export const buildAnalyticsRouter = (deps = {}) => {
     const q = req.validated?.query ?? req.query;
     const data = await actions.execute({ partnerId: req.auth?.partnerId, limit: q?.limit });
     res.status(200).json({ message: 'Daily actions retrieved successfully', data, success: true });
+  }));
+
+  router.get('/activation', validate({ query: WindowQuery }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const data = await activation.execute({ partnerId: req.auth?.partnerId, days: q?.days });
+    res.status(200).json({ message: 'Activation analytics retrieved successfully', data, success: true });
   }));
 
   return router;

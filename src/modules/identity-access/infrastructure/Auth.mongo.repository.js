@@ -33,6 +33,31 @@ export class MongoPartnerRepository {
     if (Object.keys(unset).length) update.$unset = unset;
     return PartnersModel.findByIdAndUpdate(id, update, { new: true, ...opts(session) }).lean();
   }
+  /** Signup cohort for activation analytics (bounded, recent first). */
+  async activationCohort(ids, since) {
+    if (ids.length === 0) return { total: 0, rows: [] };
+    const filter = { _id: { $in: ids }, createdAt: { $gte: since } };
+    const [total, docs] = await Promise.all([
+      PartnersModel.countDocuments(filter),
+      PartnersModel.find(filter)
+        .select('createdAt phone address name surname username')
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean(),
+    ]);
+    return {
+      total,
+      capped: total > docs.length,
+      rows: docs.map((d) => ({
+        id: String(d._id),
+        createdAt: d.createdAt,
+        phone: d.phone ?? null,
+        address: d.address ?? null,
+        name: [d.name, d.surname].filter(Boolean).join(' ') || d.username,
+        username: d.username,
+      })),
+    };
+  }
   /** Case-insensitive role count (absorbs legacy 'User'/'admin' casing). */
   async countByRole(role) {
     return PartnersModel.find({ role: String(role) })

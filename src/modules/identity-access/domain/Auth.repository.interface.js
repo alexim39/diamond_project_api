@@ -20,6 +20,8 @@ export class PartnerRepository {
   async create(data, _opts) { throw new Error('Not implemented'); }
   /** @param {string} id @param {object} patch @param {TxOpts} [_opts] @returns {Promise<any>} */
   async updateById(id, patch, _opts) { throw new Error('Not implemented'); }
+  /** Signup cohort for activation analytics: [{id, createdAt, phone, address}] (bounded). */
+  async activationCohort(ids, since) { throw new Error('Not implemented'); }
 }
 
 export class ReservationRepository {
