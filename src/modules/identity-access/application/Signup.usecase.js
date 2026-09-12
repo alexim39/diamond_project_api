@@ -1,5 +1,7 @@
 import { AppError, ValidationException } from '../../../shared/domain/AppError.js';
 import { createSignupEntity, baseUsernameFor, toSafePartner } from '../domain/Partner.entity.js';
+import { domainEvents } from '../../../shared/events/DomainEvents.js';
+import { RESERVATION_EVENTS, consumedPayload } from '../../reservations/domain/ReservationEvents.js';
 
 /**
  * Signup — transactional: code validation + uniqueness checks + partner
@@ -7,18 +9,20 @@ import { createSignupEntity, baseUsernameFor, toSafePartner } from '../domain/Pa
  * queries, so a crash between code-check and save could double-spend a code.
  */
 export class SignupUseCase {
-  /** @param {{partners, reservations, hasher, tx}} deps */
-  constructor({ partners, reservations, hasher, tx }) {
+  /** @param {{partners, reservations, hasher, tx, events?}} deps (events optional — activation fan-out) */
+  constructor({ partners, reservations, hasher, tx, events = null }) {
     this.partners = partners;
     this.reservations = reservations;
     this.hasher = hasher;
     this.tx = tx;
+    this.events = events ?? domainEvents;
   }
 
   async execute(input) {
     const entity = createSignupEntity(input);
 
-    return this.tx.runInTransaction(async (session) => {
+    let activation = null;
+    const saved = await this.tx.runInTransaction(async (session) => {
       const reservation = await this.reservations.findByCode(entity.reservationCode, { session });
       if (!reservation) {
         throw new ValidationException('The reservation code is invalid or does not exist');
@@ -61,7 +65,23 @@ export class SignupUseCase {
       // Close the lifecycle in the same tx: Approved → Used, so the code
       // can never be re-read as "ready" after it is consumed.
       await this.reservations.markUsed(entity.reservationCode, { session });
+      // Hand the activation loop everything it needs (upline, prospect,
+      // display name) — emitted AFTER commit, best-effort, never fails signup.
+      activation = {
+        code: entity.reservationCode,
+        uplineId: partnerOf,
+        prospectId: reservation.prospectId ?? null,
+        memberName: [entity.name, entity.surname].filter(Boolean).join(' '),
+      };
       return toSafePartner(saved);
     });
+
+    if (activation) {
+      await this.events.emit(
+        RESERVATION_EVENTS.CONSUMED,
+        consumedPayload({ ...activation, partnerId: saved.id ?? saved._id }),
+      ).catch(() => null);
+    }
+    return saved;
   }
 }

@@ -43,6 +43,11 @@ import EventsRouter from './src/modules/events/index.js';
 import OraRouter from './src/modules/ora/index.js';
 import ReservationsRouter from './src/modules/reservations/index.js';
 import SettingsV1Router from './src/modules/settings/index.js';
+import { subscribeActivation } from './src/modules/activation/index.js';
+import { domainEvents } from './src/shared/events/DomainEvents.js';
+import { NotifyUseCase } from './src/modules/notifications/application/NotificationsCenter.usecases.js';
+import { MongoStoredNotificationStore } from './src/modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
+import { MongoProspectRepository } from './src/modules/crm/infrastructure/Prospect.mongo.repository.js';
 import ProspectV1Router from './src/modules/crm/index.js';
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 import { ensureIndexes } from './src/shared/mongo/indexes.js';
@@ -125,6 +130,18 @@ app.use('/uploads', express.static(path.join(__dirname, 'src', 'uploads')));
 
 /* Central domain-error map for v1 slices (legacy routes keep their own try/catch) */
 app.use(errorMiddleware);
+
+/* Activation close-the-loop: signup consume → prospect Converted + upline
+ * notified. Subscribed ONCE here (never per-router) on the shared bus. */
+{
+  const activationStore = new MongoStoredNotificationStore();
+  subscribeActivation({
+    events: domainEvents,
+    prospects: new MongoProspectRepository(),
+    stored: activationStore,
+    notify: new NotifyUseCase({ stored: activationStore }),
+  });
+}
 
 /* DB connection */
 mongoose.connect(`mongodb+srv://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@cluster0.buvy2cx.mongodb.net/${process.env.MONGODB_DATABASE}?retryWrites=true&w=majority`)

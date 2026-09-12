@@ -26,7 +26,7 @@ export class ReservationRepository {
   /**
    * Case-insensitive code lookup (matches legacy collation behavior).
    * @param {string} code @param {TxOpts} [_opts]
-   * @returns {Promise<{id:string,status:string,partnerId:string|null}|null>}
+   * @returns {Promise<{id:string,status:string,partnerId:string|null,prospectId:string|null}|null>}
    */
   async findByCode(code, _opts) { throw new Error('Not implemented'); }
   /** Stamp a consumed code Used (same tx as partner creation). */

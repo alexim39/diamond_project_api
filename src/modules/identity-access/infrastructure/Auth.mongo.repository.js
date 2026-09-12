@@ -62,7 +62,12 @@ export class MongoReservationRepository {
       .setOptions(opts(session))
       .lean();
     if (!doc) return null;
-    return { id: String(doc._id), status: doc.status, partnerId: doc.partnerId ? String(doc.partnerId) : null };
+    return {
+      id: String(doc._id),
+      status: doc.status,
+      partnerId: doc.partnerId ? String(doc.partnerId) : null,
+      prospectId: doc.prospectId ? String(doc.prospectId) : null,
+    };
   }
 
   async markUsed(code, { session } = {}) {
