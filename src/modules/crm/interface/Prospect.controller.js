@@ -5,7 +5,13 @@ const pid = (req) => req.validated?.params?.prospectId ?? req.params.prospectId;
 /** Interface: HTTP adapters preserving legacy envelopes (+ additive `data`/`meta`). */
 export const makeProspectController = (uc) => ({
   create: asyncHandler(async (req, res) => {
-    const data = await uc.create.execute(req.validated?.body ?? req.body);
+    const body = req.validated?.body ?? req.body;
+    // Session owns the prospect: a mismatched body partnerId is tampering, not input.
+    const sessionId = req.auth?.partnerId ? String(req.auth.partnerId) : null;
+    if (body.partnerId && sessionId && String(body.partnerId) !== sessionId) {
+      return res.status(403).json({ message: 'You can only create prospects for yourself', success: false });
+    }
+    const data = await uc.create.execute({ ...body, partnerId: sessionId ?? body.partnerId });
     res.status(200).json({ message: 'Contact created successfully!', success: true, data });
   }),
 

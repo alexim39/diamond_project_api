@@ -13,7 +13,8 @@ export const CreateProspectSchema = z.object({
   prospectPhone: z.string().trim().min(7).max(20),
   prospectEmail: email.optional().or(z.literal('')),
   prospectSource: z.string().trim().min(2).max(120),
-  partnerId: objectId,
+  // Optional: session identity owns creation; a supplied id must match it.
+  partnerId: objectId.optional(),
   surverId: z.string().trim().optional(),
   survey: z.unknown().optional(),
   campaignId: objectId.optional(),
