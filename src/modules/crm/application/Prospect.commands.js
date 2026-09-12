@@ -18,11 +18,17 @@ export class CreateProspectUseCase {
     const dupePhone = entity.prospectPhone
       ? await this.prospects.findDuplicate(entity.partnerId, { phone: entity.prospectPhone, email: null })
       : null;
-    if (dupePhone) throw new ConflictException('You already have a contact with this phone number.');
+    if (dupePhone) {
+      const name = `${dupePhone.prospectName ?? ''} ${dupePhone.prospectSurname ?? ''}`.trim() || 'Existing contact';
+      throw new ConflictException(`You already have a contact with this phone number: ${name} (${dupePhone.prospectPhone}).`);
+    }
     const dupeEmail = entity.prospectEmail
       ? await this.prospects.findDuplicate(entity.partnerId, { phone: null, email: entity.prospectEmail })
       : null;
-    if (dupeEmail) throw new ConflictException('You already have a contact with this email address.');
+    if (dupeEmail) {
+      const name = `${dupeEmail.prospectName ?? ''} ${dupeEmail.prospectSurname ?? ''}`.trim() || 'Existing contact';
+      throw new ConflictException(`You already have a contact with this email address: ${name} (${dupeEmail.prospectEmail}).`);
+    }
     try {
       return await this.prospects.create(entity);
     } catch (error) {
