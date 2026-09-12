@@ -1,5 +1,6 @@
 import express from 'express';
 import { validate } from '../../../shared/http/validate.js';
+import { requireAuth } from '../../../shared/http/requireAuth.js';
 import {
   ProspectIdParam, PartnerIdParam, CreateProspectSchema, UpdateProspectSchema,
   UpdateStatusSchema, LogCommunicationSchema, PaginationQuery, CommIdsParam, StuckQuery,
@@ -53,6 +54,9 @@ export const buildProspectRouter = (deps = {}) => {
   });
 
   const router = express.Router();
+  // Session identity for every route (matches all other v1 routers) —
+  // contact-list endpoints and session-owned creation depend on req.auth.
+  router.use(requireAuth);
 
   router.post('/', validate({ body: CreateProspectSchema }), c.create);
   router.post('/create', validate({ body: CreateProspectSchema }), c.create);
