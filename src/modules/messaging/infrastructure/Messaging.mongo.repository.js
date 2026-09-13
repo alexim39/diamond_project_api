@@ -5,9 +5,11 @@ const messageSchema = new mongoose.Schema(
   {
     senderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true, index: true },
     recipientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true, index: true },
-    kind: { type: String, enum: ['direct', 'announcement', 'broadcast'], required: true, index: true },
+    kind: { type: String, enum: ['direct', 'announcement', 'broadcast', 'team'], required: true, index: true },
     title: { type: String, default: '', maxlength: 120 },
     body: { type: String, required: true, maxlength: 2000 },
+    // Purpose-team channel only (direct/announcement/broadcast stay null).
+    teamId: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null, index: true },
     readAt: { type: Date, default: null },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
@@ -62,7 +64,7 @@ export class MongoMessageStore {
   }
 
   async sent(partnerId, limit = 50) {
-    const docs = await MessageModel.find({ senderId: partnerId, kind: 'direct' })
+    const docs = await MessageModel.find({ senderId: partnerId, kind: { $in: ['direct', 'team'] } })
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();

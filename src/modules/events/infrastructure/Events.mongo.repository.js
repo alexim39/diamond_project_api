@@ -9,7 +9,9 @@ const eventSchema = new mongoose.Schema(
     startsAt: { type: Date, required: true, index: true },
     endsAt: { type: Date, default: null },
     location: { type: String, default: '', maxlength: 200 },
-    scope: { type: String, enum: ['global', 'team', 'leadership'], required: true, index: true },
+    scope: { type: String, enum: ['global', 'team', 'leadership', 'members'], required: true, index: true },
+    // Purpose-team channel only (other scopes stay null).
+    teamId: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null, index: true },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

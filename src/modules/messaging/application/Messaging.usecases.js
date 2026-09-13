@@ -1,8 +1,9 @@
 import {
   ForbiddenException, NotFoundException, ValidationException,
 } from '../../../shared/domain/AppError.js';
-import { createAnnouncementEntity, createDirectEntity } from '../domain/Message.entity.js';
+import { createAnnouncementEntity, createDirectEntity, createTeamAnnouncementEntity } from '../domain/Message.entity.js';
 import { collectDownlineIds, isAncestor } from '../../network/infrastructure/Network.mongo.repository.js';
+import { TeamModel } from '../../../apps/teams/models/teams.model.js';
 
 /** Two partners may DM iff one is the other's upline (any depth). */
 async function related(network, a, b) {
@@ -24,6 +25,42 @@ export class SendDirectUseCase {
       throw new ForbiddenException('Direct messages are limited to your upline and downline');
     }
     return this.messages.create({ ...createDirectEntity(input), senderId, recipientId: to, kind: 'direct' });
+  }
+}
+
+/** POST /v1/messages/team-announcements — owner or member to the whole team. */
+export class SendTeamAnnouncementUseCase {
+  /** @param {{messages}} deps */
+  constructor({ messages }) {
+    this.messages = messages;
+  }
+
+  async execute({ senderId, ...input }) {
+    const entity = createTeamAnnouncementEntity(input);
+    const team = await TeamModel.findById(entity.teamId).select('partnerId members teamName').lean();
+    if (!team) throw new NotFoundException('Team not found');
+    const me = String(senderId);
+    const isOwner = String(team.partnerId) === me;
+    const isMember = (team.members ?? []).map(String).includes(me);
+    if (!isOwner && !isMember) {
+      throw new ForbiddenException('Only team owners and members can announce to the team');
+    }
+    // Recipients: every member plus the owner (who may not list themselves),
+    // minus the sender — they see it under Sent.
+    const recipients = [...new Set([
+      ...((team.members ?? []).map(String)),
+      String(team.partnerId),
+    ])].filter((id) => id && id !== me);
+    if (recipients.length === 0) throw new ValidationException('No teammates to announce to');
+    const { inserted } = await this.messages.createMany(recipients.map((recipientId) => ({
+      senderId,
+      recipientId,
+      kind: 'team',
+      teamId: entity.teamId,
+      title: entity.title,
+      body: entity.body,
+    })));
+    return { inserted, teamId: entity.teamId };
   }
 }
 

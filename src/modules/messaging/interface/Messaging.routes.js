@@ -5,7 +5,7 @@ import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
   GetThreadUseCase, ListContactsUseCase, ListInboxUseCase, ListSentUseCase,
-  MarkReadUseCase, SendAnnouncementUseCase, SendDirectUseCase, UnreadCountUseCase,
+  MarkReadUseCase, SendAnnouncementUseCase, SendDirectUseCase, SendTeamAnnouncementUseCase, UnreadCountUseCase,
 } from '../application/Messaging.usecases.js';
 import { MongoMessageStore } from '../infrastructure/Messaging.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -23,6 +23,12 @@ const AnnounceSchema = z.object({
   scope: z.enum(['direct', 'all']),
 });
 
+const TeamAnnounceSchema = z.object({
+  teamId: objectId,
+  title: z.string().trim().min(2).max(120),
+  body: z.string().trim().min(1).max(2000),
+});
+
 const LimitQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).optional() });
 const CounterpartParam = z.object({ counterpartId: objectId });
 const MessageIdParam = z.object({ messageId: objectId });
@@ -34,6 +40,7 @@ export const buildMessagingRouter = (deps = {}) => {
 
   const direct = new SendDirectUseCase({ messages, network });
   const announce = new SendAnnouncementUseCase({ messages, network });
+  const announceTeam = new SendTeamAnnouncementUseCase({ messages });
   const inbox = new ListInboxUseCase({ messages });
   const sent = new ListSentUseCase({ messages });
   const thread = new GetThreadUseCase({ messages, network });
@@ -56,6 +63,12 @@ export const buildMessagingRouter = (deps = {}) => {
     const body = req.validated?.body ?? req.body;
     const data = await announce.execute({ senderId: req.auth?.partnerId, ...body });
     res.status(200).json({ message: 'Announcement sent successfully', data, success: true });
+  }));
+
+  router.post('/team-announcements', validate({ body: TeamAnnounceSchema }), asyncHandler(async (req, res) => {
+    const body = req.validated?.body ?? req.body;
+    const data = await announceTeam.execute({ senderId: req.auth?.partnerId, ...body });
+    res.status(200).json({ message: 'Team announcement sent successfully', data, success: true });
   }));
 
   router.get('/inbox', validate({ query: LimitQuery }), asyncHandler(async (req, res) => {

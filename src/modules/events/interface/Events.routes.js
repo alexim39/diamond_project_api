@@ -20,10 +20,14 @@ const EventSchema = z.object({
   startsAt: z.coerce.date(),
   endsAt: z.coerce.date().optional(),
   location: z.string().trim().max(200).optional().default(''),
-  scope: z.enum(AUDIENCE_SCOPES),
+  scope: z.enum(['global', 'team', 'leadership', 'members']),
+  teamId: objectId.optional(),
 }).refine(
   (e) => e.endsAt === undefined || new Date(e.endsAt) > new Date(e.startsAt),
   { message: 'Event end must be after its start', path: ['endsAt'] },
+).refine(
+  (e) => e.scope !== 'members' || e.teamId !== undefined,
+  { message: 'Team events need a team', path: ['teamId'] },
 );
 
 const RsvpSchema = z.object({ status: z.enum(RSVP_STATUSES) });

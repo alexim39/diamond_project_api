@@ -1,6 +1,7 @@
 import { ForbiddenException, NotFoundException } from '../../../shared/domain/AppError.js';
 import { LEADERSHIP_LEVELS, assertRsvpStatus, createEventEntity } from '../domain/Event.entity.js';
 import { isAncestor } from '../../network/infrastructure/Network.mongo.repository.js';
+import { TeamModel } from '../../../apps/teams/models/teams.model.js';
 
 const pageOf = (limit, max = 50) => Math.min(Math.max(Number(limit) || 20, 1), max);
 
@@ -15,7 +16,17 @@ async function visible(event, viewerId, viewerIsLeader, { network }) {
   if (event.scope === 'global') return true;
   if (event.scope === 'team') return isAncestor(network, event.authorId, viewerId);
   if (event.scope === 'leadership') return viewerIsLeader;
+  if (event.scope === 'members') return isTeamMember(event.teamId, viewerId);
   return false;
+}
+
+/** Purpose-team visibility: author, owner or listed member. */
+async function isTeamMember(teamId, viewerId) {
+  if (!teamId || !viewerId) return false;
+  const team = await TeamModel.findById(teamId).select('partnerId members').lean().catch(() => null);
+  if (!team) return false;
+  const me = String(viewerId);
+  return String(team.partnerId) === me || (team.members ?? []).map(String).includes(me);
 }
 
 async function enrich(events, viewerId, store) {
@@ -40,7 +51,12 @@ export class CreateEventUseCase {
   }
 
   async execute({ authorId, ...input }) {
-    return this.events.createEvent({ ...createEventEntity(input), authorId });
+    const entity = createEventEntity(input);
+    // Team events are writable by owners and members alike.
+    if (entity.scope === 'members' && !(await isTeamMember(entity.teamId, authorId))) {
+      throw new ForbiddenException('Only team owners and members can create team events');
+    }
+    return this.events.createEvent({ ...entity, authorId });
   }
 }
 
@@ -128,7 +144,11 @@ export class UpdateEventUseCase {
     if (String(event.authorId) !== String(partnerId)) {
       throw new ForbiddenException('Only the author can edit');
     }
-    return this.events.updateEvent(eventId, createEventEntity(input));
+    const entity = createEventEntity(input);
+    if (entity.scope === 'members' && !(await isTeamMember(entity.teamId, partnerId))) {
+      throw new ForbiddenException('Only team owners and members can keep team events');
+    }
+    return this.events.updateEvent(eventId, entity);
   }
 }
 

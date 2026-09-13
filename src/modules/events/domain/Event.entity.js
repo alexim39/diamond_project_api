@@ -3,6 +3,10 @@ import { AUDIENCE_SCOPES, LEADERSHIP_LEVELS } from '../../community/domain/Post.
 
 export { AUDIENCE_SCOPES, LEADERSHIP_LEVELS };
 export const RSVP_STATUSES = ['going', 'interested', 'declined'];
+/** Event audiences — `members` restricts to one purpose-team (needs teamId). */
+export const EVENT_SCOPES = [...AUDIENCE_SCOPES, 'members'];
+
+const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
 
 const text = (value, field, { min = 1, max = 2000 } = {}) => {
   const s = String(value ?? '').trim();
@@ -16,14 +20,19 @@ const asDate = (value, field) => {
   return d;
 };
 
-/** @param {{title,body,startsAt,endsAt,location,scope}} input (Zod-whitelisted) */
+/** @param {{title,body,startsAt,endsAt,location,scope,teamId}} input (Zod-whitelisted) */
 export const createEventEntity = (input) => {
-  if (!AUDIENCE_SCOPES.includes(input.scope)) throw new ValidationException('Invalid audience');
+  if (!EVENT_SCOPES.includes(input.scope)) throw new ValidationException('Invalid audience');
   const startsAt = asDate(input.startsAt, 'startsAt');
   let endsAt = null;
   if (input.endsAt !== undefined && input.endsAt !== null && String(input.endsAt).trim() !== '') {
     endsAt = asDate(input.endsAt, 'endsAt');
     if (endsAt <= startsAt) throw new ValidationException('Event end must be after its start');
+  }
+  let teamId = null;
+  if (input.scope === 'members') {
+    teamId = String(input.teamId ?? '').trim();
+    if (!OBJECT_ID_RE.test(teamId)) throw new ValidationException('Team events need a team');
   }
   return {
     title: text(input.title, 'title', { min: 2, max: 120 }),
@@ -34,6 +43,7 @@ export const createEventEntity = (input) => {
       ? ''
       : String(input.location).trim().slice(0, 200),
     scope: input.scope,
+    teamId,
   };
 };
 
