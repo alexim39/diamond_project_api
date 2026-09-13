@@ -51,10 +51,13 @@ export class MongoNetworkRepository {  async findNode(id) {
  * Shared bounded downline-id collection (BFS, depth + cap, cycle-safe).
  * Used by billing performance, goals progress and analytics team health —
  * one implementation, not three copies.
- * @returns {{ids: string[], total: number, capped: boolean}}
+ * @returns {{ids: string[], total: number, capped: boolean, depths: Record<string, number>}}
+ * (`depths` maps each id to its distance from the root: 1 = direct recruit.
+ * Additive — existing `{ids}` destructuring keeps working.)
  */
 export async function collectDownlineIds(networkRepo, rootId, { maxDepth = 10, cap = 5000 } = {}) {  const visited = new Set([String(rootId)]);
   const ids = [];
+  const depths = {};
   let capped = false;
   let frontier = [String(rootId)];
   for (let d = 0; d < maxDepth && frontier.length > 0; d++) {
@@ -65,12 +68,13 @@ export async function collectDownlineIds(networkRepo, rootId, { maxDepth = 10, c
       visited.add(c.id);
       if (ids.length >= cap) { capped = true; break; }
       ids.push(c.id);
+      depths[c.id] = d + 1;
       fresh.push(c.id);
     }
     if (capped) break;
     frontier = fresh;
   }
-  return { ids, total: ids.length, capped };
+  return { ids, total: ids.length, capped, depths };
 }
 
 /**

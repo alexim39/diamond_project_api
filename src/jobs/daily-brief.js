@@ -101,6 +101,7 @@ export const buildDailyBriefJob = (deps = {}) => {
 /** Active, incomplete goals whose window still covers now (shared with the weekly review). */
 export const activeGoalRows = (goals, now) => (goals ?? []).filter((g) => {
   if (!g?.progress || g.progress.complete) return false;
+  if (g.status === 'closed') return false;
   return new Date(g.endDate).getTime() >= new Date(now).getTime() - 86400000;
 });
 

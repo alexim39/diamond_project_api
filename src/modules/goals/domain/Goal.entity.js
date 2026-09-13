@@ -23,7 +23,7 @@ const asDate = (value, field) => {
 };
 
 /**
- * @param {{title,kind,target,startDate,endDate}} input (Zod-whitelisted)
+ * @param {{title,kind,target,startDate,endDate,status,closedAt}} input (Zod-whitelisted)
  */
 export const createGoalEntity = (input) => {
   const target = Number(input.target);
@@ -31,12 +31,17 @@ export const createGoalEntity = (input) => {
   const startDate = asDate(input.startDate, 'startDate');
   const endDate = asDate(input.endDate, 'endDate');
   if (endDate <= startDate) throw new ValidationException('End date must be after start date');
+  const status = input.status === 'closed' ? 'closed' : 'active';
   return {
     title: String(input.title ?? '').trim().slice(0, 120) || GOAL_KIND_LABELS[input.kind] || 'Goal',
     kind: assertGoalKind(input.kind),
     target,
     startDate,
     endDate,
+    status,
+    closedAt: status === 'closed'
+      ? (input.closedAt !== undefined && input.closedAt !== null ? asDate(input.closedAt, 'closedAt') : new Date())
+      : null,
   };
 };
 

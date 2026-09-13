@@ -8,6 +8,10 @@ const goalSchema = new mongoose.Schema(
     target: { type: Number, required: true, min: 0 },
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
+    // Manual lifecycle — auto Complete stays derived (current >= target).
+    // Closed = user declared done/abandoned; old docs default to active.
+    status: { type: String, enum: ['active', 'closed'], default: 'active', index: true },
+    closedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

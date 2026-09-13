@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { ValidationException } from '../../../shared/domain/AppError.js';
 import { MIN_CONTACTS, batchSla } from '../domain/ContactList.js';
 import { CONTACT_LIST_EVENTS, contactListSubmittedPayload } from '../domain/ContactListEvents.js';
+import { LEVEL_LABELS } from '../../progression/domain/Progression.levels.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
 
 /** GET /v1/prospects/contact-list/mine — working list + submitted batches. */
@@ -141,13 +142,16 @@ export class ListActivationBoardUseCase {
   }
 
   async execute({ requesterId, limit = 200, now = new Date() }) {
-    const { ids } = await collectDownlineIds(this.network, requesterId);
+    const { ids, depths } = await collectDownlineIds(this.network, requesterId);
     const bounded = ids.slice(0, 2000);
     if (bounded.length === 0) return { items: [], total: 0 };
-    const [rows, nodes, training] = await Promise.all([
-      this.prospects.downlineSubmittedBatches(bounded),
+    // Batch rows uncap to 5000 groups so per-member totals stay exact even
+    // for huge downlines; the member rows below are what get capped.
+    const [rows, nodes, training, levels] = await Promise.all([
+      this.prospects.downlineSubmittedBatches(bounded, 5000),
       this.network.findNodesByIds(bounded).catch(() => []),
       this.progress?.listConfirmationStats?.(bounded, ['ipo', 'qsg']).catch(() => []) ?? [],
+      this.progress?.levelsFor?.(bounded).catch(() => ({})) ?? {},
     ]);
     const byMember = new Map();
     for (const r of rows) {
@@ -184,6 +188,9 @@ export class ListActivationBoardUseCase {
       // Gates count confirmed training only (done + upline confirmation).
       const ipoDone = stamp.ipo?.done === true && stamp.ipo?.confirmedAt != null;
       const qsgDone = stamp.qsg?.done === true && stamp.qsg?.confirmedAt != null;
+      // Ladder level (stored default) + distance from the viewing upline.
+      const level = levels?.[pid] ?? 'partner';
+      const depth = depths?.[pid] ?? 1;
       let nextAction = 'All worked — ask for the next batch';
       let nextTone = 'ok';
       if (!ipoDone) { nextAction = 'Complete IPO'; nextTone = 'warn'; }
@@ -194,6 +201,10 @@ export class ListActivationBoardUseCase {
       return {
         partnerId: pid,
         member: labels[pid] ?? null,
+        level,
+        levelLabel: LEVEL_LABELS[level] ?? 'Partner',
+        depth,
+        relation: depth <= 1 ? 'Direct' : `Level ${depth}`,
         ipoDone,
         qsgDone,
         lists: batches.length,
@@ -212,6 +223,8 @@ export class ListActivationBoardUseCase {
     items.sort((a, b) =>
       rank(a) - rank(b)
       || (a.oldestPendingAt ?? a.newestSubmittedAt ?? 0) - (b.oldestPendingAt ?? b.newestSubmittedAt ?? 0));
+    // Serve the most urgent slice; total stays honest so the UI can say
+    // "showing X of Y" instead of silently dropping members.
     const capped = items.slice(0, Math.min(Math.max(Number(limit) || 200, 1), 500));
     return { items: capped, total: items.length };
   }

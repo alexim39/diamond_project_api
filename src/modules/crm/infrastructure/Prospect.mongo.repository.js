@@ -248,8 +248,9 @@ export class MongoProspectRepository {
   }
 
   /** Submitted batches across many partners (upline view, bounded). */
-  async downlineSubmittedBatches(partnerIds) {
+  async downlineSubmittedBatches(partnerIds, cap = 200) {
     if (partnerIds.length === 0) return [];
+    const lim = Math.min(Math.max(Number(cap) || 200, 1), 5000);
     const rows = await ProspectModel.aggregate([
       { $match: { partnerId: { $in: matchPartnerIds(partnerIds) }, listSubmitted: true } },
       {
@@ -261,7 +262,7 @@ export class MongoProspectRepository {
         },
       },
       { $sort: { submittedAt: -1 } },
-      { $limit: 200 },
+      { $limit: lim },
     ]);
     return rows.map((r) => {
       const stageCounts = {};

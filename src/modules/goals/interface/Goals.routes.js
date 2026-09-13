@@ -22,6 +22,8 @@ const GoalFields = {
   target: z.coerce.number().positive().max(1000000000),
   startDate: isoDate,
   endDate: isoDate,
+  status: z.enum(['active', 'closed']).optional().default('active'),
+  closedAt: isoDate.optional(),
 };
 
 const GoalSchema = z.object(GoalFields).refine((g) => new Date(g.endDate) > new Date(g.startDate), {
