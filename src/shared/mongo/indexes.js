@@ -28,6 +28,7 @@
 const LEGACY_DROP = [
   { collection: 'prospects', indexName: 'prospectPhone_1' },
   { collection: 'prospects', indexName: 'prospectEmail_1' },
+  { collection: 'bookings', indexName: 'username_1' },
 ];
 
 export const INDEXES = [
@@ -87,19 +88,23 @@ export async function ensureIndexes(mongoose, { collections = INDEXES } = {}) {
     }
   }
   // Belt-and-braces: drop any remaining unique {prospectPhone:1} or
-  // {prospectEmail:1} that survived a rename or manual creation.
+  // {prospectEmail:1} that survived a rename or manual creation, plus the
+  // legacy bookings username unique that blocked multiple bookings.
   try {
-    const idxs = await db.collection('prospects').indexes();
-    for (const idx of idxs) {
-      const keys = idx.key ?? {};
-      const isPhoneOnlyUnique = Object.keys(keys).length === 1 && keys.prospectPhone === 1 && idx.unique === true;
-      const isEmailOnlyUnique = Object.keys(keys).length === 1 && keys.prospectEmail === 1 && idx.unique === true;
-      if (isPhoneOnlyUnique || isEmailOnlyUnique) {
-        try {
-          await db.collection('prospects').dropIndex(idx.name);
-          created.push(`prospects:dropped:${idx.name}`);
-        } catch (error) {
-          failed.push({ index: `prospects:${idx.name}`, error: error?.message ?? String(error) });
+    for (const coll of ['prospects', 'bookings']) {
+      const idxs = await db.collection(coll).indexes();
+      for (const idx of idxs) {
+        const keys = idx.key ?? {};
+        const isProspectPhoneUnique = coll === 'prospects' && Object.keys(keys).length === 1 && keys.prospectPhone === 1 && idx.unique === true;
+        const isProspectEmailUnique = coll === 'prospects' && Object.keys(keys).length === 1 && keys.prospectEmail === 1 && idx.unique === true;
+        const isBookingUsernameUnique = coll === 'bookings' && Object.keys(keys).length === 1 && keys.username === 1 && idx.unique === true;
+        if (isProspectPhoneUnique || isProspectEmailUnique || isBookingUsernameUnique) {
+          try {
+            await db.collection(coll).dropIndex(idx.name);
+            created.push(`${coll}:dropped:${idx.name}`);
+          } catch (error) {
+            failed.push({ index: `${coll}:${idx.name}`, error: error?.message ?? String(error) });
+          }
         }
       }
     }

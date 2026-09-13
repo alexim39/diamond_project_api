@@ -61,7 +61,6 @@ const userBookingSchema = mongoose.Schema(
         username: {
             type: String,
             default: 'business',
-            unique: true,
             //required: [true, "Please enter username"]
         },
         status: {

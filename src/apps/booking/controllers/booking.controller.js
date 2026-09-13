@@ -24,23 +24,28 @@ export const SessionBookingController = async (req, res) => {
       username
     } = req.body;
 
-    // Check for required fields
-    if (!consultDate || !consultTime || !email || !phone || !username) {
+    // Check for required fields — email is optional (not all prospects share it),
+    // phone is the primary contact key. Username is required to attribute the booking.
+    if (!consultDate || !consultTime || !phone || !username) {
       return res.status(400).json({
         message: "Missing required booking information.",
         success: false
       });
     }
 
-    // Prevent duplicate booking for the same user (by email or phone) at the same date/time
-    const existingBooking = await BookingModel.findOne({
-      $or: [
-        { email: email },
-        { phone: phone }
-      ],
-      consultDate: consultDate,
-      consultTime: consultTime
-    });
+    // Prevent duplicate booking for the same user at the same date/time
+    // (only compare non-empty identifiers — blank emails must not collide).
+    const or = [];
+    if (email) or.push({ email });
+    if (phone) or.push({ phone });
+    let existingBooking = null;
+    if (or.length > 0) {
+      existingBooking = await BookingModel.findOne({
+        $or: or,
+        consultDate: consultDate,
+        consultTime: consultTime
+      });
+    }
 
     if (existingBooking) {
       return res.status(400).json({
