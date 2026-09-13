@@ -80,7 +80,12 @@ export const makeProspectController = (uc) => ({
   }),
 
   convert: asyncHandler(async (req, res) => {
-    const data = await uc.convert.execute({ prospectId: pid(req) });
+    const body = req.body ?? {};
+    const data = await uc.convert.execute({
+      prospectId: pid(req),
+      by: typeof body.by === 'string' ? body.by : undefined,
+      byName: typeof body.byName === 'string' ? body.byName : undefined,
+    });
     res.status(200).json({
       message: 'Enrollment code issued. Share it with the prospect to complete signup.',
       data,
@@ -101,5 +106,10 @@ export const makeProspectController = (uc) => ({
   contactListDownline: asyncHandler(async (req, res) => {
     const data = await uc.contactListDownline.execute({ requesterId: req.auth?.partnerId });
     res.status(200).json({ message: 'Downline contact lists retrieved successfully', data, success: true });
+  }),
+
+  contactListActivation: asyncHandler(async (req, res) => {
+    const data = await uc.contactListActivation.execute({ requesterId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Activation board retrieved successfully', data, success: true });
   }),
 });

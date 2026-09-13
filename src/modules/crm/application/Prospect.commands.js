@@ -1,6 +1,7 @@
 import { ConflictException, NotFoundException } from '../../../shared/domain/AppError.js';
 import { createProspectEntity, normalizePhone } from '../domain/Prospect.entity.js';
 import { createStatusOverlay } from '../domain/Prospect.entity.js';
+import { PROSPECT_WORKED_EVENTS, prospectWorkedPayload } from '../domain/ProspectWorkedEvents.js';
 
 /** POST /v1/prospects — scoped dup-check (legacy: global). */
 export class CreateProspectUseCase {
@@ -98,12 +99,44 @@ export class UpdateProspectUseCase {
 
 /** POST /v1/prospects/:id/status — overlay merge, never whole-subdoc replace. */
 export class UpdateProspectStatusUseCase {
-  /** @param {{prospects}} deps */
-  constructor({ prospects }) { this.prospects = prospects; }
+  /** @param {{prospects, events?}} deps */
+  constructor({ prospects, events = null }) { Object.assign(this, { prospects, events }); }
   async execute({ prospectId, status }) {
-    const overlay = createStatusOverlay(status);
-    const updated = await this.prospects.updateStatus(prospectId, overlay);
+    // Author attribution rides along (owner vs upline) — trimmed/bounded,
+    // never part of the status overlay itself.
+    const { by, byName, ...rest } = status ?? {};
+    const overlay = createStatusOverlay(rest);
+    const author = {
+      ...(by !== undefined && by !== null && String(by).trim() !== '' ? { by: String(by).trim().slice(0, 40) } : {}),
+      ...(byName !== undefined && byName !== null && String(byName).trim() !== '' ? { byName: String(byName).trim().slice(0, 120) } : {}),
+    };
+    const updated = await this.prospects.updateStatus(prospectId, overlay, author);
     if (!updated) throw new NotFoundException('Prospect not found');
+    // Reverse fan-out on real stage moves by someone else (note-only edits stay quiet).
+    if (this.events && overlay.stage) {
+      try {
+        const history = updated.stageHistory ?? [];
+        const saved = history[history.length - 1] ?? {};
+        const moved = !saved.to || String(saved.to) === String(overlay.stage);
+        const ownerId = updated.partnerId ? String(updated.partnerId) : null;
+        const actorId = author.by ? String(author.by) : null;
+        if (moved && ownerId && actorId && ownerId !== actorId) {
+          const name = `${updated.prospectName ?? ''} ${updated.prospectSurname ?? ''}`.trim() || 'A prospect';
+          await this.events.emit(
+            PROSPECT_WORKED_EVENTS.TOUCHED,
+            prospectWorkedPayload({
+              prospectId,
+              ownerId,
+              actorId,
+              actorName: author.byName ?? null,
+              kind: 'stage',
+              label: `${name} → ${overlay.stage}`,
+              touchId: String(saved._id ?? saved.id ?? `${overlay.stage}:${Date.now()}`),
+            }),
+          ).catch(() => null);
+        }
+      } catch { /* notify never fails the advance */ }
+    }
     return updated;
   }
 }

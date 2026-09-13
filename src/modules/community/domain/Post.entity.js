@@ -21,7 +21,7 @@ const text = (value, field, { min = 1, max = 2000 } = {}) => {
 export const ATTACHMENT_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 export const MAX_ATTACHMENTS = 4;
 export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
-const ATTACHMENT_URL_RE = /^\/uploads\/community\/[A-Za-z0-9_.-]+$/;
+const ATTACHMENT_URL_RE = /^(?:\/uploads\/community\/[A-Za-z0-9_.-]+|https:\/\/[^\s]+)$/;
 
 /** @param {unknown} value (already Zod-shaped, defense in depth) */
 export const createAttachmentEntities = (value) => {

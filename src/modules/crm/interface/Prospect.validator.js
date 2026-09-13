@@ -52,6 +52,10 @@ export const UpdateStatusSchema = z.object({
   status: z.enum(['Open', 'Closed']).optional(),
   // Canonical pipeline stage (Phase A). Legacy free-text `name` still accepted.
   stage: z.enum(['New', 'Contacted', 'Interested', 'In Negotiation', 'Converted', 'Closed']).optional(),
+  // Stage-move author (owner vs upline) — plain strings on purpose so no
+  // caller can 400; trimmed/bounded in the use case.
+  by: z.string().trim().max(40).optional(),
+  byName: z.string().trim().max(120).optional(),
 });
 
 export const LogCommunicationSchema = z.object({

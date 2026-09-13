@@ -48,6 +48,7 @@ import { subscribePromotionFanout } from './src/modules/notifications/applicatio
 import { subscribeTrainingFanout } from './src/modules/notifications/application/TrainingFanout.js';
 import { subscribeGoalFanout } from './src/modules/notifications/application/GoalFanout.js';
 import { subscribeContactListFanout } from './src/modules/notifications/application/ContactListFanout.js';
+import { subscribeProspectWorkedFanout } from './src/modules/notifications/application/ProspectWorkedFanout.js';
 import { domainEvents } from './src/shared/events/DomainEvents.js';
 import { env } from './src/shared/config/env.js';
 import { sendEmail } from './src/services/emailService.js';
@@ -190,6 +191,12 @@ app.use(errorMiddleware);
     delivery: lifecycleDelivery,
     partners: lifecyclePartners,
     network: new MongoNetworkRepository(),
+  });
+  subscribeProspectWorkedFanout({
+    events: domainEvents,
+    stored: lifecycleStore,
+    delivery: lifecycleDelivery,
+    partners: lifecyclePartners,
   });
 }
 

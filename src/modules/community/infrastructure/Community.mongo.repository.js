@@ -132,6 +132,30 @@ export class MongoCommunityStore {
     return shaped(doc);
   }
 
+  async updatePost(id, patch) {
+    const doc = await PostModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
+    return shaped(doc);
+  }
+
+  /** Author delete — post plus its comments, likes, saves and reports. */
+  async deletePostCascade(id) {
+    const comments = await CommentModel.find({ postId: id }).select('_id').lean();
+    const commentIds = comments.map((c) => c._id);
+    await Promise.all([
+      CommentModel.deleteMany({ postId: id }),
+      LikeModel.deleteMany({
+        $or: [
+          { targetType: 'post', targetId: id },
+          ...(commentIds.length > 0 ? [{ targetType: 'comment', targetId: { $in: commentIds } }] : []),
+        ],
+      }),
+      SavedModel.deleteMany({ postId: id }),
+      PostReportModel.deleteMany({ postId: id }),
+      PostModel.deleteOne({ _id: id }),
+    ]);
+    return { deleted: true };
+  }
+
   async toggleLike(targetType, targetId, partnerId) {
     const existing = await LikeModel.findOne({ targetType, targetId, partnerId }).lean();
     if (existing) {

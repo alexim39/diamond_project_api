@@ -10,8 +10,9 @@ import {
   CreateProspectUseCase, UpdateProspectUseCase, UpdateProspectStatusUseCase, DeleteProspectUseCase,
 } from '../application/Prospect.commands.js';
 import { LogCommunicationUseCase, RemoveCommunicationUseCase } from '../application/Prospect.communications.js';
-import { GetMyContactListUseCase, ListDownlineContactListsUseCase, SubmitContactListUseCase } from '../application/ContactList.usecases.js';
+import { GetMyContactListUseCase, ListActivationBoardUseCase, ListDownlineContactListsUseCase, SubmitContactListUseCase } from '../application/ContactList.usecases.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
+import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
 import {
   GetProspectByIdUseCase, GetProspectsByPartnerUseCase, GetProspectNotificationsUseCase,
   GetStuckProspectsUseCase,
@@ -37,22 +38,25 @@ export const buildProspectRouter = (deps = {}) => {
   const campaigns = deps.campaigns ?? new MongoCampaignLookup();
 
   const network = deps.network ?? new MongoNetworkRepository();
+  const progress = deps.progress ?? new MongoProgressionStore();
+  const events = deps.events ?? domainEvents;
   const c = makeProspectController({
     create: new CreateProspectUseCase({ prospects, campaigns }),
     update: new UpdateProspectUseCase({ prospects }),
-    updateStatus: new UpdateProspectStatusUseCase({ prospects }),
+    updateStatus: new UpdateProspectStatusUseCase({ prospects, events }),
     remove: new DeleteProspectUseCase({ prospects }),
     getById: new GetProspectByIdUseCase({ prospects }),
     getByPartner: new GetProspectsByPartnerUseCase({ prospects, partners }),
-    logCommunication: new LogCommunicationUseCase({ prospects }),
+    logCommunication: new LogCommunicationUseCase({ prospects, events }),
     removeCommunication: new RemoveCommunicationUseCase({ prospects }),
     notifications: new GetProspectNotificationsUseCase({ prospects }),
     stuck: new GetStuckProspectsUseCase({ prospects }),
     convert: new ConvertProspectToPartnerUseCase({ prospects, reservations }),
     contactListMine: new GetMyContactListUseCase({ prospects }),
     contactListSubmit: deps.contactListSubmit
-      ?? new SubmitContactListUseCase({ prospects, network, events: deps.events ?? domainEvents }),
+      ?? new SubmitContactListUseCase({ prospects, network, events }),
     contactListDownline: new ListDownlineContactListsUseCase({ prospects, network }),
+    contactListActivation: new ListActivationBoardUseCase({ prospects, network, progress }),
   });
 
   const router = express.Router();
@@ -68,6 +72,7 @@ export const buildProspectRouter = (deps = {}) => {
   router.get('/contact-list/mine', c.contactListMine);
   router.post('/contact-list/submit', c.contactListSubmit);
   router.get('/contact-list/downline', c.contactListDownline);
+  router.get('/contact-list/activation', c.contactListActivation);
   router.put('/update', validate({ body: UpdateProspectSchema }), c.update);
   router.put('/:prospectId', validate({ params: ProspectIdParam, body: UpdateProspectSchema }), c.update);
 

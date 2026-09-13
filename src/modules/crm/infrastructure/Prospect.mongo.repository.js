@@ -131,11 +131,31 @@ export class MongoProspectRepository {
     );
   }
 
-  async updateStatus(id, overlay) {
+  async updateStatus(id, overlay, author = {}) {
     const dotted = Object.fromEntries(Object.entries(overlay).map(([k, v]) => [`status.${k}`, v]));
     dotted['status.updatedAt'] = new Date();
+    const update = { $set: dotted };
+    // Stage-move audit: record from → to with actor (stage advances and
+    // conversions share this path, so both are captured). Non-stage updates
+    // (notes, dates) and no-op rewrites leave history alone.
+    const to = overlay?.stage;
+    if (to) {
+      const current = await ProspectModel.findById(id).select('status.stage').lean().catch(() => null);
+      const from = current?.status?.stage ?? null;
+      if (from !== to) {
+        update.$push = {
+          stageHistory: {
+            from,
+            to,
+            at: overlay.stageEnteredAt ?? new Date(),
+            ...(author?.by ? { by: String(author.by).slice(0, 40) } : {}),
+            ...(author?.byName ? { byName: String(author.byName).slice(0, 120) } : {}),
+          },
+        };
+      }
+    }
     return ProspectMapper.toDomain(
-      await ProspectModel.findByIdAndUpdate(id, { $set: dotted }, { new: true, runValidators: true }).lean(),
+      await ProspectModel.findByIdAndUpdate(id, update, { new: true, runValidators: true }).lean(),
     );
   }
 

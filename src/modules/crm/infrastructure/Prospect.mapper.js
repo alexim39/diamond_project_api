@@ -27,6 +27,7 @@ export const ProspectMapper = {
       role: o.role,
       status: o.status ? { ...o.status } : o.status,
       communications: (o.communications ?? []).map((c) => ({ ...c, _id: str(c._id), id: str(c._id) })),
+      stageHistory: (o.stageHistory ?? []).map((h) => ({ ...h, _id: str(h._id), id: str(h._id) })),
       createdAt: o.createdAt,
       updatedAt: o.updatedAt,
     };

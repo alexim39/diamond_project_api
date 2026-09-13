@@ -79,6 +79,11 @@ export class MongoEventStore {
     return { deleted: res.deletedCount > 0 };
   }
 
+  async updateEvent(id, patch) {
+    const doc = await EventModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
+    return shaped(doc);
+  }
+
   async upsertRsvp(eventId, partnerId, status) {
     const doc = await EventRsvpModel.findOneAndUpdate(
       { eventId, partnerId },

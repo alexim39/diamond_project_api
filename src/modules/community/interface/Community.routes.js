@@ -4,8 +4,8 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
-  AddCommentUseCase, CommunityAnalyticsUseCase, CreatePostUseCase, DirectoryUseCase, GetFeedUseCase,
-  ListCommentsUseCase, PinPostUseCase, ReportPostUseCase, ToggleLikeUseCase, ToggleSaveUseCase,
+  AddCommentUseCase, CommunityAnalyticsUseCase, CreatePostUseCase, DeletePostUseCase, DirectoryUseCase, GetFeedUseCase,
+  ListCommentsUseCase, PinPostUseCase, ReportPostUseCase, ToggleLikeUseCase, ToggleSaveUseCase, UpdatePostUseCase,
 } from '../application/Community.usecases.js';
 import { MongoCommunityStore } from '../infrastructure/Community.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -23,11 +23,16 @@ import { buildSmsSender } from '../../notifications/infrastructure/SmsSender.js'
 import { buildPushSender } from '../../notifications/infrastructure/PushSender.js';
 import { ATTACHMENT_MIMES, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, POST_KINDS, AUDIENCE_SCOPES } from '../domain/Post.entity.js';
 import { communityUpload } from './Community.upload.js';
+import { buildImageStore } from '../../settings/infrastructure/CloudinaryClient.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 
 const AttachmentSchema = z.object({
-  url: z.string().trim().regex(/^\/uploads\/community\/[A-Za-z0-9_.-]+$/, 'Invalid attachment url'),
+  // Legacy local files (`/uploads/community/…`) plus Cloudinary https URLs.
+  url: z.union([
+    z.string().trim().regex(/^\/uploads\/community\/[A-Za-z0-9_.-]+$/, 'Invalid attachment url'),
+    z.string().trim().regex(/^https:\/\/[^\s]+$/, 'Invalid attachment url'),
+  ]),
   mime: z.enum(ATTACHMENT_MIMES),
   size: z.number().int().min(1).max(MAX_ATTACHMENT_BYTES),
 });
@@ -52,6 +57,11 @@ const FeedQuery = z.object({
 });
 
 const PinSchema = z.object({ pinned: z.boolean() });
+const PostEditSchema = z.object({
+  title: z.string().trim().max(120).optional(),
+  body: z.string().trim().min(1).max(2000).optional(),
+  link: z.string().trim().max(500).optional(),
+});
 const ReportSchema = z.object({ reason: z.string().trim().max(300).optional().default('') });
 const AnalyticsQuery = z.object({ days: z.coerce.number().int().min(1).max(90).optional().default(7) });
 
@@ -88,6 +98,11 @@ export const buildCommunityRouter = (deps = {}) => {
   const save = new ToggleSaveUseCase({ community });
   const report = new ReportPostUseCase({ community });
   const pin = new PinPostUseCase({ community });
+  const update = new UpdatePostUseCase({ community, events });
+  const remove = new DeletePostUseCase({ community });
+  // Community images live on Cloudinary (profile-photo pattern) under their
+  // own folder; unconfigured credentials surface as 503, same as profiles.
+  const images = deps.images ?? buildImageStore({ ...(env.cloudinary ?? {}), folder: 'diamond-projects/community' });
   const directory = new DirectoryUseCase({ community });
   const analytics = new CommunityAnalyticsUseCase({ community });
 
@@ -106,15 +121,19 @@ export const buildCommunityRouter = (deps = {}) => {
     res.status(200).json({ message: 'Post created successfully', data, success: true });
   }));
 
-  // Image upload (multipart `image` field) — returns a URL to attach on POST /.
+  // Image upload (multipart `image` field) — streams the buffer to
+  // Cloudinary and returns its URL to attach on POST /. Legacy local files
+  // keep serving; only new uploads go to the cloud.
   router.post('/attachments', communityUpload.single('image'), asyncHandler(async (req, res) => {
-    if (!req.file) {
+    if (!req.file?.buffer) {
       return res.status(400).json({ message: 'No image uploaded', success: false, code: 'VALIDATION_ERROR' });
     }
+    const author = String(req.auth?.partnerId ?? 'anon').replace(/[^a-fA-F0-9]/g, '') || 'anon';
+    const stored = await images.upload(req.file.buffer, { publicId: `community-${author}-${Date.now()}` });
     res.status(200).json({
       message: 'Image uploaded successfully',
       data: {
-        url: `/uploads/community/${req.file.filename}`,
+        url: stored.url,
         mime: req.file.mimetype,
         size: req.file.size,
       },
@@ -159,6 +178,19 @@ export const buildCommunityRouter = (deps = {}) => {
     const body = req.validated?.body ?? req.body;
     const data = await pin.execute({ partnerId: req.auth?.partnerId, postId: params.postId, pinned: body?.pinned });
     res.status(200).json({ message: 'Pin updated successfully', data, success: true });
+  }));
+
+  router.put('/:postId', validate({ params: z.object({ postId: objectId }), body: PostEditSchema }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const data = await update.execute({ partnerId: req.auth?.partnerId, postId: params.postId, ...body });
+    res.status(200).json({ message: 'Post updated successfully', data, success: true });
+  }));
+
+  router.delete('/:postId', validate({ params: z.object({ postId: objectId }) }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await remove.execute({ partnerId: req.auth?.partnerId, postId: params.postId });
+    res.status(200).json({ message: 'Post deleted successfully', data, success: true });
   }));
 
   router.get('/analytics/overview', validate({ query: AnalyticsQuery }), asyncHandler(async (req, res) => {

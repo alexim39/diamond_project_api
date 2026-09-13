@@ -226,7 +226,60 @@ export class ReportPostUseCase {
   }
 }
 
-/** Authors pin their own announcements. */
+/** Authors edit their own posts (title/body/link only — kind, scope and attachments stay as posted). */
+export class UpdatePostUseCase {
+  /** @param {{community, events?}} deps (events optional — mention fan-out subscribes) */
+  constructor({ community, events = null }) {
+    Object.assign(this, { community, events });
+  }
+
+  async execute({ partnerId, postId, title, body, link }) {
+    const post = await this.community.findPostById(postId);
+    if (!post) throw new NotFoundException('Post not found');
+    if (String(post.authorId) !== String(partnerId)) throw new ForbiddenException('Only the author can edit');
+    if (post.auto) throw new ForbiddenException('Automatic posts cannot be edited');
+    const patch = {
+      ...(title !== undefined ? { title: String(title).trim().slice(0, 120) } : {}),
+      ...(body !== undefined ? { body: String(body).trim() } : {}),
+      ...(link !== undefined ? { link: String(link).trim().slice(0, 500) } : {}),
+    };
+    if (patch.body !== undefined && patch.body.length < 1) throw new ValidationException('Post body cannot be empty');
+    const nextTitle = patch.title ?? post.title ?? '';
+    const nextBody = patch.body ?? post.body ?? '';
+    const updated = await this.community.updatePost(postId, {
+      ...patch,
+      mentions: extractMentions(`${nextTitle} ${nextBody}`),
+    });
+    if (this.events && (updated?.mentions ?? []).length > 0) {
+      await this.events.emit(
+        NOTIFICATION_EVENTS.MENTION_CREATED,
+        mentionCreated({
+          authorId: partnerId,
+          sourceType: 'post',
+          sourceId: String(updated.id ?? updated._id),
+          handles: updated.mentions,
+          text: `${nextTitle} ${nextBody}`,
+        }),
+      ).catch(() => null);
+    }
+    return updated;
+  }
+}
+
+/** Authors delete their own posts (comments, likes, saves and reports go too). */
+export class DeletePostUseCase {
+  /** @param {{community}} deps */
+  constructor({ community }) {
+    this.community = community;
+  }
+
+  async execute({ partnerId, postId }) {
+    const post = await this.community.findPostById(postId);
+    if (!post) throw new NotFoundException('Post not found');
+    if (String(post.authorId) !== String(partnerId)) throw new ForbiddenException('Only the author can delete');
+    return this.community.deletePostCascade(postId);
+  }
+}
 export class PinPostUseCase {
   /** @param {{community}} deps */
   constructor({ community }) {

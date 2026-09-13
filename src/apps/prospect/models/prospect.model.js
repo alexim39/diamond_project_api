@@ -67,6 +67,16 @@ const prospectSchema = mongoose.Schema(
             default: null,
         },
         communications: [CommunicationSchema],
+        // Stage-move audit — every pipeline advance appends {from, to, at,
+        // by, byName} so the timeline shows who moved the prospect.
+        // Absent on legacy documents.
+        stageHistory: [{
+          from: { type: String },
+          to: { type: String },
+          at: { type: Date },
+          by: { type: String },
+          byName: { type: String },
+        }],
         partnerId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'partner',

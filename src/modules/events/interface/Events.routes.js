@@ -5,7 +5,7 @@ import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
   CancelEventUseCase, CreateEventUseCase, GetEventUseCase, ListMyEventsUseCase,
-  ListUpcomingUseCase, RsvpUseCase,
+  ListUpcomingUseCase, RsvpUseCase, UpdateEventUseCase,
 } from '../application/Events.usecases.js';
 import { MongoEventStore } from '../infrastructure/Events.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -42,6 +42,7 @@ export const buildEventsRouter = (deps = {}) => {
   const detail = new GetEventUseCase({ events, network, progress });
   const rsvp = new RsvpUseCase({ events, network, progress });
   const cancel = new CancelEventUseCase({ events });
+  const update = new UpdateEventUseCase({ events });
 
   const router = express.Router();
   router.use(requireAuth);
@@ -80,6 +81,13 @@ export const buildEventsRouter = (deps = {}) => {
     const params = req.validated?.params ?? req.params;
     const data = await cancel.execute({ partnerId: req.auth?.partnerId, eventId: params.eventId });
     res.status(200).json({ message: 'Event cancelled successfully', data, success: true });
+  }));
+
+  router.put('/:eventId', validate({ params: EventIdParam, body: EventSchema }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const data = await update.execute({ partnerId: req.auth?.partnerId, eventId: params.eventId, ...body });
+    res.status(200).json({ message: 'Event updated successfully', data, success: true });
   }));
 
   return router;

@@ -26,7 +26,7 @@ export class ConvertProspectToPartnerUseCase {
     this.generateCode = generateCode;
   }
 
-  async execute({ prospectId }) {
+  async execute({ prospectId, by, byName }) {
     const prospect = await this.prospects.findById(prospectId);
     if (!prospect) throw new NotFoundException('Prospect not found');
     if (prospect.status?.stage === 'Converted') {
@@ -48,6 +48,9 @@ export class ConvertProspectToPartnerUseCase {
     const updated = await this.prospects.updateStatus(prospectId, {
       name: 'Converted',
       stage: 'Converted',
+    }, {
+      ...(by && String(by).trim() !== '' ? { by: String(by).trim().slice(0, 40) } : {}),
+      ...(byName && String(byName).trim() !== '' ? { byName: String(byName).trim().slice(0, 120) } : {}),
     });
 
     return { code: enrollment.code, prospect: updated };

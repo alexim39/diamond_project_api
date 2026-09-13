@@ -115,9 +115,25 @@ export class RsvpUseCase {
   }
 }
 
-/** Authors cancel their own events (RSVPs cascade in the store). */
-export class CancelEventUseCase {
+/** Authors edit their own events (full entity re-validated, RSVPs kept). */
+export class UpdateEventUseCase {
   /** @param {{events}} deps */
+  constructor({ events }) {
+    this.events = events;
+  }
+
+  async execute({ partnerId, eventId, ...input }) {
+    const event = await this.events.findEventById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    if (String(event.authorId) !== String(partnerId)) {
+      throw new ForbiddenException('Only the author can edit');
+    }
+    return this.events.updateEvent(eventId, createEventEntity(input));
+  }
+}
+
+/** Authors cancel their own events (RSVPs cascade in the store). */
+export class CancelEventUseCase {  /** @param {{events}} deps */
   constructor({ events }) {
     this.events = events;
   }
