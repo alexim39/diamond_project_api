@@ -51,7 +51,7 @@ const userBookingSchema = mongoose.Schema(
         surname: {
             type: String,
             //unique: true,
-            required: [true, "Please enter surname"]
+            //required: [true, "Please enter surname"]
         },
         userDevice: {
             type: String,

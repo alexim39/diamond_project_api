@@ -72,24 +72,33 @@ export const SessionBookingController = async (req, res) => {
       // status: 'Scheduled',
     });
 
-    // Find the user by username
+    // Find the user by username (for owner notification — best-effort)
     const partner = await PartnersModel.findOne({ username });
+
+    // Send emails best-effort — a mail failure must never turn a saved booking into a 500.
+    try {
+      if (partner?.email) {
+        const ownerSubject = "Notification for One-on-One Session Booking";
+        const ownerMessage = ownerEmailTemplate(userBooking);
+        await sendEmail(partner.email, ownerSubject, ownerMessage);
+      }
+    } catch (e) { console.warn('[booking] owner email failed:', e?.message ?? e); }
+
+    try {
+      if (userBooking.email) {
+        const userSubject = "Your Session Booking is Confirmed – Let’s Talk Business!";
+        const userMessage = userNotificationEmailTemplate(userBooking);
+        await sendEmail(userBooking.email, userSubject, userMessage);
+      }
+    } catch (e) { console.warn('[booking] prospect email failed:', e?.message ?? e); }
+
     if (!partner) {
-      return res.status(404).json({
-        message: "User not found",
-        success: false
+      // Booking is already saved — surface as success with a hint, not a 404 that looks like a failure.
+      return res.status(200).json({
+        message: 'Session booked, but owner account was not found for notification.',
+        success: true
       });
     }
-
-    // Send email to owner
-    const ownerSubject = "Notification for One-on-One Session Booking";
-    const ownerMessage = ownerEmailTemplate(userBooking);
-    await sendEmail(partner.email, ownerSubject, ownerMessage);
-
-    // Send email to the user
-    const userSubject = "Your Session Booking is Confirmed – Let’s Talk Business!";
-    const userMessage = userNotificationEmailTemplate(userBooking);
-    await sendEmail(userBooking.email, userSubject, userMessage);
 
     res.status(200).json({
       message: 'Session has been successfully booked. Ensure to meet with prospect on time!',
