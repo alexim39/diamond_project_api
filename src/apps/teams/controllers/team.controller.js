@@ -1,4 +1,27 @@
 import {TeamModel} from '../models/teams.model.js';
+import {PartnersModel} from '../../partner/models/partner.model.js';
+
+/**
+ * Owner labels for team reads — safe fields only. partnerId stays a raw
+ * id on every row; `owner` is purely additive so existing comparisons
+ * and payloads keep working. Takes plain objects (lean/toObject).
+ */
+const attachOwners = async (rows) => {
+  const list = Array.isArray(rows) ? rows : (rows ? [rows] : []);
+  if (list.length === 0) return rows;
+  const ids = [...new Set(list.map((t) => String(t.partnerId ?? '')).filter(Boolean))];
+  if (ids.length === 0) return rows;
+  const owners = await PartnersModel.find({ _id: { $in: ids } })
+    .select('username name surname')
+    .lean()
+    .catch(() => []);
+  const labels = Object.fromEntries((owners ?? []).map((o) => [String(o._id), {
+    username: o.username,
+    name: [o.name, o.surname].filter(Boolean).join(' ') || o.username,
+  }]));
+  for (const t of list) t.owner = labels[String(t.partnerId)] ?? null;
+  return rows;
+};
 
 
 // Save team details  
@@ -100,15 +123,21 @@ export const getTeamsByCreatorOrPartner = async (req, res) => {
   try {
     const { partnerId } = req.params;
 
-    const createdTeams = await TeamModel.find({ partnerId }).populate('members');
-    const memberTeams = await TeamModel.find({ members: partnerId }).populate('members');
-
-    const allTeams = [...createdTeams, ...memberTeams];
-
-    // Remove duplicate teams (if a partner is both creator and member)
-    const uniqueTeams = allTeams.filter((team, index, self) =>
-        index === self.findIndex((t) => t._id.equals(team._id)) // Compare ObjectIds
-    );
+    // Single $or query — Mongoose casts both legs, so string/ObjectId
+    // shape differences can't silently drop the member half. Dedupe
+    // by id in case a creator is also listed as a member.
+    const rows = await TeamModel.find({
+      $or: [{ partnerId }, { members: partnerId }],
+    }).populate('members');
+    const plain = rows.map((r) => r.toObject());
+    const seen = new Set();
+    const uniqueTeams = plain.filter((team) => {
+      const key = String(team._id);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    await attachOwners(uniqueTeams);
 
     res.status(200).json({
       message: 'Teams retrieved successfully!',
@@ -120,7 +149,6 @@ export const getTeamsByCreatorOrPartner = async (req, res) => {
     res.status(500).json({
       message: 'Error retrieving teams',
       error: error.message,
-      success: false
     });
   }
 };
@@ -130,9 +158,9 @@ export const getTeamsByCreatorOrPartner = async (req, res) => {
 export const getTeamBy = async (req, res) => {
     try {  
         const { id } = req.params;    
-      
-        // Find teams objects for the partner 
+        // Find teams objects for the partner  
         const team = await TeamModel.findById(id).populate('members'); // Populate members;  
+
         if (!team) {  
             return res.status(404).json({ 
                 message: 'Team not found',
@@ -140,9 +168,12 @@ export const getTeamBy = async (req, res) => {
             });  
         }
 
+        const plain = team.toObject();
+        await attachOwners(plain);
+
         res.status(200).json({  
-            message: 'Team retrieved successfully!',  
-            data: team,
+            message: 'Team retrieved successfully!',
+            data: plain,
             success: true
         });
 
@@ -155,36 +186,79 @@ export const getTeamBy = async (req, res) => {
     }  
 }
 
-// delete a team by partner
+// delete a team by partner — owner only (requesterId required).
 export const deleteTeamBy = async (req, res) => {
     try {  
-        const { id } = req.params;  
-        
-      // Here we delete the survey entry  
-      await TeamModel.findByIdAndDelete(id);  
+        const { id } = req.params;
+        const requesterId = req.query.requesterId ?? req.body?.requesterId;
 
-      res.status(200).json({  
-          message: 'Team deleted successfully!',  
-          success: true
-      });  
+        if (!requesterId) {
+            return res.status(400).json({
+                message: 'requesterId is required',
+                success: false
+            });
+        }
+
+        const team = await TeamModel.findById(id);
+        if (!team) {
+            return res.status(404).json({
+                message: 'Team not found',
+                success: false
+            });
+        }
+        if (String(team.partnerId) !== String(requesterId)) {
+            return res.status(403).json({
+                message: 'Only the team owner can delete this team',
+                success: false
+            });
+        }
+
+        await TeamModel.findByIdAndDelete(id);
+
+        res.status(200).json({  
+            message: 'Team deleted successfully!',
+            success: true
+        });  
 
     } catch (error) {  
         res.status(500).json({  
-            message: 'Error retrieving SMS and transactions',  
+            message: 'Error retrieving SMS and transactions',
             error: error.message, 
-            success: false 
+            success: false
         });  
-    }  
+    } 
 }
 
 
-// delete a team member
+// delete a team member — owner may remove anyone; a member may remove self (leave).
 export const deleteTeamMember = async (req, res) => {
     try {
         const { teamId, memberId } = req.params; // Get both teamId and memberId
+        const requesterId = req.query.requesterId ?? req.body?.requesterId;
 
-        //console.log(teamId)
-        //console.log(memberId)
+        if (!requesterId) {
+            return res.status(400).json({
+                message: 'requesterId is required.',
+                success: false
+            });
+        }
+
+        // Owner may remove anyone; a member may remove only themselves (leave).
+        const team = await TeamModel.findById(teamId).select('partnerId');
+        if (!team) {
+            return res.status(404).json({
+                message: 'Team not found',
+                success: false
+            });
+        }
+        const isOwner = String(team.partnerId) === String(requesterId);
+        const isSelf = String(memberId) === String(requesterId);
+        if (!isOwner && !isSelf) {
+            return res.status(403).json({
+                message: 'Only the team owner can remove other members.',
+                success: false
+            });
+        }
 
         // Find the team and update its members (using $pull)
         const updatedTeam = await TeamModel.findByIdAndUpdate(
@@ -229,6 +303,21 @@ export const updateTeamBy = async (req, res) => {
        // console.log(req.body)
         const { temaId, partnerId, teamPurpose, description, teamName} = req.body;  
 
+        // Owner-only: partnerId carries the editor's id — refuse anyone else.
+        const existing = await TeamModel.findById(temaId).select('partnerId');
+        if (!existing) {
+            return res.status(404).json({
+                message: 'Team not found',
+                success: false
+            });
+        }
+        if (!partnerId || String(existing.partnerId) !== String(partnerId)) {
+            return res.status(403).json({
+                message: 'Only the team owner can edit this team',
+                success: false
+            });
+        }
+
         // Create an object with only the fields you want to update  
         const updateData = { teamName, description, teamPurpose };  
 
@@ -256,9 +345,9 @@ export const updateTeamBy = async (req, res) => {
 }
 
 
-// add team member
+// add team member — owner only (requesterId required).
 export const addTeamMember = async (req, res) => {
-    const { teamMemberObject, teamId } = req.body;
+    const { teamMemberObject, teamId, requesterId } = req.body;
   
     //console.log(teamMemberObject);
     //console.log(teamId);
@@ -288,9 +377,30 @@ export const addTeamMember = async (req, res) => {
             success: false
         });
       }
+
+      if (!requesterId) {
+        return res.status(400).json({
+            message: "requesterId is required.",
+            success: false
+        });
+      }
+      if (String(team.partnerId) !== String(requesterId)) {
+        return res.status(403).json({
+            message: "Only the team owner can add members.",
+            success: false
+        });
+      }
   
       // 2. Extract partner IDs (handling _id or id) and filter out duplicates
-      const partnerIds = teamMemberObject.map(partner => partner._id || partner.id).filter(partnerId => !team.members.includes(partnerId));
+      // (string-compared — raw ObjectId inclusion checks miss string ids).
+      const known = new Set((team.members ?? []).map((m) => String(m)));
+      const partnerIds = [...new Set(
+        (teamMemberObject ?? [])
+          .map((partner) => partner?._id ?? partner?.id)
+          .filter(Boolean)
+          .map(String)
+          .filter((id) => !known.has(id)),
+      )];
   
       if (partnerIds.length === 0) {
           return res.status(200).json({ 
