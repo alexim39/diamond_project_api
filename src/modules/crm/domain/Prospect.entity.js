@@ -75,6 +75,7 @@ export const createProspectEntity = (input) => {
 
 export const COMMUNICATION_TYPES = ['call', 'email', 'text', 'zoom', 'whatsapp'];
 export const INTEREST_LEVELS = ['hot', 'warm', 'cold'];
+export const COMMUNICATION_OUTCOMES = ['Connected', 'No answer', 'Booked session', 'Follow-up set', 'Closed-lost'];
 
 /** Value Object: a single communication log entry. */
 export const createCommunicationEntity = (input) => {
@@ -98,6 +99,16 @@ export const createCommunicationEntity = (input) => {
     duration,
     description: text(input.description, 'description', { min: 3, max: 5000 }),
     followUpAction: input.followUpAction === undefined ? 'To be determined' : String(input.followUpAction).slice(0, 500),
+    followUpDate: optDate(input.followUpDate, 'followUpDate'),
+    ...(COMMUNICATION_OUTCOMES.includes(input.outcome) ? { outcome: input.outcome } : {}),
+    // Author attribution (owner vs upline support) — free-form passthrough,
+    // trimmed and bounded; absent on legacy entries and old clients.
+    ...(input.createdBy !== undefined && input.createdBy !== null && String(input.createdBy).trim() !== ''
+      ? { createdBy: String(input.createdBy).trim().slice(0, 40) }
+      : {}),
+    ...(input.createdByName !== undefined && input.createdByName !== null && String(input.createdByName).trim() !== ''
+      ? { createdByName: String(input.createdByName).trim().slice(0, 120) }
+      : {}),
     topicsDiscussed: topics,
     documentsShared: Array.isArray(input.documentsShared) ? input.documentsShared.map(String) : [],
     status: input.status === 'Closed' ? 'Closed' : 'Open',

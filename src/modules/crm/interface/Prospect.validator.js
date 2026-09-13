@@ -34,6 +34,13 @@ export const UpdateProspectSchema = z.object({
   // NOTE: legacy read `body._prospectSourceid` (always undefined and wiped
   // the field). Correct key is `prospectSource`; the old key is ignored.
   prospectSource: z.string().trim().min(2).max(120).optional(),
+  // Contact-list enrichment — same vocab as create, so edits to relationship
+  // / priority / best-time / consent / notes persist instead of being stripped.
+  relationship: z.enum(RELATIONSHIP_TAGS).optional(),
+  priority: z.enum(CONTACT_PRIORITIES).optional(),
+  bestTimeToCall: z.string().trim().max(120).optional(),
+  consentToContact: z.boolean().optional(),
+  notes: z.string().trim().max(2000).optional(),
 });
 
 export const UpdateStatusSchema = z.object({
@@ -54,6 +61,13 @@ export const LogCommunicationSchema = z.object({
   duration: z.coerce.number().int().min(0).max(100000).optional().default(0),
   description: z.string().trim().min(3).max(5000),
   followUpAction: z.string().max(500).optional(),
+  outcome: z.enum(['Connected', 'No answer', 'Booked session', 'Follow-up set', 'Closed-lost']).optional(),
+  followUpDate: z.coerce.date().optional(),
+  // Author attribution (owner vs upline support) — plain strings on purpose:
+  // a strict ObjectId check here would 400 legacy callers, so anything
+  // unexpected is trimmed/bounded server-side instead of rejected.
+  createdBy: z.string().trim().max(40).optional(),
+  createdByName: z.string().trim().max(120).optional(),
   topicsDiscussed: z.union([z.array(z.string()), z.string()]).optional(),
   documentsShared: z.array(z.string()).optional(),
   status: z.enum(['Open', 'Closed']).optional(),

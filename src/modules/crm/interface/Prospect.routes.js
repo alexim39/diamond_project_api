@@ -19,6 +19,7 @@ import {
 import { MongoProspectRepository, MongoPartnerLookup, MongoReservationCodes } from '../infrastructure/Prospect.mongo.repository.js';
 import { MongoCampaignLookup } from '../../marketing/infrastructure/Marketing.mongo.repository.js';
 import { ConvertProspectToPartnerUseCase } from '../application/Prospect.convert.js';
+import { domainEvents } from '../../../shared/events/DomainEvents.js';
 
 /**
  * Manual wiring — explicit for onboarding; pass fakes in tests.
@@ -49,7 +50,8 @@ export const buildProspectRouter = (deps = {}) => {
     stuck: new GetStuckProspectsUseCase({ prospects }),
     convert: new ConvertProspectToPartnerUseCase({ prospects, reservations }),
     contactListMine: new GetMyContactListUseCase({ prospects }),
-    contactListSubmit: deps.contactListSubmit ?? new SubmitContactListUseCase({ prospects, network }),
+    contactListSubmit: deps.contactListSubmit
+      ?? new SubmitContactListUseCase({ prospects, network, events: deps.events ?? domainEvents }),
     contactListDownline: new ListDownlineContactListsUseCase({ prospects, network }),
   });
 

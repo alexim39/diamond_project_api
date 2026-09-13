@@ -1,6 +1,35 @@
+import mongoose from 'mongoose';
 import { ProspectModel, PartnersModel, ReservationCodeModel } from './Prospect.models.js';
 import { ProspectMapper } from './Prospect.mapper.js';
 import { normalizePhone } from '../domain/Prospect.entity.js';
+
+/**
+ * Aggregations do NOT auto-cast strings to ObjectIds (unlike `find`).
+ * Prospects store `partnerId` as ObjectId, but callers pass session strings —
+ * matching a raw string against ObjectIds returns zero rows, which is why
+ * submitted lists saved fine yet the downline page stayed empty.
+ * Match both forms so ObjectId rows and any legacy string rows all hit.
+ */
+const objectIdOrNull = (value) => {
+  try {
+    const s = String(value ?? '').trim();
+    if (!/^[a-fA-F0-9]{24}$/.test(s)) return null;
+    return new mongoose.Types.ObjectId(s);
+  } catch {
+    return null;
+  }
+};
+
+const matchPartnerIds = (ids) => {
+  const list = (Array.isArray(ids) ? ids : [ids]).map((v) => String(v ?? '').trim()).filter(Boolean);
+  const forms = [];
+  for (const s of list) {
+    forms.push(s);
+    const oid = objectIdOrNull(s);
+    if (oid) forms.push(oid);
+  }
+  return [...new Set(forms)];
+};
 
 /** Mongo implementation of the crm repository contracts. Reads use `.lean()`. */
 export class MongoProspectRepository {
@@ -148,7 +177,7 @@ export class MongoProspectRepository {
   /** Submitted batches with per-stage progress, newest batch first. */
   async submittedBatches(partnerId) {
     const rows = await ProspectModel.aggregate([
-      { $match: { partnerId, listSubmitted: true } },
+      { $match: { partnerId: { $in: matchPartnerIds(partnerId) }, listSubmitted: true } },
       {
         $group: {
           _id: '$listBatch',
@@ -190,7 +219,7 @@ export class MongoProspectRepository {
   async submittedContacts(partnerIds, limit = 500) {
     if (partnerIds.length === 0) return [];
     const lim = Math.min(Math.max(Number(limit) || 500, 1), 1000);
-    const docs = await ProspectModel.find({ partnerId: { $in: partnerIds.map(String) }, listSubmitted: true })
+    const docs = await ProspectModel.find({ partnerId: { $in: matchPartnerIds(partnerIds) }, listSubmitted: true })
       .select('partnerId prospectName prospectSurname prospectPhone relationship priority bestTimeToCall consentToContact listBatch status createdAt')
       .sort({ createdAt: 1 })
       .limit(lim)
@@ -202,7 +231,7 @@ export class MongoProspectRepository {
   async downlineSubmittedBatches(partnerIds) {
     if (partnerIds.length === 0) return [];
     const rows = await ProspectModel.aggregate([
-      { $match: { partnerId: { $in: partnerIds.map(String) }, listSubmitted: true } },
+      { $match: { partnerId: { $in: matchPartnerIds(partnerIds) }, listSubmitted: true } },
       {
         $group: {
           _id: { partnerId: '$partnerId', batch: '$listBatch' },

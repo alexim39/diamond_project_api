@@ -40,6 +40,24 @@ export const CommunicationSchema = new mongoose.Schema(
         enum: ['hot', 'warm', 'cold'],
         default: 'warm',
     },
+    // Author attribution — who logged this touch (owner vs supporting upline).
+    // Absent on legacy entries; optional so old clients keep working.
+    createdBy: {
+        type: String,
+    },
+    createdByName: {
+        type: String,
+    },
+    // Structured outcome — countable (Connected / No answer / Booked session /
+    // Follow-up set / Closed-lost). Absent on legacy entries.
+    outcome: {
+        type: String,
+        enum: ['Connected', 'No answer', 'Booked session', 'Follow-up set', 'Closed-lost'],
+    },
+    // Committed callback date — drives overdue nudges. Absent when none set.
+    followUpDate: {
+        type: Date,
+    },
     status: {
         type: String,
         default: 'Open', 

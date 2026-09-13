@@ -6,7 +6,7 @@
  */
 
 /** Minimum unsubmitted contacts before a list can go to the upline. */
-export const MIN_CONTACTS = 10;
+export const MIN_CONTACTS = 1;
 
 /** Stages that count as "worked" (anything past a fresh New row). */
 export const isWorkedStage = (stage) => String(stage ?? 'New') !== 'New';
