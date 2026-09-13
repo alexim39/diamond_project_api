@@ -27,6 +27,7 @@
  */
 const LEGACY_DROP = [
   { collection: 'prospects', indexName: 'prospectPhone_1' },
+  { collection: 'prospects', indexName: 'prospectEmail_1' },
 ];
 
 export const INDEXES = [
@@ -85,15 +86,15 @@ export async function ensureIndexes(mongoose, { collections = INDEXES } = {}) {
       }
     }
   }
-  // Belt-and-braces: drop any remaining unique {prospectPhone:1} index
-  // that survived a rename or manual creation (Atlas, Compass, etc.).
+  // Belt-and-braces: drop any remaining unique {prospectPhone:1} or
+  // {prospectEmail:1} that survived a rename or manual creation.
   try {
     const idxs = await db.collection('prospects').indexes();
     for (const idx of idxs) {
       const keys = idx.key ?? {};
-      const isPhoneOnlyUnique = Object.keys(keys).length === 1 && keys.prospectPhone === 1;
-      const isLegacyGlobal = isPhoneOnlyUnique && idx.unique === true;
-      if (isLegacyGlobal) {
+      const isPhoneOnlyUnique = Object.keys(keys).length === 1 && keys.prospectPhone === 1 && idx.unique === true;
+      const isEmailOnlyUnique = Object.keys(keys).length === 1 && keys.prospectEmail === 1 && idx.unique === true;
+      if (isPhoneOnlyUnique || isEmailOnlyUnique) {
         try {
           await db.collection('prospects').dropIndex(idx.name);
           created.push(`prospects:dropped:${idx.name}`);
