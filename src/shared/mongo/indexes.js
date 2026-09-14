@@ -15,7 +15,9 @@
  *   leg (partial — legacy unkeyed rows excluded), title/body text leg.
  * - notification-preferences (N5): digest-subscriber sweep leg.
  * - partners.status+_id (N2/N3): active-partner job sweeps.
- * - partners.username (N4): @mention handle resolution.
+ * - partners.username: covered by the schema's UNIQUE username_1 (do NOT
+ *   re-request it here — same auto-name + different spec = every-boot
+ *   IndexOptionsConflict). The unique leg serves @mention lookups best.
  * - progressions confirmedBy legs: responsiveness signal (own decisions).
  * Read-state TTL + request/report indexes already exist — untouched.
  */
@@ -57,7 +59,6 @@ export const INDEXES = [
   { collection: 'stored-notifications', keys: { title: 'text', body: 'text' }, options: {} },
   { collection: 'notification-preferences', keys: { emailDigest: 1, partnerId: 1 }, options: {} },
   { collection: 'partners', keys: { status: 1, _id: 1 }, options: {} },
-  { collection: 'partners', keys: { username: 1 }, options: {} },
   { collection: 'ora-conversations', keys: { partnerId: 1, updatedAt: -1 }, options: {} },
   { collection: 'reservation-codes', keys: { partnerId: 1, createdAt: -1 }, options: {} },
   { collection: 'progressions', keys: { 'ipo.confirmedBy': 1, 'ipo.confirmedAt': 1 }, options: {} },
@@ -67,6 +68,21 @@ export const INDEXES = [
   { collection: 'events', keys: { authorId: 1, startsAt: -1 }, options: {} },
   { collection: 'eventrsvps', keys: { eventId: 1 }, options: {} },
 ];
+
+/**
+ * One retry for transient Atlas network blips (pool cleared, monitor
+ * closed, topology churn on free/shared tiers). Deterministic errors
+ * (conflicts, bad specs) never match and still fail fast on attempt one.
+ */
+const transientRe = /pool.*cleared|monitor.*closed|topology.*closed|connection.*closed|ECONNRESET|ETIMEDOUT/i;
+const attempt = async (fn) => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (transientRe.test(error?.message ?? '')) return await fn();
+    throw error;
+  }
+};
 
 /**
  * @param {import('mongoose').Mongoose} mongoose connected instance
@@ -79,7 +95,7 @@ export async function ensureIndexes(mongoose, { collections = INDEXES } = {}) {
   if (!db) throw new Error('ensureIndexes requires a connected mongoose instance');
   for (const { collection, indexName } of LEGACY_DROP) {
     try {
-      await db.collection(collection).dropIndex(indexName);
+      await attempt(() => db.collection(collection).dropIndex(indexName));
       created.push(`${collection}:dropped:${indexName}`);
     } catch (error) {
       if (!/index not found/i.test(error?.message ?? '')) {
@@ -100,7 +116,7 @@ export async function ensureIndexes(mongoose, { collections = INDEXES } = {}) {
         const isBookingUsernameUnique = coll === 'bookings' && Object.keys(keys).length === 1 && keys.username === 1 && idx.unique === true;
         if (isProspectPhoneUnique || isProspectEmailUnique || isBookingUsernameUnique) {
           try {
-            await db.collection(coll).dropIndex(idx.name);
+            await attempt(() => db.collection(coll).dropIndex(idx.name));
             created.push(`${coll}:dropped:${idx.name}`);
           } catch (error) {
             failed.push({ index: `${coll}:${idx.name}`, error: error?.message ?? String(error) });
@@ -112,7 +128,7 @@ export async function ensureIndexes(mongoose, { collections = INDEXES } = {}) {
   for (const { collection, keys, options } of collections) {
     const name = `${collection}:${JSON.stringify(keys)}`;
     try {
-      await db.collection(collection).createIndex(keys, options);
+      await attempt(() => db.collection(collection).createIndex(keys, options));
       created.push(name);
     } catch (error) {
       failed.push({ index: name, error: error?.message ?? String(error) });
