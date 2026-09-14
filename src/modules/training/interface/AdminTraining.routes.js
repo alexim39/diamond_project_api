@@ -15,7 +15,7 @@ const QuizQuestionSchema = z.object({
   answer: z.number().int().min(0),
 }).refine((o) => o.answer < o.options.length, { message: 'Answer index out of range', path: ['answer'] });
 
-const QuizSchema = z.array(QuizQuestionSchema).min(1).max(4);
+const QuizSchema = z.array(QuizQuestionSchema).min(1).max(15);
 
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
 export const buildAdminTrainingRouter = (deps = {}) => {
