@@ -1,4 +1,4 @@
-import { catalogSummaries, courseProgress, getCourse, getLesson } from '../domain/Training.catalog.js';
+import { catalogSummaries, courseProgress, getCourse, getCourseWithQuiz, getLesson, getLessonWithQuiz } from '../domain/Training.catalog.js';
 
 /** Online IPO / QSG / SMO / Leadership — completion feeds the ladder. */
 export class ListCoursesUseCase {
@@ -29,7 +29,7 @@ export class GetCourseUseCase {
   }
 
   async execute({ partnerId, courseId }) {
-    const course = getCourse(courseId);
+    const course = await getCourseWithQuiz(courseId, this.training);
     const row = await this.training.findByPartner(partnerId, courseId);
     return {
       ...course,
@@ -45,8 +45,18 @@ export class CompleteLessonUseCase {
     Object.assign(this, { training, progress, recognition, network });
   }
 
-  async execute({ partnerId, courseId, lessonId }) {
-    const { course } = getLesson(courseId, lessonId); // throws on unknown ids
+  async execute({ partnerId, courseId, lessonId, answers }) {
+    const { course, lesson } = await getLessonWithQuiz(courseId, lessonId, this.training); // throws on unknown ids
+    // Quiz gate: when a lesson carries questions, all answers must match.
+    // Passing length check + every index correct prevents click-through certs.
+    const quiz = lesson.quiz ?? [];
+    if (quiz.length > 0) {
+      if (!Array.isArray(answers) || answers.length !== quiz.length) {
+        throw new (await import('../../../shared/domain/AppError.js')).ValidationException('Answer every quiz question');
+      }
+      const wrong = quiz.some((q, i) => Number(answers[i]) !== q.answer);
+      if (wrong) throw new (await import('../../../shared/domain/AppError.js')).ValidationException('One or more answers are incorrect — try again');
+    }
     const existing = await this.training.findByPartner(partnerId, courseId);
     const alreadyCertified = !!existing?.certificateAt;
     const next = courseProgress(course, [...(existing?.completedLessons ?? []), lessonId]);

@@ -14,6 +14,8 @@ progressSchema.index({ partnerId: 1, courseId: 1 }, { unique: true });
 export const TrainingProgressModel =
   mongoose.models['Training-progress'] ?? mongoose.model('Training-progress', progressSchema);
 
+export { TrainingQuizModel } from './TrainingQuiz.mongo.model.js';
+
 const oid = (v) => String(v);
 const shaped = (o) => (o ? { ...o, id: oid(o._id), partnerId: oid(o.partnerId) } : null);
 
@@ -38,5 +40,28 @@ export class MongoTrainingStore {
       { new: true, upsert: true },
     ).lean();
     return shaped(row);
+  }
+
+  // Quiz overrides (admin-owned) — one doc per lesson, merged over the code catalog.
+  async getQuiz(courseId, lessonId) {
+    const { TrainingQuizModel } = await import('./TrainingQuiz.mongo.model.js');
+    const doc = await TrainingQuizModel.findOne({ courseId, lessonId }).lean();
+    return doc?.quiz ?? null;
+  }
+
+  async listQuizzes() {
+    const { TrainingQuizModel } = await import('./TrainingQuiz.mongo.model.js');
+    const docs = await TrainingQuizModel.find({}).lean();
+    return docs.map((d) => ({ courseId: d.courseId, lessonId: d.lessonId, quiz: d.quiz }));
+  }
+
+  async upsertQuiz(courseId, lessonId, quiz) {
+    const { TrainingQuizModel } = await import('./TrainingQuiz.mongo.model.js');
+    const doc = await TrainingQuizModel.findOneAndUpdate(
+      { courseId, lessonId },
+      { $set: { quiz } },
+      { new: true, upsert: true },
+    ).lean();
+    return { courseId: doc.courseId, lessonId: doc.lessonId, quiz: doc.quiz };
   }
 }

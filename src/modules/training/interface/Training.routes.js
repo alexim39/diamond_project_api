@@ -6,6 +6,8 @@ import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
   CompleteLessonUseCase, GetCourseUseCase, ListCoursesUseCase, MyCertificatesUseCase,
 } from '../application/Training.usecases.js';
+import { ListPathsUseCase } from '../application/Training.paths.usecase.js';
+import { ReadinessUseCase } from '../application/Training.readiness.usecase.js';
 import { MongoTrainingStore } from '../infrastructure/Training.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -28,9 +30,21 @@ export const buildTrainingRouter = (deps = {}) => {
   const detail = new GetCourseUseCase({ training });
   const complete = new CompleteLessonUseCase({ training, progress, recognition, network });
   const certs = new MyCertificatesUseCase({ training });
+  const paths = new ListPathsUseCase({ progress: deps.progress ?? progress, training });
+  const readiness = new ReadinessUseCase({ progression: progress });
 
   const router = express.Router();
   router.use(requireAuth);
+
+  router.get('/paths', asyncHandler(async (req, res) => {
+    const data = await paths.execute({ partnerId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Learning paths retrieved successfully', data, success: true });
+  }));
+
+  router.get('/readiness', asyncHandler(async (req, res) => {
+    const data = await readiness.execute({ partnerId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Promotion readiness retrieved successfully', data, success: true });
+  }));
 
   router.get('/courses', asyncHandler(async (req, res) => {
     const data = await list.execute({ partnerId: req.auth?.partnerId });
@@ -43,9 +57,10 @@ export const buildTrainingRouter = (deps = {}) => {
     res.status(200).json({ message: 'Course retrieved successfully', data, success: true });
   }));
 
-  router.post('/courses/:courseId/lessons/:lessonId/complete', validate({ params: LessonParam }), asyncHandler(async (req, res) => {
+  router.post('/courses/:courseId/lessons/:lessonId/complete', validate({ params: LessonParam, body: z.object({ answers: z.array(z.number().int().min(0).max(10)).optional() }) }), asyncHandler(async (req, res) => {
     const params = req.validated?.params ?? req.params;
-    const data = await complete.execute({ partnerId: req.auth?.partnerId, courseId: params.courseId, lessonId: params.lessonId });
+    const body = req.validated?.body ?? req.body;
+    const data = await complete.execute({ partnerId: req.auth?.partnerId, courseId: params.courseId, lessonId: params.lessonId, answers: body.answers });
     res.status(200).json({ message: 'Lesson completed successfully', data, success: true });
   }));
 
