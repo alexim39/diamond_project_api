@@ -30,15 +30,18 @@ export const flightWindow = (campaign, now, days) => {
  * @param {object} campaign legacy campaign doc (lean)
  * @param {{prospects: number, conversions: number}} counts
  * @param {'exact' | 'estimated'} attribution
+ * @param {{outreachSpend?: number}} extra additive sms spend for the window
  */
-export const buildCampaignRoi = (campaign, { prospects, conversions }, attribution) => {
+export const buildCampaignRoi = (campaign, { prospects, conversions }, attribution, extra = {}) => {
   const budget = Number(campaign.budget?.budgetAmount ?? 0);
+  const outreachSpend = Math.round(Number(extra.outreachSpend ?? 0) * 100) / 100;
   const rate = prospects > 0 ? (conversions / prospects) * 100 : null;
   return {
     id: String(campaign._id ?? campaign.id),
     name: campaign.campaignName ?? 'Untitled campaign',
     visits: campaign.visits ?? 0,
     budget: r2(budget),
+    outreachSpend,
     windowProspects: prospects,
     windowConversions: conversions,
     conversionRate: rate === null ? null : r2(rate),

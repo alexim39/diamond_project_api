@@ -31,6 +31,26 @@ const ParterSMSSchema = mongoose.Schema(
         status: {  
             type: String,  
             required: true  
+        },
+        // Optional campaign attribution for ROI (outreach slice).
+        campaignId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Campaign',
+            default: null,
+            index: true,
+            sparse: true,
+        },
+        // Wallet cost of this send (mirrors its transaction amount).
+        cost: {
+            type: Number,
+            default: 0,
+        },
+        // Provider delivery reports keyed by per-recipient reference
+        // (`<transactionId>:<index>`). Additive — legacy rows simply lack it.
+        delivery: {
+            type: Map,
+            of: String,
+            default: {},
         }  
     },  
     {  

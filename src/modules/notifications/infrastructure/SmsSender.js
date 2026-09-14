@@ -2,7 +2,8 @@ import axios from 'axios';
 import { normalizePhone, smsBody } from '../domain/Delivery.js';
 
 /**
- * SMS sender port: `send({to, title, body})`.
+ * SMS sender port: `send({to, title, body, extra?})` (`extra` merges over
+ * configured static fields — e.g. per-send customer references).
  * Production shape is provider-agnostic on purpose — point
  * SMS_HTTP_URL at any JSON-accepting gateway (Termii-style bodies
  * map via SMS_HTTP_TO_FIELD/MESSAGE_FIELD/EXTRA, see .env.example).
@@ -23,7 +24,7 @@ export class HttpSmsSender extends SmsSender {
     this.post = config.post ?? ((url, data, opts) => axios({ method: this.config.method, url, data, ...opts }));
   }
 
-  async send({ to, title, body }) {
+  async send({ to, title, body, extra = {} }) {
     const phone = normalizePhone(to);
     if (!phone) throw new Error('Invalid recipient phone');
     if (!this.config.url) throw new Error('SMS_HTTP_URL is not configured');
@@ -32,6 +33,7 @@ export class HttpSmsSender extends SmsSender {
       [this.config.messageField]: smsBody(title, body),
       from: this.config.senderId,
       ...this.config.extra,
+      ...extra,
     };
     const res = await this.post(this.config.url, payload, {
       headers: { 'Content-Type': 'application/json', ...this.config.headers },

@@ -5,6 +5,7 @@ import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { GetCampaignRoiUseCase } from '../application/Marketing.usecases.js';
 import { MongoMarketingRepository } from '../infrastructure/Marketing.mongo.repository.js';
+import { MongoOutreachSpend } from '../../outreach/infrastructure/Outreach.store.js';
 
 const RoiQuery = z.object({
   days: z.coerce.number().int().min(7).max(365).optional().default(30),
@@ -13,7 +14,8 @@ const RoiQuery = z.object({
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
 export const buildMarketingRouter = (deps = {}) => {
   const marketing = deps.marketing ?? new MongoMarketingRepository();
-  const roi = new GetCampaignRoiUseCase({ marketing });
+  const outreach = deps.outreach ?? new MongoOutreachSpend();
+  const roi = new GetCampaignRoiUseCase({ marketing, outreach });
 
   const router = express.Router();
   // Session identity scopes every read — no :partnerId to tamper with.

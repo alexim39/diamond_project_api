@@ -43,6 +43,7 @@ import EventsRouter from './src/modules/events/index.js';
 import OraRouter from './src/modules/ora/index.js';
 import ReservationsRouter from './src/modules/reservations/index.js';
 import SettingsV1Router from './src/modules/settings/index.js';
+import OutreachRouter from './src/modules/outreach/index.js';
 import { subscribeActivation } from './src/modules/activation/index.js';
 import { subscribePromotionFanout } from './src/modules/notifications/application/PromotionFanout.js';
 import { subscribeTrainingFanout } from './src/modules/notifications/application/TrainingFanout.js';
@@ -131,6 +132,7 @@ app.use('/v1/events', EventsRouter);
 app.use('/v1/ora', OraRouter);
 app.use('/v1/reservations', ReservationsRouter);
 app.use('/v1/settings', SettingsV1Router);
+app.use('/v1/outreach', OutreachRouter);
 
 
 
