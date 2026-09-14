@@ -517,9 +517,13 @@ export class ListPendingNominationsUseCase {
     Object.assign(this, { progress, network });
   }
 
-  async execute({ requesterId, limit = 100 }) {
-    const { ids } = await collectDownlineIds(this.network, requesterId);
-    const rows = await this.progress.listPendingNominations(ids.slice(0, 2000), limit);
+  async execute({ requesterId, limit = 100, scopeAll = false }) {
+    const rows = scopeAll
+      ? await this.progress.listPendingNominations(null, limit)
+      : await (async () => {
+        const { ids } = await collectDownlineIds(this.network, requesterId);
+        return this.progress.listPendingNominations(ids.slice(0, 2000), limit);
+      })();
     if (rows.length === 0) return { items: [], total: 0 };
     const nodes = await this.network.findNodesByIds(rows.map((r) => r.partnerId));
     const labels = Object.fromEntries(nodes.map((nd) => [String(nd.id), {
@@ -566,7 +570,7 @@ export class GetOversightUseCase {
     }
     const [dist, nominations] = await Promise.all([
       this.distribution.execute({ partnerId: requesterId }),
-      this.pending.execute({ requesterId }),
+      this.pending.execute({ requesterId, scopeAll: isAdmin }),
     ]);
     return {
       level: me.level,
@@ -594,10 +598,20 @@ export class TeamDistributionUseCase {
     const bounded = ids.slice(0, 2000);
     const levels = await this.progress.levelsFor(bounded);
     const dist = Object.fromEntries(LEVELS.map((l) => [l, 0]));
-    for (const lvl of Object.values(levels)) {
-      if (lvl in dist) dist[lvl] += 1;
-      else dist.partner += 1;
+    const byId = levels ?? {};
+    let counted = 0;
+    for (const id of bounded) {
+      const lvl = byId[String(id)];
+      if (lvl !== undefined) {
+        counted += 1;
+        if (lvl in dist) dist[lvl] += 1;
+        else dist.partner += 1;
+      }
     }
+    // Members with no progression row yet are brand-new Partners (the
+    // stored default) — previously they vanished while `total` counted
+    // them, so the bars never summed to the headline.
+    dist.partner += bounded.length - counted;
     dist.prospect = 0;
     return {
       total: bounded.length,

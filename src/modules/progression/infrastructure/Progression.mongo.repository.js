@@ -188,7 +188,9 @@ export class MongoProgressionStore {
     return shaped(row);
   }
 
-  /** IPO stamp per partner: {partnerId: ms|null} (one query). */
+  /** IPO confirmation stamp per partner: {partnerId: ms|null} (one query).
+   * Confirmed-only (matches the ladder gates) — member-marked but
+   * unconfirmed claims do not count. */
   async trainingDates(ids) {
     if (ids.length === 0) return {};
     const rows = await ProgressionModel.find({ partnerId: { $in: ids } })
@@ -196,7 +198,7 @@ export class MongoProgressionStore {
       .lean();
     return Object.fromEntries(rows.map((r) => [
       String(r.partnerId),
-      r.ipo?.done === true && r.ipo?.at ? new Date(r.ipo.at).getTime() : null,
+      r.ipo?.done === true && r.ipo?.confirmedAt ? new Date(r.ipo.confirmedAt).getTime() : null,
     ]));
   }
   /** Stored levels for a bounded id set (distribution reads this). */
@@ -255,8 +257,12 @@ export class MongoProgressionStore {
 
   /** Pending G-nominations within a bounded id set (oversight inbox). */
   async listPendingNominations(partnerIds, limit = 100) {
-    if (partnerIds.length === 0) return [];
-    const rows = await ProgressionModel.find({ partnerId: { $in: partnerIds }, 'nomination.status': 'pending' })
+    // Null ids = org-wide (admin oversight); empty array = nobody.
+    const filter = partnerIds === null
+      ? { 'nomination.status': 'pending' }
+      : { partnerId: { $in: partnerIds }, 'nomination.status': 'pending' };
+    if (partnerIds !== null && partnerIds.length === 0) return [];
+    const rows = await ProgressionModel.find(filter)
       .select('partnerId level nomination updatedAt')
       .sort({ updatedAt: -1 })
       .limit(Math.min(Math.max(Number(limit) || 100, 1), 200))
