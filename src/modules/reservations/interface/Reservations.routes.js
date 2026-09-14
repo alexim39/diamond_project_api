@@ -3,8 +3,9 @@ import { z } from 'zod';
 import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
-import { ListMyReservationsUseCase, RecordReservationUseCase } from '../application/Reservations.usecases.js';
+import { ListMyReservationsUseCase, RecordReservationUseCase, ListReviewQueueUseCase, DecideReservationUseCase } from '../application/Reservations.usecases.js';
 import { MongoReservationStore } from '../infrastructure/Reservations.mongo.repository.js';
+import { requireRole } from '../../identity-access/interface/RequireRole.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 
@@ -21,6 +22,8 @@ export const buildReservationsRouter = (deps = {}) => {
   const reservations = deps.reservations ?? new MongoReservationStore();
   const record = deps.record ?? new RecordReservationUseCase({ reservations });
   const mine = deps.mine ?? new ListMyReservationsUseCase({ reservations });
+  const queue = deps.queue ?? new ListReviewQueueUseCase({ reservations });
+  const decide = deps.decide ?? new DecideReservationUseCase({ reservations });
 
   const router = express.Router();
   // Session identity IS the referrer — no :partnerId to tamper with.
@@ -40,6 +43,26 @@ export const buildReservationsRouter = (deps = {}) => {
     const q = req.validated?.query ?? req.query;
     const data = await mine.execute({ referrerId: req.auth?.partnerId, limit: q?.limit });
     res.status(200).json({ message: 'Reservation codes retrieved successfully', data, success: true });
+  }));
+
+  router.get('/queue', requireRole('admin'), asyncHandler(async (req, res) => {
+    const data = await queue.execute({
+      status: String(req.query.status ?? 'Pending'),
+      limit: req.query.limit,
+      skip: req.query.skip,
+    });
+    res.status(200).json({ message: 'Review queue retrieved successfully', data, success: true });
+  }));
+
+  router.patch('/:id', requireRole('admin'), asyncHandler(async (req, res) => {
+    const data = await decide.execute({
+      reservationId: req.params.id,
+      status: req.body?.status,
+    });
+    if (!data) {
+      return res.status(409).json({ message: 'Only Pending codes can be decided', success: false });
+    }
+    res.status(200).json({ message: `Code ${data.status.toLowerCase()} successfully!`, data, success: true });
   }));
 
   return router;

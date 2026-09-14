@@ -6,6 +6,9 @@ const campaignSchema = mongoose.Schema({
     ageRangeTarget: { type: String, default: 'All' },
     genderTarget: { type: String, default: 'All' },
     locationTarget: { type: String, default: 'States' }, // Can be 'States', 'Cities', or 'Countries' (adjust as needed)
+    // Explicit targets backing the scope above (states or countries).
+    // Absent on legacy documents — readers must treat missing as unsaid.
+    locationTargets: { type: [String], default: [] },
     educationTarget: { type: String, default: 'All' },
     relationshipTarget: { type: String, default: 'All' },
     industryTarget: { type: String, default: 'All' },
@@ -65,6 +68,9 @@ const campaignSchema = mongoose.Schema({
 }
 );
 
+
+// Admin queue leg (status-filtered, oldest-first).
+campaignSchema.index({ deliveryStatus: 1, createdAt: 1 });
 
 /* Model */
 export const CampaignModel = mongoose.model('Campaign', campaignSchema);

@@ -55,8 +55,13 @@ export class MongoReservationStore {
     return { used: (res.modifiedCount ?? 0) > 0 };
   }
 
-  async listByPartner(partnerId, limit = 50) {
-    const lim = Math.min(Math.max(Number(limit) || 50, 1), 100);
+  async findById(id) {
+    const doc = await ReservationCodeModel.findById(id).lean().catch(() => null);
+    if (!doc) return null;
+    return { ...shaped(doc), status: doc.status, prospectId: doc.prospectId ? oid(doc.prospectId) : null };
+  }
+
+  async listByPartner(partnerId, limit = 50) {    const lim = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const docs = await ReservationCodeModel.find({ partnerId })
       .sort({ createdAt: -1 })
       .limit(lim)
@@ -66,5 +71,37 @@ export class MongoReservationStore {
       status: d.status,
       prospectId: d.prospectId ? oid(d.prospectId) : null,
     }));
+  }
+
+  /** Admin review queue — oldest first (FIFO fairness on held signups). */
+  async listByStatus(status, limit = 50, skip = 0) {
+    const filter = status === 'All' ? {} : { status };
+    const [docs, total] = await Promise.all([
+      ReservationCodeModel.find(filter).sort({ createdAt: 1 }).skip(skip).limit(limit).lean(),
+      ReservationCodeModel.countDocuments(filter),
+    ]);
+    return {
+      items: docs.map((d) => ({
+        ...shaped(d),
+        status: d.status,
+        prospectId: d.prospectId ? oid(d.prospectId) : null,
+      })),
+      total,
+    };
+  }
+
+  /**
+   * Admin decision — Pending → Approved/Rejected only. Anything else is a
+   * no-op null (409 upstream), so double-clicks and replays can't move
+   * money-adjacent state twice.
+   */
+  async decide(reservationId, status) {
+    const doc = await ReservationCodeModel.findOneAndUpdate(
+      { _id: reservationId, status: 'Pending' },
+      { $set: { status } },
+      { new: true },
+    ).lean();
+    if (!doc) return null;
+    return { ...shaped(doc), status: doc.status, prospectId: doc.prospectId ? oid(doc.prospectId) : null };
   }
 }

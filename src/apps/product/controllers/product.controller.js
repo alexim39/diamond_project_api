@@ -2,6 +2,110 @@ import {ProductModel, CartModel} from '../models/product.model.js';
 import { sendEmail } from "../../../services/emailService.js";
 import {TransactionModel} from '../../transaction/models/transaction.model.js';
 import { PartnersModel } from '../../partner/models/partner.model.js';
+import { NotifyUseCase } from '../../../modules/notifications/application/NotificationsCenter.usecases.js';
+import { MongoStoredNotificationStore } from '../../../modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
+
+// Admin queue: every order by status, oldest first (money already debited).
+export const listOrdersForAdmin = async (req, res) => {
+  try {
+    const status = req.query.status ?? 'Pending';
+    if (!['Pending', 'Fulfilled', 'Cancelled'].includes(status) && status !== 'All') {
+      return res.status(400).json({ message: 'Invalid status filter', success: false });
+    }
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+    const skip = Math.max(Number(req.query.skip) || 0, 0);
+    const filter = status === 'All' ? {} : { orderStatus: status };
+    const [rows, total] = await Promise.all([
+      CartModel.find(filter)
+        .populate('products.product', 'name price')
+        .sort({ createdAt: 1 }).skip(skip).limit(limit).lean(),
+      CartModel.countDocuments(filter),
+    ]);
+    const ownerIds = [...new Set(rows.map((r) => String(r.partner)).filter(Boolean))];
+    const owners = ownerIds.length > 0
+      ? await PartnersModel.find({ _id: { $in: ownerIds } }).select('username name surname phone').lean().catch(() => [])
+      : [];
+    const labels = Object.fromEntries((owners ?? []).map((o) => [String(o._id), {
+      username: o.username,
+      name: [o.name, o.surname].filter(Boolean).join(' ') || o.username,
+      phone: o.phone ?? null,
+    }]));
+    res.status(200).json({
+      message: 'Orders retrieved successfully!',
+      data: rows.map((r) => ({ ...r, owner: labels[String(r.partner)] ?? null })),
+      meta: { total, limit, skip },
+      success: true,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving orders', error: error.message, success: false });
+  }
+};
+
+/** Best-effort owner notice — never fails the decision. */
+const notifyBuyer = async (ownerId, { title, body, orderId, status }) => {
+  try {
+    const stored = new MongoStoredNotificationStore();
+    await new NotifyUseCase({ stored }).execute({
+      recipientId: String(ownerId),
+      category: 'commission',
+      priority: 'medium',
+      title,
+      body,
+      icon: 'shopping_bag',
+      link: '/dashboard/products/order-history',
+      key: `order:${orderId}:${status}`,
+    }).catch(() => null);
+  } catch { /* notifications never fail admin actions */ }
+};
+
+// Admin decision: Pending→Fulfilled (ship it) or →Cancelled (full refund —
+export const decideOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body ?? {};
+    if (!['Fulfilled', 'Cancelled'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status', success: false });
+    }
+    const order = await CartModel.findById(id);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found', success: false });
+    }
+    if ((order.orderStatus ?? 'Pending') !== 'Pending') {
+      return res.status(409).json({ message: `Cannot decide a ${order.orderStatus} order`, success: false });
+    }
+    order.orderStatus = status;
+    await order.save();
+
+    if (status === 'Cancelled') {
+      const owner = await PartnersModel.findById(order.partner);
+      if (owner && Number(order.totalCost) > 0) {
+        owner.balance = Number(owner.balance ?? 0) + Number(order.totalCost);
+        await owner.save();
+        await TransactionModel.create({
+          partnerId: owner._id,
+          amount: Number(order.totalCost),
+          status: 'Completed',
+          paymentMethod: 'Order Refund',
+          transactionType: 'Credit',
+          reference: Math.floor(100000000 + Math.random() * 900000000).toString(),
+        });
+      }
+    }
+
+    await notifyBuyer(order.partner, {
+      title: status === 'Fulfilled' ? 'Your order is on its way' : 'Your order was cancelled',
+      body: status === 'Fulfilled'
+        ? `Order worth ₦${Number(order.totalCost).toLocaleString()} has been fulfilled.`
+        : `Your order was cancelled and ₦${Number(order.totalCost).toLocaleString()} was refunded in full.`,
+      orderId: String(order._id),
+      status,
+    });
+
+    res.status(200).json({ message: `Order marked as ${status.toLowerCase()}!`, data: order, success: true });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deciding order', error: error.message, success: false });
+  }
+};
 
 
   

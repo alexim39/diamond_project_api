@@ -65,5 +65,8 @@ const CartSchema = new mongoose.Schema({
     }  
 });  
 
+// Admin queue leg (status-filtered, oldest-first).
+CartSchema.index({ orderStatus: 1, createdAt: 1 });  
+
 /* Model */  
 export const CartModel = mongoose.model('Cart', CartSchema);
