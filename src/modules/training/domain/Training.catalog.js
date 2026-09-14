@@ -6,7 +6,7 @@ import { ValidationException } from '../../../shared/domain/AppError.js';
  * Completing a ladder course auto-checks its progression milestone.
  */
 
-const lesson = (id, title, body, takeaways = [], quiz = []) => ({ id, title, body, takeaways, quiz });
+const lesson = (id, title, body, takeaways = [], quiz = [], videoUrl = null) => ({ id, title, body, takeaways, quiz, videoUrl });
 
 export const COURSES = [
   {
@@ -24,6 +24,7 @@ export const COURSES = [
           { q: 'How do you earn in Diamond Project?', options: ['Salary from the company', 'Selling products and building a team that sells', 'Only by recruiting without selling'], answer: 1 },
           { q: 'What must you be able to explain before recruiting?', options: ['The office layout', 'The compensation plan in 5 minutes', 'Your sponsor’s title'], answer: 1 },
         ],
+        '/courses/ipo/ipo-first-lesson-by-Prof-BB-July-2026.mp4',
       ),
       lesson(
         'ipo-2',
