@@ -103,7 +103,10 @@ export const signup = async (req, res) => {
 // Get current signed in user
 export const getPartner = async (req, res) => {
   try {
-    const token = req.cookies["jwt"];
+    // Cookie primary, Bearer fallback (see requireAuth) — same cross-site story.
+    const header = req.headers?.authorization;
+    const bearer = typeof header === 'string' ? header.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() : null;
+    const token = req.cookies["jwt"] ?? bearer;
     if (!token) {
       return res.status(401).json({ message: "No authentication token provided", success: false });
     }
@@ -160,10 +163,10 @@ export const signin = async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000,
     });
 
-    // Optionally, return user info (excluding password)
-    //const { password: _, ...userObject } = user.toJSON();
-
-    res.status(200).json({ message: "Login successful", success: true });
+    // Bearer fallback in the body (additive): cross-site cookie blocking
+    // can drop the Set-Cookie while login succeeds — the SPA replays the
+    // token as `Authorization: Bearer`. Cookie remains the primary transport.
+    res.status(200).json({ message: "Login successful", success: true, token });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message, success: false });
   }

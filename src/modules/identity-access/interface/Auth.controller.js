@@ -31,7 +31,11 @@ export const makeAuthController = ({
     const { token, user } = await signin.execute(req.validated?.body ?? req.body);
     res.cookie('jwt', token, sessionCookieFlags());
     // Legacy shape preserved; `data` is additive for new clients.
-    res.status(200).json({ message: 'Login successful', success: true, data: { user } });
+    // `token` ships in the body as a fallback transport: cross-site
+    // third-party-cookie blocking can drop the Set-Cookie while the login
+    // itself succeeds — the SPA then replays it as `Authorization: Bearer`
+    // (see requireAuth), so sessions survive without the cookie.
+    res.status(200).json({ message: 'Login successful', success: true, data: { user, token } });
   }),
 
   signout: asyncHandler(async (_req, res) => {
