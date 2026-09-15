@@ -5,6 +5,7 @@ import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
   CompleteLessonUseCase, GetCourseUseCase, ListCoursesUseCase, MyCertificatesUseCase,
+  RecordWatchUseCase, TeamComplianceUseCase,
 } from '../application/Training.usecases.js';
 import { ListPathsUseCase } from '../application/Training.paths.usecase.js';
 import { ReadinessUseCase } from '../application/Training.readiness.usecase.js';
@@ -29,6 +30,8 @@ export const buildTrainingRouter = (deps = {}) => {
   const list = new ListCoursesUseCase({ training });
   const detail = new GetCourseUseCase({ training });
   const complete = new CompleteLessonUseCase({ training, progress, recognition, network });
+  const watch = new RecordWatchUseCase({ training });
+  const compliance = new TeamComplianceUseCase({ training, network });
   const certs = new MyCertificatesUseCase({ training });
   const paths = new ListPathsUseCase({ progress: deps.progress ?? progress, training });
   const readiness = new ReadinessUseCase({ progression: progress });
@@ -62,6 +65,18 @@ export const buildTrainingRouter = (deps = {}) => {
     const body = req.validated?.body ?? req.body;
     const data = await complete.execute({ partnerId: req.auth?.partnerId, courseId: params.courseId, lessonId: params.lessonId, answers: body.answers });
     res.status(200).json({ message: 'Lesson completed successfully', data, success: true });
+  }));
+
+  router.post('/courses/:courseId/lessons/:lessonId/watch', validate({ params: LessonParam, body: z.object({ percent: z.number().min(0).max(100), seconds: z.number().int().min(0).max(86400).optional().default(0) }) }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const data = await watch.execute({ partnerId: req.auth?.partnerId, courseId: params.courseId, lessonId: params.lessonId, percent: body.percent, seconds: body.seconds ?? 0 });
+    res.status(200).json({ message: 'Watch progress recorded', data, success: true });
+  }));
+
+  router.get('/team/compliance', asyncHandler(async (req, res) => {
+    const data = await compliance.execute({ requesterId: req.auth?.partnerId, limit: req.query?.limit });
+    res.status(200).json({ message: 'Team training compliance retrieved successfully', data, success: true });
   }));
 
   router.get('/mine/certificates', asyncHandler(async (req, res) => {

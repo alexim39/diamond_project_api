@@ -6,7 +6,18 @@ import { ValidationException } from '../../../shared/domain/AppError.js';
  * Completing a ladder course auto-checks its progression milestone.
  */
 
-const lesson = (id, title, body, takeaways = [], quiz = [], videoUrl = null) => ({ id, title, body, takeaways, quiz, videoUrl });
+const lesson = (id, title, body, takeaways = [], quiz = [], videoUrl = null, opts = {}) => ({
+  id,
+  title,
+  body,
+  takeaways,
+  quiz,
+  videoUrl,
+  posterUrl: opts.posterUrl ?? null,
+  captionsUrl: opts.captionsUrl ?? null,
+  transcript: opts.transcript ?? null,
+  durationSec: opts.durationSec ?? null,
+});
 
 export const COURSES = [
   {
@@ -25,6 +36,11 @@ export const COURSES = [
           { q: 'What must you be able to explain before recruiting?', options: ['The office layout', 'The compensation plan in 5 minutes', 'Your sponsor’s title'], answer: 1 },
         ],
         '/courses/ipo/ipo-first-lesson-by-Prof-BB-July-2026.mp4',
+        {
+          captionsUrl: '/courses/ipo/ipo-1.vtt',
+          durationSec: 2445,
+          transcript: 'TRANSCRIPT — What Diamond Project is (Prof. BB, July 2026). Diamond Project is a network marketing business: you earn by selling products and by building a team that sells products. There is no salary and no shortcut — income follows value created. Your first job is to understand the compensation plan at a level where you could explain it on a whiteboard in five minutes. Key points: income follows value, not tenure; learn the plan cold before recruiting.',
+        },
       ),
       lesson(
         'ipo-2',
@@ -180,7 +196,7 @@ export const getCourse = (id) => {
   return course;
 };
 
-export const getCourseWithQuiz = async (id, training) => {
+export const getCourseWithQuizFull = async (id, training) => {
   const course = getCourse(id);
   if (!training?.getQuiz) return course;
   const withQuiz = await Promise.all(course.lessons.map(async (l) => {
@@ -190,8 +206,20 @@ export const getCourseWithQuiz = async (id, training) => {
   return { ...course, lessons: withQuiz };
 };
 
+/** Public course payload — quiz answers are stripped (server re-validates on submit). */
+export const getCourseWithQuiz = async (id, training) => {
+  const course = await getCourseWithQuizFull(id, training);
+  return {
+    ...course,
+    lessons: course.lessons.map((l) => ({
+      ...l,
+      quiz: (l.quiz ?? []).map((q) => ({ q: q.q, options: q.options })),
+    })),
+  };
+};
+
 export const getLessonWithQuiz = async (courseId, lessonId, training) => {
-  const course = await getCourseWithQuiz(courseId, training);
+  const course = await getCourseWithQuizFull(courseId, training);
   const lessonEntry = course.lessons.find((l) => l.id === lessonId);
   if (!lessonEntry) throw new ValidationException('Unknown lesson');
   return { course, lesson: lessonEntry };

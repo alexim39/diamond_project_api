@@ -6,6 +6,20 @@ const progressSchema = new mongoose.Schema(
     courseId: { type: String, required: true, index: true },
     completedLessons: { type: [String], default: [] },
     certificateAt: { type: Date, default: null },
+    // Server-side video watch attestation: lessonId -> { percent 0-100, seconds, updatedAt }.
+    // Monotonic ($max on percent/seconds) so heartbeats can't rewind progress.
+    watch: {
+      type: Map,
+      of: new mongoose.Schema(
+        {
+          percent: { type: Number, default: 0 },
+          seconds: { type: Number, default: 0 },
+          updatedAt: { type: Date, default: null },
+        },
+        { _id: false },
+      ),
+      default: {},
+    },
   },
   { timestamps: true },
 );
@@ -42,6 +56,44 @@ export class MongoTrainingStore {
     return shaped(row);
   }
 
+  /** Monotonic watch heartbeat — percent/seconds only move forward. */
+  async recordWatch(partnerId, courseId, lessonId, percent, seconds) {
+    const pct = Math.min(100, Math.max(0, Math.round(Number(percent) || 0)));
+    const sec = Math.max(0, Math.round(Number(seconds) || 0));
+    const row = await TrainingProgressModel.findOneAndUpdate(
+      { partnerId, courseId },
+      {
+        $max: {
+          [`watch.${lessonId}.percent`]: pct,
+          [`watch.${lessonId}.seconds`]: sec,
+        },
+        $set: { [`watch.${lessonId}.updatedAt`]: new Date() },
+      },
+      { new: true, upsert: true },
+    ).lean();
+    const w = row?.watch instanceof Map ? row.watch.get(lessonId) : row?.watch?.[lessonId];
+    return { lessonId, percent: w?.percent ?? pct, seconds: w?.seconds ?? sec, updatedAt: w?.updatedAt ?? null };
+  }
+
+  async getWatch(partnerId, courseId) {
+    const row = await TrainingProgressModel.findOne({ partnerId, courseId }).lean();
+    const watch = row?.watch instanceof Map ? Object.fromEntries(row.watch) : (row?.watch ?? {});
+    return Object.fromEntries(
+      Object.entries(watch).map(([lessonId, w]) => [
+        lessonId,
+        { lessonId, percent: w?.percent ?? 0, seconds: w?.seconds ?? 0, updatedAt: w?.updatedAt ?? null },
+      ]),
+    );
+  }
+
+  /** Bounded bulk fetch for team compliance rollups. */
+  async listForPartners(partnerIds, courseIds = null) {
+    if (!partnerIds?.length) return [];
+    const q = { partnerId: { $in: partnerIds } };
+    if (courseIds?.length) q.courseId = { $in: courseIds };
+    const rows = await TrainingProgressModel.find(q).lean();
+    return rows.map(shaped);
+  }
   // Quiz overrides (admin-owned) — one doc per lesson, merged over the code catalog.
   async getQuiz(courseId, lessonId) {
     const { TrainingQuizModel } = await import('./TrainingQuiz.mongo.model.js');
