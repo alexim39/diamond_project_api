@@ -4,6 +4,7 @@ import { requireAuth } from '../../../shared/http/requireAuth.js';
 import {
   ProspectIdParam, PartnerIdParam, CreateProspectSchema, UpdateProspectSchema,
   UpdateStatusSchema, LogCommunicationSchema, PaginationQuery, CommIdsParam, StuckQuery,
+  ConvertProspectSchema,
 } from './Prospect.validator.js';
 import { makeProspectController } from './Prospect.controller.js';
 import {
@@ -89,7 +90,7 @@ export const buildProspectRouter = (deps = {}) => {
   router.post('/:prospectId/status', validate({ params: ProspectIdParam, body: UpdateStatusSchema }), c.updateStatus);
   router.post('/updateStatus', validate({ body: UpdateStatusSchema }), c.updateStatus);
 
-  router.post('/:prospectId/convert', validate({ params: ProspectIdParam }), c.convert);
+  router.post('/:prospectId/convert', validate({ params: ProspectIdParam, body: ConvertProspectSchema }), c.convert);
 
   router.post('/:prospectId/communications', validate({ params: ProspectIdParam, body: LogCommunicationSchema }), c.logCommunication);
   router.post('/communications', validate({ body: LogCommunicationSchema }), c.logCommunication);

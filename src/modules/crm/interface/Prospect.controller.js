@@ -80,14 +80,15 @@ export const makeProspectController = (uc) => ({
   }),
 
   convert: asyncHandler(async (req, res) => {
-    const body = req.body ?? {};
+    const body = req.validated?.body ?? req.body ?? {};
     const data = await uc.convert.execute({
       prospectId: pid(req),
+      code: typeof body.code === 'string' ? body.code : undefined,
       by: typeof body.by === 'string' ? body.by : undefined,
       byName: typeof body.byName === 'string' ? body.byName : undefined,
     });
     res.status(200).json({
-      message: 'Enrollment code issued. Share it with the prospect to complete signup.',
+      message: 'Reservation code recorded. Share it with the prospect to complete signup.',
       data,
       success: true,
     });
