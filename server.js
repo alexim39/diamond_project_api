@@ -79,6 +79,8 @@ app.use(cors({
     origin: [
         'http://localhost:4200', 
         'http://localhost:4201', 
+        'https://c21fg.online',
+        'https://www.c21fg.online',
         'http://diamondprojectonline.com', 
         'http://partners.diamondprojectonline.com', 
         'https://diamondprojectonline.com', 
