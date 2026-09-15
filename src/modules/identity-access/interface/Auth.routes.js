@@ -20,7 +20,7 @@ export const buildAuthRouter = (deps = {}) => {
   const sessions = deps.sessions ?? new JwtSessionIssuer();
   const tx = deps.tx ?? { runInTransaction };
   const mailer = deps.mailer ?? new PasswordResetMailer();
-  const frontendUrl = deps.frontendUrl ?? process.env.FRONTEND_URL ?? 'https://diamondprojectonline.com';
+  const frontendUrl = deps.frontendUrl ?? process.env.FRONTEND_URL ?? 'https://c21fg.online';
 
   const controller = makeAuthController({
     signup: new SignupUseCase({ partners, reservations, hasher, tx }),

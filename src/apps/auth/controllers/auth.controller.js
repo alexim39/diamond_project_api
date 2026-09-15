@@ -209,7 +209,7 @@ export const requestPasswordReset  = async (req, res) => {
     //await partner.save();
 
     // Create reset URL
-    const resetUrl = `https://diamondprojectonline.com/partner/reset-password?token=${resetToken}`;
+    const resetUrl = `https://c21fg.online/partner/reset-password?token=${resetToken}`;
 
     // Create a Nodemailer transporter
     const transporter = nodemailer.createTransport({

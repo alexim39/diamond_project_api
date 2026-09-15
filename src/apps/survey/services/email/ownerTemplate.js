@@ -43,7 +43,7 @@ export const ownerEmailTemplate = (surveyData) => {
       </table>
 
       <div style="text-align: center; margin: 30px 0;">
-        <a href="https://partners.diamondprojectonline.com/" 
+        <a href="https://c21fg.online/" 
            style="display: inline-block; padding: 12px 24px; background-color: #007BFF; color: #ffffff; text-decoration: none; border-radius: 5px; font-size: 16px;">
           Go to Partners Platform
         </a>
@@ -69,7 +69,7 @@ export const partnerOwnerEmailTemplate = (surveyData) => `
     </header>
     <main style="padding: 20px;">
       <h2>Partner Survey Submission</h2>
-      <p>A partner named <strong>${surveyData.name.toUpperCase()} </strong> with phone number <strong>${surveyData.phoneNumber}</strong> just submitted the survey form from <a href="https://survey.diamondprojectonline.com">Diamond Project Online Survey</a>.</p>
+      <p>A partner named <strong>${surveyData.name.toUpperCase()} </strong> with phone number <strong>${surveyData.phoneNumber}</strong> just submitted the survey form from <a href="https://survey.c21fg.online">Diamond Project Online Survey</a>.</p>
       <p>This is just for your information</p>
 
       <h3>Prospect Contact Details</h3>
@@ -81,7 +81,7 @@ export const partnerOwnerEmailTemplate = (surveyData) => `
 
       <br>
       <div style="text-align: center;">
-        <a href="https://partners.diamondprojectonline.com/" style="padding: 10px 20px; background-color: #007BFF; color: white; text-decoration: none; border-radius: 5px; text-align: center; margin: 1em 0;">Go to Partners Platform</a>
+        <a href="https://c21fg.online/" style="padding: 10px 20px; background-color: #007BFF; color: white; text-decoration: none; border-radius: 5px; text-align: center; margin: 1em 0;">Go to Partners Platform</a>
       </div>
     </main>
     <br>

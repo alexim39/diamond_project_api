@@ -50,7 +50,7 @@ export const env = {
     return {
       publicKey: process.env.VAPID_PUBLIC_KEY || '',
       privateKey: process.env.VAPID_PRIVATE_KEY || '',
-      subject: process.env.VAPID_SUBJECT || 'mailto:noreply@diamondprojectonline.com',
+      subject: process.env.VAPID_SUBJECT || 'mailto:noreply@c21fg.online',
       enabled: Boolean(process.env.VAPID_PUBLIC_KEY) && Boolean(process.env.VAPID_PRIVATE_KEY),
     };
   },

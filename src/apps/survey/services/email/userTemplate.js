@@ -47,7 +47,7 @@ export const userWelcomeEmailTemplate = (surveyData) => {
 
       <p style="font-size: 16px; line-height: 1.6;">
         If you have further questions, kindly reach out to us at 
-        <a href="mailto:contacts@diamondprojectonline.com" style="color: #007BFF;">contacts@diamondprojectonline.com</a>
+        <a href="mailto:contacts@c21fg.online" style="color: #007BFF;">contacts@c21fg.online</a>
       </p>
 
       <p style="font-size: 16px; line-height: 1.6;">Let's build your digital legacy together!</p>

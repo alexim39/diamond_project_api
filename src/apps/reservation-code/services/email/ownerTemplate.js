@@ -10,7 +10,7 @@ export const ownerEmailTemplate = (codeData) => `
       
       <br>
       <div style="text-align: center;">
-        <a href="https://partners.diamondprojectonline.com/" style="padding: 10px 20px; background-color: #007BFF; color: white; text-decoration: none; border-radius: 5px; text-align: center; margin: 1em 0;">Go to Partner Dashboard</a>
+        <a href="https://c21fg.online/" style="padding: 10px 20px; background-color: #007BFF; color: white; text-decoration: none; border-radius: 5px; text-align: center; margin: 1em 0;">Go to Partner Dashboard</a>
       </div>
     </main>
     <br>
@@ -18,8 +18,8 @@ export const ownerEmailTemplate = (codeData) => `
       <p>Follow us on:
         <a href="https://www.facebook.com/profile.php?id=61561933352527" style="margin: 0 5px;">Facebook</a> |
       </p>
-      <p><a href="https://diamondprojectonline.com/legal/privacy">Privacy</a> | 
-        <a href="https://diamondprojectonline.com/legal/terms">Terms</a> | 
+      <p><a href="https://c21fg.online/legal/privacy">Privacy</a> | 
+        <a href="https://c21fg.online/legal/terms">Terms</a> | 
       </p>
     </footer>
   </div>

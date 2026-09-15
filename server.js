@@ -81,17 +81,8 @@ app.use(cors({
         'http://localhost:4201', 
         'https://c21fg.online',
         'https://www.c21fg.online',
-        'http://diamondprojectonline.com', 
-        'http://partners.diamondprojectonline.com', 
-        'https://diamondprojectonline.com', 
-        'https://partners.diamondprojectonline.com', 
-        'https://survey.diamondprojectonline.com',
-        'https://shop.diamondprojectonline.com',
-        'www.diamondprojectonline.com',
-        'www.partners.diamondprojectonline.com',
-        'https://partners.diamondprojectonline.com',
-        'http://survey.diamondprojectonline.com',
-        'http://shop.diamondprojectonline.com'
+        'https://survey.c21fg.online',
+        'https://shop.c21fg.online'
     ]
 }));
 

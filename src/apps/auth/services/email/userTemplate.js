@@ -39,7 +39,7 @@ export const userNotificationEmailTemplate = (newPartner) => {
         </ul>  
 
         <p>  
-          If you have further questions, please visit our <a href="https://diamondprojectonline.com/faq" style="color: #007BFF;">FAQ page</a> for answers to some questions about our business or reach out to us at contacts@diamondprojectonline.com  
+          If you have further questions, please visit our <a href="https://c21fg.online/faq" style="color: #007BFF;">FAQ page</a> for answers to some questions about our business or reach out to us at contacts@c21fg.online  
         </p>  
 
         <p>  
@@ -59,8 +59,8 @@ export const userNotificationEmailTemplate = (newPartner) => {
         <p>Follow us on:  
           <a href="https://www.facebook.com/profile.php?id=61561933352527" style="margin: 0 5px;">Facebook</a> |  
         </p>  
-        <p><a href="https://diamondprojectonline.com/legal/privacy">Privacy</a> |   
-          <a href="https://diamondprojectonline.com/legal/terms">Terms</a> |   
+        <p><a href="https://c21fg.online/legal/privacy">Privacy</a> |   
+          <a href="https://c21fg.online/legal/terms">Terms</a> |   
           <a href="#">Unsubscribe</a>  
         </p>  
       </footer>  

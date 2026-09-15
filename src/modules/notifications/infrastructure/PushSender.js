@@ -27,7 +27,7 @@ export class WebPushSender extends PushSender {
     this.config = config;
     this.lib = config.webpush ?? loadWebPush();
     if (this.lib?.setVapidDetails && config.publicKey && config.privateKey) {
-      this.lib.setVapidDetails(config.subject ?? 'mailto:noreply@diamondprojectonline.com', config.publicKey, config.privateKey);
+      this.lib.setVapidDetails(config.subject ?? 'mailto:noreply@c21fg.online', config.publicKey, config.privateKey);
     }
   }
 
