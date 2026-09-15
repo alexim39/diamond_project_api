@@ -17,6 +17,22 @@ const QuizQuestionSchema = z.object({
 
 const QuizSchema = z.array(QuizQuestionSchema).min(1).max(15);
 
+// Media override values: https URLs (e.g. Cloudinary) or site-relative
+// paths (e.g. /courses/ipo/lesson.mp4 for public/ files). Binaries never
+// flow through this API — hosting stays wherever the team puts the file.
+const MediaUrl = z.string().trim().max(500).refine(
+  (v) => v === '' || /^https?:\/\/.+/.test(v) || /^\/[A-Za-z0-9_\-./]+$/.test(v),
+  { message: 'Must be an https URL or a site path like /courses/ipo/lesson.mp4' },
+);
+
+export const MediaSchema = z.object({
+  videoUrl: MediaUrl.nullable().optional(),
+  posterUrl: MediaUrl.nullable().optional(),
+  captionsUrl: MediaUrl.nullable().optional(),
+  transcript: z.string().trim().max(8000).nullable().optional(),
+  durationSec: z.number().int().min(0).max(86400).nullable().optional(),
+});
+
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
 export const buildAdminTrainingRouter = (deps = {}) => {
   const training = deps.training ?? new MongoTrainingStore();
@@ -30,10 +46,26 @@ export const buildAdminTrainingRouter = (deps = {}) => {
   }));
 
   router.get('/catalog', asyncHandler(async (_req, res) => {
+    const media = await training.listMedia?.().catch(() => []) ?? [];
+    const byLesson = new Map(media.map((m) => [`${m.courseId}:${m.lessonId}`, m]));
     const data = COURSES.map((c) => ({
       id: c.id,
       title: c.title,
-      lessons: c.lessons.map((l) => ({ id: l.id, title: l.title, quizCount: l.quiz?.length ?? 0 })),
+      lessons: c.lessons.map((l) => {
+        const override = byLesson.get(`${c.id}:${l.id}`);
+        return {
+          id: l.id,
+          title: l.title,
+          quizCount: l.quiz?.length ?? 0,
+          mediaOverridden: !!override,
+          // Effective values learners see (override wins, catalog fallback).
+          videoUrl: override?.videoUrl || l.videoUrl || null,
+          posterUrl: override?.posterUrl || l.posterUrl || null,
+          captionsUrl: override?.captionsUrl || l.captionsUrl || null,
+          hasTranscript: !!((override?.transcript || l.transcript) ?? null),
+          durationSec: override?.durationSec ?? l.durationSec ?? null,
+        };
+      }),
     }));
     res.status(200).json({ message: 'Catalog retrieved successfully', data, success: true });
   }));
@@ -49,6 +81,34 @@ export const buildAdminTrainingRouter = (deps = {}) => {
     }
     const data = await training.upsertQuiz(params.courseId, params.lessonId, body);
     res.status(200).json({ message: 'Quiz saved successfully', data, success: true });
+  }));
+
+  router.get('/media', asyncHandler(async (_req, res) => {
+    const data = await training.listMedia();
+    res.status(200).json({ message: 'Media overrides retrieved successfully', data, success: true });
+  }));
+
+  router.put('/courses/:courseId/lessons/:lessonId/media', validate({ params: z.object({ courseId: slug, lessonId: slug }), body: MediaSchema }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const course = COURSES.find((c) => c.id === params.courseId);
+    if (!course) return res.status(404).json({ message: 'Unknown course', success: false });
+    if (!course.lessons.some((l) => l.id === params.lessonId)) {
+      return res.status(404).json({ message: 'Unknown lesson', success: false });
+    }
+    const data = await training.upsertMedia(params.courseId, params.lessonId, body, req.auth?.partnerId);
+    res.status(200).json({ message: 'Media saved successfully', data, success: true });
+  }));
+
+  router.delete('/courses/:courseId/lessons/:lessonId/media', validate({ params: z.object({ courseId: slug, lessonId: slug }) }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const course = COURSES.find((c) => c.id === params.courseId);
+    if (!course) return res.status(404).json({ message: 'Unknown course', success: false });
+    if (!course.lessons.some((l) => l.id === params.lessonId)) {
+      return res.status(404).json({ message: 'Unknown lesson', success: false });
+    }
+    const data = await training.deleteMedia(params.courseId, params.lessonId);
+    res.status(200).json({ message: 'Media reverted to catalog', data, success: true });
   }));
 
   return router;

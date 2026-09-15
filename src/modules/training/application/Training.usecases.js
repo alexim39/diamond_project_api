@@ -1,5 +1,6 @@
 import { catalogSummaries, courseProgress, getCourse, getCourseWithQuiz, getLesson, getLessonWithQuiz } from '../domain/Training.catalog.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
+import { ForbiddenException } from '../../../shared/domain/AppError.js';
 
 export const WATCH_REQUIRED_PERCENT = 90;
 
@@ -210,3 +211,120 @@ export class TeamComplianceUseCase {
 }
 
 const courses0 = (catalog) => catalog.length;
+
+/** Shared upline-scope check: target must sit in the requester's bounded downline. */
+const requireDownlineMember = async (network, requesterId, partnerId) => {
+  const { ids, depths } = await collectDownlineIds(network, requesterId, { maxDepth: 10, cap: 5000 });
+  const pid = String(partnerId);
+  if (!ids.map(String).includes(pid)) {
+    throw new ForbiddenException('Member is not in your downline');
+  }
+  return { pid, depth: depths[pid] ?? null };
+};
+
+/**
+ * Nudge a downline member about unfinished training — in-app stored
+ * notification (never forced email: the member's prefs decide).
+ * Skips the fully certified; throttled to one nudge per member per day
+ * via the daily dedupe key (NotifyUseCase also dedupes races on E11000).
+ */
+export class NudgeMemberUseCase {
+  /** @param {{training, network, stored, notify, detail?}} deps */
+  constructor({ training, network, stored, notify, detail = null }) {
+    Object.assign(this, { training, network, stored, notify });
+    this.detail = detail ?? new TeamMemberDetailUseCase({ training, network });
+  }
+
+  async execute({ requesterId, partnerId, note = '', now = new Date() }) {
+    const detail = await this.detail.execute({ requesterId, partnerId });
+    if (detail.certifiedCount === detail.courses.length && detail.courses.length > 0) {
+      return { status: 'skipped', reason: 'already-complete', detail };
+    }
+    const day = new Date(now).toISOString().slice(0, 10);
+    const key = `training-nudge:${detail.partnerId}:${day}`;
+    if (this.stored?.findByKey) {
+      const existing = await this.stored.findByKey(detail.partnerId, key).catch(() => null);
+      if (existing) return { status: 'skipped', reason: 'already-sent-today', detail };
+    }
+    const next = detail.courses.find((c) => !c.certified);
+    const [upline] = this.network?.findNodesByIds
+      ? await this.network.findNodesByIds([String(requesterId)]).catch(() => [])
+      : [];
+    const uplineName = upline
+      ? [upline.name, upline.surname].filter(Boolean).join(' ') || upline.username
+      : 'Your upline';
+    const custom = String(note ?? '').trim().slice(0, 280);
+    const body = next
+      ? `You're at ${detail.overallPercent}% overall — next up: ${next.title} (${next.done}/${next.total} lessons).${custom ? ` ${uplineName} says: ${custom}` : ''}`
+      : `You're at ${detail.overallPercent}% overall — open the Academy to continue.${custom ? ` ${uplineName} says: ${custom}` : ''}`;
+    const row = await this.notify.execute({
+      recipientId: detail.partnerId,
+      category: 'training',
+      priority: 'medium',
+      title: `${uplineName} nudged you to keep learning`,
+      body,
+      icon: 'school',
+      link: '/dashboard/training/courses',
+      key,
+    });
+    return {
+      status: 'notified',
+      deduped: row?.deduped === true,
+      overallPercent: detail.overallPercent,
+      nextCourseId: next?.courseId ?? null,
+      detail,
+    };
+  }
+}
+export class TeamMemberDetailUseCase {
+  /** @param {{training, network}} deps */
+  constructor({ training, network }) {
+    Object.assign(this, { training, network });
+  }
+
+  async execute({ requesterId, partnerId }) {
+    const { pid, depth } = await requireDownlineMember(this.network, requesterId, partnerId);
+    const [rows, nodes] = await Promise.all([
+      this.training.listForPartners
+        ? this.training.listForPartners([pid])
+        : this.training.listByPartner(pid).then((r) => r).catch(() => []),
+      this.network.findNodesByIds ? this.network.findNodesByIds([pid]) : [],
+    ]);
+    const list = Array.isArray(rows) ? rows : [rows].filter(Boolean);
+    const byCourse = Object.fromEntries(list.map((r) => [r.courseId, r]));
+    const catalog = catalogSummaries();
+    const courses = catalog.map((c) => {
+      const course = getCourse(c.id);
+      const p = courseProgress(course, byCourse[c.id]?.completedLessons ?? []);
+      return {
+        courseId: c.id,
+        title: c.title,
+        done: p.done,
+        total: p.total,
+        percent: p.percent,
+        certified: p.certified,
+        lessons: course.lessons.map((l) => ({
+          lessonId: l.id,
+          title: l.title,
+          done: p.completedIds.includes(l.id),
+          hasVideo: !!l.videoUrl,
+        })),
+      };
+    });
+    const certifiedCount = courses.filter((c) => c.certified).length;
+    const nd = (nodes ?? [])[0];
+    return {
+      partnerId: pid,
+      depth,
+      member: nd ? {
+        username: nd.username,
+        name: [nd.name, nd.surname].filter(Boolean).join(' ') || nd.username,
+      } : null,
+      courses,
+      overallPercent: courses.length > 0
+        ? Math.round(courses.reduce((s, c) => s + c.percent, 0) / courses.length)
+        : 0,
+      certifiedCount,
+    };
+  }
+}

@@ -116,4 +116,59 @@ export class MongoTrainingStore {
     ).lean();
     return { courseId: doc.courseId, lessonId: doc.lessonId, quiz: doc.quiz };
   }
+
+  // Media overrides (admin-owned) — one doc per lesson; set fields win
+  // over the code catalog, null/empty fields fall back to it.
+  async getMedia(courseId, lessonId) {
+    const { TrainingMediaModel } = await import('./TrainingMedia.mongo.model.js');
+    const doc = await TrainingMediaModel.findOne({ courseId, lessonId }).lean();
+    return doc ? shapedMedia(doc) : null;
+  }
+
+  async listMedia() {
+    const { TrainingMediaModel } = await import('./TrainingMedia.mongo.model.js');
+    const docs = await TrainingMediaModel.find({}).lean();
+    return docs.map(shapedMedia);
+  }
+
+  async upsertMedia(courseId, lessonId, media, updatedBy = null) {
+    const { TrainingMediaModel } = await import('./TrainingMedia.mongo.model.js');
+    const clean = (v) => {
+      const s = v === undefined || v === null ? null : String(v).trim();
+      return s === '' ? null : s;
+    };
+    const doc = await TrainingMediaModel.findOneAndUpdate(
+      { courseId, lessonId },
+      {
+        $set: {
+          videoUrl: clean(media.videoUrl),
+          posterUrl: clean(media.posterUrl),
+          captionsUrl: clean(media.captionsUrl),
+          transcript: clean(media.transcript),
+          durationSec: media.durationSec === undefined || media.durationSec === null || media.durationSec === ''
+            ? null
+            : Math.max(0, Math.min(86400, Math.round(Number(media.durationSec) || 0))),
+          updatedBy: updatedBy ? String(updatedBy) : null,
+        },
+      },
+      { new: true, upsert: true },
+    ).lean();
+    return shapedMedia(doc);
+  }
+
+  async deleteMedia(courseId, lessonId) {
+    const { TrainingMediaModel } = await import('./TrainingMedia.mongo.model.js');
+    const res = await TrainingMediaModel.deleteOne({ courseId, lessonId });
+    return { reverted: (res.deletedCount ?? 0) > 0 };
+  }
 }
+
+const shapedMedia = (d) => ({
+  courseId: d.courseId,
+  lessonId: d.lessonId,
+  videoUrl: d.videoUrl ?? null,
+  posterUrl: d.posterUrl ?? null,
+  captionsUrl: d.captionsUrl ?? null,
+  transcript: d.transcript ?? null,
+  durationSec: d.durationSec ?? null,
+});

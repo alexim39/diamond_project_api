@@ -198,12 +198,29 @@ export const getCourse = (id) => {
 
 export const getCourseWithQuizFull = async (id, training) => {
   const course = getCourse(id);
-  if (!training?.getQuiz) return course;
+  if (!training?.getQuiz && !training?.getMedia) return course;
   const withQuiz = await Promise.all(course.lessons.map(async (l) => {
-    const override = await training.getQuiz(course.id, l.id).catch(() => null);
+    const override = typeof training.getQuiz === 'function'
+      ? await training.getQuiz(course.id, l.id).catch(() => null)
+      : null;
     return override ? { ...l, quiz: override } : l;
   }));
-  return { ...course, lessons: withQuiz };
+  // Media overrides win field-by-field; null/empty falls back to catalog.
+  const withMedia = await Promise.all(withQuiz.map(async (l) => {
+    const media = typeof training.getMedia === 'function'
+      ? await training.getMedia(course.id, l.id).catch(() => null)
+      : null;
+    if (!media) return l;
+    return {
+      ...l,
+      ...(media.videoUrl ? { videoUrl: media.videoUrl } : {}),
+      ...(media.posterUrl ? { posterUrl: media.posterUrl } : {}),
+      ...(media.captionsUrl ? { captionsUrl: media.captionsUrl } : {}),
+      ...(media.transcript ? { transcript: media.transcript } : {}),
+      ...(media.durationSec !== undefined && media.durationSec !== null ? { durationSec: media.durationSec } : {}),
+    };
+  }));
+  return { ...course, lessons: withMedia };
 };
 
 /** Public course payload — quiz answers are stripped (server re-validates on submit). */
