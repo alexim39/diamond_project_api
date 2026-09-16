@@ -34,13 +34,13 @@ const DecideSchema = z.object({
  * Manual wiring (no DI container on purpose — explicit for onboarding).
  * Exported factory allows tests to inject fakes.
  */
-export const buildTicketRouter = ({ ticketRepo, mailer } = {}) => {
+export const buildTicketRouter = ({ ticketRepo, mailer, inbox: inboxDep, decide: decideDep } = {}) => {
   const repo = ticketRepo ?? new MongoTicketRepository();
   const mail = mailer ?? new TicketMailer();
   const submitTicket = new SubmitTicketUseCase({ ticketRepo: repo, mailer: mail });
   const handler = makeSubmitTicketController(submitTicket);
-  const inbox = deps.inbox ?? new ListTicketsUseCase({ tickets: repo });
-  const decide = deps.decide ?? new DecideTicketUseCase({ tickets: repo });
+  const inbox = inboxDep ?? new ListTicketsUseCase({ tickets: repo });
+  const decide = decideDep ?? new DecideTicketUseCase({ tickets: repo });
   const notifyStore = new MongoStoredNotificationStore();
   const notify = new NotifyUseCase({ stored: notifyStore });
 

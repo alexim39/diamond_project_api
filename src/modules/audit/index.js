@@ -7,6 +7,7 @@ export { AUDIT_ACTIONS, createAuditEntry } from './domain/AuditLog.js';
 export { MongoAuditStore } from './infrastructure/Audit.store.js';
 export { ListAuditUseCase } from './application/Audit.usecases.js';
 export { default as AuditRouter, buildAuditRouter } from './interface/Audit.routes.js';
+export { default } from './interface/Audit.routes.js';
 
 import { MongoAuditStore } from './infrastructure/Audit.store.js';
 
