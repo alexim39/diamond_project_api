@@ -106,7 +106,10 @@ export class ListReviewQueueUseCase {
         ? await PartnersModel.find({ _id: { $in: holderIds } }).select('partnerOf').lean().catch(() => [])
         : [];
       const nodes = new Map();
-      const visited = new Set(holderIds);
+      // Record EVERYTHING fetched (holders appear as ancestors too);
+      // `visited` only stops re-expansion, so overlapping chains and
+      // cycles terminate without losing labels.
+      const visited = new Set();
       let frontier = cleanIds(holderDocs.map((h) => h.partnerOf));
       for (let depth = 0; depth < 10 && frontier.length > 0; depth++) {
         const docs = await PartnersModel.find({ _id: { $in: frontier } })
@@ -114,9 +117,9 @@ export class ListReviewQueueUseCase {
         const next = [];
         for (const doc of docs) {
           const id = String(doc._id);
+          if (!nodes.has(id)) nodes.set(id, doc);
           if (visited.has(id)) continue;
           visited.add(id);
-          nodes.set(id, doc);
           if (doc.partnerOf) next.push(String(doc.partnerOf));
         }
         frontier = cleanIds(next);
