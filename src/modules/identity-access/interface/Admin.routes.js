@@ -5,7 +5,7 @@ import { requireRole } from './RequireRole.js';
 import { z } from 'zod';
 import { ROLES } from '../domain/PartnerRole.js';
 import { makeAdminController } from './Admin.controller.js';
-import { ListPartnersUseCase, SetPartnerRoleUseCase } from '../application/Admin.usecase.js';
+import { ListPartnersUseCase, SetPartnerRoleUseCase, SetSuspendUseCase } from '../application/Admin.usecase.js';
 import { MongoPartnerRepository } from '../infrastructure/Auth.mongo.repository.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
@@ -21,6 +21,10 @@ const AdminListQuery = z.object({
   skip: z.coerce.number().int().min(0).optional().default(0),
   q: z.string().trim().max(120).optional().default(''),
 });
+const SetSuspendSchema = z.object({
+  suspended: z.boolean(),
+  reason: z.string().trim().max(500).optional(),
+});
 
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
 export const buildAdminRouter = (deps = {}) => {
@@ -28,12 +32,14 @@ export const buildAdminRouter = (deps = {}) => {
   const controller = makeAdminController({
     setRole: new SetPartnerRoleUseCase({ partners }),
     listPartners: new ListPartnersUseCase({ partners }),
+    setSuspend: new SetSuspendUseCase({ partners }),
   });
 
   const router = express.Router();
   router.use(requireAuth, requireRole('admin'));
   router.get('/partners', validate({ query: AdminListQuery }), controller.list);
   router.patch('/partners/:partnerId/role', validate({ params: PartnerIdParam, body: SetRoleSchema }), controller.setRole);
+  router.patch('/partners/:partnerId/suspend', validate({ params: PartnerIdParam, body: SetSuspendSchema }), controller.suspend);
   return router;
 };
 

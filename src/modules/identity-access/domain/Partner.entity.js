@@ -64,5 +64,7 @@ export const toSafePartner = (doc) => {
   if (o._id) o.id = String(o._id);
   // Canonical role casing (absorbs legacy 'User'/'admin' free-text).
   o.role = lenientRole(o.role);
+  // Suspension flag for admin tooling (timestamps stay for audit detail).
+  o.suspended = !!o.suspendedAt;
   return o;
 };

@@ -46,3 +46,40 @@ export class ListPartnersUseCase {
     return { items: items.map(toSafePartner), total, limit: lim, skip: sk };
   }
 }
+
+/**
+ * Suspend / unsuspend a partner. Guards mirror role changes: never
+ * yourself (locks you out mid-session) and never the last admin while
+ * they still hold the role (locks the console out). Suspension blocks
+ * signin immediately; live sessions die at the next session check.
+ */
+export class SetSuspendUseCase {
+  /** @param {{partners}} deps */
+  constructor({ partners }) {
+    this.partners = partners;
+  }
+
+  async execute({ requesterId, partnerId, suspended, reason = null }) {
+    if (String(requesterId) === String(partnerId)) {
+      throw new ForbiddenException('You cannot suspend your own account');
+    }
+    const target = await this.partners.findById(partnerId);
+    if (!target) throw new NotFoundException('Partner not found');
+
+    const next = !!suspended;
+    if (next && lenientRole(target.role) === 'admin') {
+      const remaining = await this.partners.countByRole('admin');
+      if (remaining <= 1) {
+        throw new ConflictException('Cannot suspend the last admin');
+      }
+    }
+
+    const cleanReason = reason === undefined || reason === null || String(reason).trim() === ''
+      ? null
+      : String(reason).trim().slice(0, 500);
+    const updated = await this.partners.updateById(partnerId, next
+      ? { suspendedAt: new Date(), suspendReason: cleanReason }
+      : { suspendedAt: null, suspendReason: null });
+    return toSafePartner(updated);
+  }
+}

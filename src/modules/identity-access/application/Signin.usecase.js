@@ -1,4 +1,4 @@
-import { ValidationException, UnauthorizedException } from '../../../shared/domain/AppError.js';
+import { ValidationException, UnauthorizedException, ForbiddenException } from '../../../shared/domain/AppError.js';
 import { toSafePartner } from '../domain/Partner.entity.js';
 
 /**
@@ -26,6 +26,7 @@ export class SigninUseCase {
     if (!user) throw new UnauthorizedException('Wrong email or password');
     const ok = await this.hasher.compare(password, user.password);
     if (!ok) throw new UnauthorizedException('Wrong email or password');
+    if (user.suspendedAt) throw new ForbiddenException('Account suspended — contact support');
 
     const id = String(user._id ?? user.id);
     return { token: this.sessions.sign(id), user: toSafePartner(user) };

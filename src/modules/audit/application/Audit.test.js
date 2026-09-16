@@ -23,7 +23,8 @@ const fakeStore = (rows = []) => ({
 describe('AUDIT_ACTIONS vocabulary', () => {
   it('covers every money-adjacent and governance decision', () => {
     for (const a of [
-      'role.set', 'payout.release', 'payout.void', 'withdrawal.decide',
+      'role.set', 'account.suspend', 'account.unsuspend',
+      'payout.release', 'payout.void', 'withdrawal.decide',
       'campaign.decide', 'order.decide', 'reservation.decide',
       'training.quiz.save', 'training.media.save', 'training.media.revert',
     ]) {

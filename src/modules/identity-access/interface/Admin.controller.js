@@ -2,7 +2,7 @@ import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { recordAudit } from '../../audit/index.js';
 
 /** Admin console adapters — all routes behind requireAuth + requireRole('admin'). */
-export const makeAdminController = ({ setRole, listPartners }) => ({
+export const makeAdminController = ({ setRole, listPartners, setSuspend }) => ({
   setRole: asyncHandler(async (req, res) => {
     const params = req.validated?.params ?? req.params;
     const body = req.validated?.body ?? req.body;
@@ -27,5 +27,28 @@ export const makeAdminController = ({ setRole, listPartners }) => ({
       q: q?.q,
     });
     res.status(200).json({ message: 'Partners retrieved successfully', ...data, success: true });
+  }),
+
+  suspend: asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const data = await setSuspend.execute({
+      requesterId: req.auth?.partnerId,
+      partnerId: params.partnerId,
+      suspended: body.suspended,
+      reason: body.reason ?? null,
+    });
+    void recordAudit({
+      actorId: req.auth?.partnerId,
+      action: data?.suspended ? 'account.unsuspend' : 'account.suspend',
+      targetType: 'partner',
+      targetId: params.partnerId,
+      detail: { username: data?.username ?? null, reason: body.reason ?? null },
+    });
+    res.status(200).json({
+      message: data?.suspended ? 'Account reactivated successfully' : 'Account suspended successfully',
+      data,
+      success: true,
+    });
   }),
 });
