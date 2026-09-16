@@ -223,14 +223,19 @@ export const getCourseWithQuizFull = async (id, training) => {
   return { ...course, lessons: withMedia };
 };
 
-/** Public course payload — quiz answers are stripped (server re-validates on submit). */
-export const getCourseWithQuiz = async (id, training) => {
+/** Public course payload — quiz answers are stripped EXCEPT for lessons
+ * whose ids are in `revealFor` (completed lessons: nothing left to cheat,
+ * everything to study). Server re-validates on submit regardless. */
+export const getCourseWithQuiz = async (id, training, revealFor = []) => {
   const course = await getCourseWithQuizFull(id, training);
+  const revealed = new Set(revealFor ?? []);
   return {
     ...course,
     lessons: course.lessons.map((l) => ({
       ...l,
-      quiz: (l.quiz ?? []).map((q) => ({ q: q.q, options: q.options })),
+      quiz: (l.quiz ?? []).map((q) => revealed.has(l.id)
+        ? { q: q.q, options: q.options, answer: q.answer }
+        : { q: q.q, options: q.options }),
     })),
   };
 };

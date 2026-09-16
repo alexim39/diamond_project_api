@@ -72,6 +72,19 @@ describe('quiz answer stripping', () => {
     }
   });
 
+  it('reveals answer keys only for completed lessons', async () => {
+    const course = await getCourseWithQuiz('ipo', noQuizStore, ['ipo-1']);
+    const l1 = course.lessons.find((l) => l.id === 'ipo-1');
+    const l2 = course.lessons.find((l) => l.id === 'ipo-2');
+    assert.ok(l1.quiz.every((q) => Number.isInteger(q.answer)));
+    assert.ok(l2.quiz.every((q) => !('answer' in q)));
+  });
+
+  it('unknown ids in revealFor are ignored', async () => {
+    const course = await getCourseWithQuiz('ipo', noQuizStore, ['nope']);
+    assert.ok(course.lessons.every((l) => (l.quiz ?? []).every((q) => !('answer' in q))));
+  });
+
   it('server-side lesson lookup keeps answers for validation', async () => {
     const { lesson } = await getLessonWithQuiz('ipo', 'ipo-1', noQuizStore);
     assert.ok(lesson.quiz.every((q) => Number.isInteger(q.answer)));

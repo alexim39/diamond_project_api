@@ -33,8 +33,11 @@ export class GetCourseUseCase {
   }
 
   async execute({ partnerId, courseId }) {
-    const course = await getCourseWithQuiz(courseId, this.training);
     const row = await this.training.findByPartner(partnerId, courseId);
+    const done = row?.completedLessons ?? [];
+    // Completed lessons ship their answer keys (review after passing);
+    // open lessons stay silent (anti-click-through).
+    const course = await getCourseWithQuiz(courseId, this.training, done);
     const watch = typeof this.training.getWatch === 'function'
       ? await this.training.getWatch(partnerId, courseId).catch(() => ({}))
       : {};
