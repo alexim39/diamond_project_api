@@ -125,13 +125,13 @@ export class MongoReservationStore {
   }
 
   /**
-   * Admin decision — Pending → Approved/Rejected only. Anything else is a
-   * no-op null (409 upstream), so double-clicks and replays can't move
-   * money-adjacent state twice.
+   * Admin decision — moves within the caller-supplied `from` set only, so
+   * double-clicks and replays can't move money-adjacent state twice.
+   * Returns null when the row already left the expected state.
    */
-  async decide(reservationId, status) {
+  async decide(reservationId, status, from = ['Pending']) {
     const doc = await ReservationCodeModel.findOneAndUpdate(
-      { _id: reservationId, status: 'Pending' },
+      { _id: reservationId, status: { $in: from } },
       { $set: { status } },
       { new: true },
     ).lean();

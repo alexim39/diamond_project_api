@@ -63,17 +63,22 @@ export const buildReservationsRouter = (deps = {}) => {
     res.status(200).json({ message: 'Review queue retrieved successfully', data, success: true });
   }));
 
-  router.patch('/:id', requireRole('admin'), asyncHandler(async (req, res) => {
+  router.patch('/:id', requireRole('admin'), validate({
+    params: z.object({ id: z.string().trim().min(1).max(64) }),
+    body: z.object({ status: z.enum(['Pending', 'Approved', 'Rejected']) }),
+  }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
     const data = await decide.execute({
-      reservationId: req.params.id,
-      status: req.body?.status,
+      reservationId: params.id,
+      status: body?.status,
     });
     if (!data) {
-      return res.status(409).json({ message: 'Only Pending codes can be decided', success: false });
+      return res.status(409).json({ message: 'Code left its expected state — reload and retry', success: false });
     }
     void recordAudit({
       actorId: req.auth?.partnerId, action: 'reservation.decide',
-      targetType: 'reservation-code', targetId: req.params.id,
+      targetType: 'reservation-code', targetId: params.id,
       detail: { status: data.status, code: data.code ?? null },
     });
     res.status(200).json({ message: `Code ${data.status.toLowerCase()} successfully!`, data, success: true });

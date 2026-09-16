@@ -60,14 +60,23 @@ export class ListReviewQueueUseCase {
       this.reservations.listByStatus(status, lim, sk, q),
       this.reservations.statusSummary().catch(() => null),
     ]);
-    const partnerIds = [...new Set(items.map((r) => String(r.partnerId)).filter(Boolean))];
-    const prospectIds = [...new Set(items.map((r) => String(r.prospectId ?? '')).filter(Boolean))];
-    const [partners, prospects] = await Promise.all([
+    // NOTE: filter raw values BEFORE String() — String(null) is the
+    // truthy string 'null', which poisons the $in cast and blanks EVERY
+    // label via the catch fallback. That was the empty-column bug.
+    const partnerIds = [...new Set(items.map((r) => r.partnerId).filter(Boolean).map(String))];
+    const prospectIds = [...new Set(items.map((r) => r.prospectId).filter(Boolean).map(String))];
+    const codes = [...new Set(items.map((r) => String(r.code ?? '')).filter(Boolean))];
+    const [partners, prospects, consumers] = await Promise.all([
       partnerIds.length > 0
         ? PartnersModel.find({ _id: { $in: partnerIds } }).select('username name surname').lean().catch(() => [])
         : [],
       prospectIds.length > 0
         ? ProspectModel.find({ _id: { $in: prospectIds } }).select('prospectName prospectSurname prospectPhone').lean().catch(() => [])
+        : [],
+      // Consumer: the partner account holding this code at signup (Used codes
+      // always resolve; Approved codes resolve once consumed).
+      codes.length > 0
+        ? PartnersModel.find({ reservationCode: { $in: codes } }).select('username name surname reservationCode').lean().catch(() => [])
         : [],
     ]);
     const partnerLabels = Object.fromEntries((partners ?? []).map((p) => [String(p._id), {
@@ -78,14 +87,21 @@ export class ListReviewQueueUseCase {
       name: [p.prospectName, p.prospectSurname].filter(Boolean).join(' ') || 'Unnamed',
       phone: p.prospectPhone ?? '',
     }]));
+    const consumerLabels = Object.fromEntries((consumers ?? []).map((p) => [String(p.reservationCode), {
+      username: p.username,
+      name: [p.name, p.surname].filter(Boolean).join(' ') || p.username,
+    }]));
     return {
       items: items.map((r) => ({
         id: String(r.id ?? r._id),
         code: r.code,
         status: r.status,
         createdAt: r.createdAt ?? null,
-        issuer: partnerLabels[String(r.partnerId)] ?? null,
+        issuer: partnerLabels[String(r.partnerId)] ?? (r.partnerId
+          ? { username: String(r.partnerId).slice(-6), name: 'Former member' }
+          : null),
         prospect: r.prospectId ? (prospectLabels[String(r.prospectId)] ?? { name: 'Unknown', phone: '' }) : null,
+        consumer: consumerLabels[String(r.code)] ?? null,
       })),
       total,
       summary,
@@ -118,7 +134,7 @@ export class DeleteReservationUseCase {
   }
 }
 
-/** PATCH /v1/reservations/:id — admin approves or rejects a Pending code. */
+/** PATCH /v1/reservations/:id — admin moves a code between review states. */
 export class DecideReservationUseCase {
   /** @param {{reservations}} deps */
   constructor({ reservations }) {
@@ -126,34 +142,53 @@ export class DecideReservationUseCase {
   }
 
   async execute({ reservationId, status }) {
-    if (!['Approved', 'Rejected'].includes(status)) throw new ValidationException('Invalid status');
+    // Used is terminal (signup history); everything else moves freely so
+    // admins can re-queue (→Pending) or kill (→Rejected) any live code.
+    const TRANSITIONS = {
+      Pending: ['Approved', 'Rejected'],
+      Approved: ['Pending', 'Rejected'],
+      Rejected: ['Pending', 'Approved'],
+      Used: [],
+    };
+    if (!Object.values(TRANSITIONS).flat().includes(status)) {
+      throw new ValidationException('Invalid status');
+    }
     const existing = await this.reservations.findById(reservationId);
     if (!existing) throw new NotFoundException('Reservation code not found');
-    const updated = await this.reservations.decide(reservationId, status);
-    // Null = raced out of Pending between the two reads (double-click safe).
-    if (!updated) throw new ConflictException('Only Pending codes can be decided');
+    const from = existing.status;
+    if (!(TRANSITIONS[from] ?? []).includes(status)) {
+      throw new ConflictException(
+        from === 'Used'
+          ? 'Used codes are history and cannot be moved'
+          : `Cannot move code from ${from} to ${status}`,
+      );
+    }
+    const updated = await this.reservations.decide(reservationId, status, [from]);
+    // Null = raced out of the expected state between the two reads.
+    if (!updated) throw new ConflictException(`Code is no longer ${from}`);
     // Best-effort issuer notice — never fails the decision.
+    const moveNote = status === 'Approved'
+      ? { title: `Code ${updated.code} approved — ready to use`, body: 'The reservation code is now usable at signup.', subject: 'Reservation code approved' }
+      : status === 'Rejected'
+        ? { title: `Code ${updated.code} was not approved`, body: 'The reservation code was rejected and can no longer be used.', subject: 'Reservation code not approved' }
+        : { title: `Code ${updated.code} is back under review`, body: 'The reservation code is pending admin review again.', subject: 'Reservation code under review' };
     try {
       const stored = new MongoStoredNotificationStore();
       await new NotifyUseCase({ stored }).execute({
         recipientId: String(updated.partnerId),
         category: 'team',
         priority: status === 'Rejected' ? 'high' : 'medium',
-        title: status === 'Approved'
-          ? `Code ${updated.code} approved — ready to use`
-          : `Code ${updated.code} was not approved`,
-        body: status === 'Approved'
-          ? 'The reservation code is now usable at signup.'
-          : 'The reservation code was rejected and can no longer be used.',
+        title: moveNote.title,
+        body: moveNote.body,
         icon: 'confirmation_number',
         link: '/dashboard/mentorship/partners/my-partners',
-        key: `reservation:${updated.id ?? reservationId}:${status}`,
+        key: `reservation:${updated.id ?? reservationId}:${status}:${Date.now()}`,
       }).catch(() => null);
       const issuer = await PartnersModel.findById(updated.partnerId).select('email').lean().catch(() => null);
       if (issuer?.email) {
         await sendEmail(
           issuer.email,
-          status === 'Approved' ? 'Reservation code approved' : 'Reservation code not approved',
+          moveNote.subject,
           `<p>Code <strong>${updated.code}</strong> was ${status.toLowerCase()}.</p>`,
         ).catch(() => null);
       }
