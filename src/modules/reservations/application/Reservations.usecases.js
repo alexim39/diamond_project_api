@@ -91,18 +91,49 @@ export class ListReviewQueueUseCase {
       username: p.username,
       name: [p.name, p.surname].filter(Boolean).join(' ') || p.username,
     }]));
+    // Upline-of-holder fallback: for ownerless codes held by a partner,
+    // the holder's upline is the closest identifiable chain link. Shown
+    // qualified in the UI (never presented as the recorder).
+    const holderUplines = {};
+    {
+      const holderIds = [...new Set((consumers ?? []).map((p) => p._id))];
+      const holderDocs = holderIds.length > 0
+        ? await PartnersModel.find({ _id: { $in: holderIds } }).select('partnerOf').lean().catch(() => [])
+        : [];
+      const uplineIds = [...new Set(holderDocs.map((h) => h.partnerOf).filter(Boolean).map(String))];
+      const uplines = uplineIds.length > 0
+        ? await PartnersModel.find({ _id: { $in: uplineIds } }).select('username name surname').lean().catch(() => [])
+        : [];
+      const uplineById = Object.fromEntries(uplines.map((u) => [String(u._id), u]));
+      for (const h of holderDocs) {
+        const up = h.partnerOf ? uplineById[String(h.partnerOf)] : null;
+        if (up) holderUplines[String(h._id)] = up;
+      }
+    }
+    const holderByCode = Object.fromEntries((consumers ?? []).map((p) => [String(p.reservationCode), p]));
     return {
-      items: items.map((r) => ({
-        id: String(r.id ?? r._id),
-        code: r.code,
-        status: r.status,
-        createdAt: r.createdAt ?? null,
-        issuer: partnerLabels[String(r.partnerId)] ?? (r.partnerId
+      items: items.map((r) => {
+        const issuer = partnerLabels[String(r.partnerId)] ?? (r.partnerId
           ? { username: String(r.partnerId).slice(-6), name: 'Former member' }
-          : null),
-        prospect: r.prospectId ? (prospectLabels[String(r.prospectId)] ?? { name: 'Unknown', phone: '' }) : null,
-        consumer: consumerLabels[String(r.code)] ?? null,
-      })),
+          : null);
+        const holder = holderByCode[String(r.code)] ?? null;
+        const holderUp = holder ? holderUplines[String(holder._id)] : null;
+        return {
+          id: String(r.id ?? r._id),
+          code: r.code,
+          status: r.status,
+          createdAt: r.createdAt ?? null,
+          issuer,
+          prospect: r.prospectId ? (prospectLabels[String(r.prospectId)] ?? { name: 'Unknown', phone: '' }) : null,
+          consumer: consumerLabels[String(r.code)] ?? null,
+          // Only when the true issuer is unknown AND a holder chain exists.
+          issuerUpline: !issuer && holderUp ? {
+            username: holderUp.username,
+            name: [holderUp.name, holderUp.surname].filter(Boolean).join(' ') || holderUp.username,
+            holderUsername: holder?.username ?? null,
+          } : null,
+        };
+      }),
       total,
       summary,
     };
