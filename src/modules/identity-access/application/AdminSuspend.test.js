@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { SetSuspendUseCase } from './Admin.usecase.js';
+import { PlatformStatsUseCase } from './Admin.usecase.js';
 import { SigninUseCase } from './Signin.usecase.js';
 import { GetCurrentPartnerUseCase } from './GetCurrentPartner.usecase.js';
 
@@ -106,5 +107,13 @@ describe('suspension enforcement', () => {
       partners: fakePartners([partner({ suspendedAt: new Date() })]),
     });
     await assert.rejects(uc.execute({ partnerId: 'p1' }), /suspended/);
+  });
+});
+
+describe('PlatformStatsUseCase', () => {
+  it('returns the repo rollup untouched', async () => {
+    const rollup = { total: 10, new7d: 2, new30d: 5, roles: { user: 7, leader: 1, g8: 1, admin: 1 }, suspended: 1 };
+    const uc = new PlatformStatsUseCase({ partners: { platformStats: async () => rollup } });
+    assert.deepEqual(await uc.execute(), rollup);
   });
 });

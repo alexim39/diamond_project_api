@@ -5,7 +5,7 @@ import { requireRole } from './RequireRole.js';
 import { z } from 'zod';
 import { ROLES } from '../domain/PartnerRole.js';
 import { makeAdminController } from './Admin.controller.js';
-import { ListPartnersUseCase, SetPartnerRoleUseCase, SetSuspendUseCase } from '../application/Admin.usecase.js';
+import { ListPartnersUseCase, SetPartnerRoleUseCase, SetSuspendUseCase, PlatformStatsUseCase } from '../application/Admin.usecase.js';
 import { MongoPartnerRepository } from '../infrastructure/Auth.mongo.repository.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
@@ -33,6 +33,7 @@ export const buildAdminRouter = (deps = {}) => {
     setRole: new SetPartnerRoleUseCase({ partners }),
     listPartners: new ListPartnersUseCase({ partners }),
     setSuspend: new SetSuspendUseCase({ partners }),
+    platformStats: new PlatformStatsUseCase({ partners }),
   });
 
   const router = express.Router();
@@ -40,6 +41,7 @@ export const buildAdminRouter = (deps = {}) => {
   router.get('/partners', validate({ query: AdminListQuery }), controller.list);
   router.patch('/partners/:partnerId/role', validate({ params: PartnerIdParam, body: SetRoleSchema }), controller.setRole);
   router.patch('/partners/:partnerId/suspend', validate({ params: PartnerIdParam, body: SetSuspendSchema }), controller.suspend);
+  router.get('/stats', controller.stats);
   return router;
 };
 

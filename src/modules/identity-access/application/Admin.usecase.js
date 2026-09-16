@@ -47,6 +47,18 @@ export class ListPartnersUseCase {
   }
 }
 
+/** Platform headcount for the admin console — totals, growth, roles, suspended. */
+export class PlatformStatsUseCase {
+  /** @param {{partners}} deps */
+  constructor({ partners }) {
+    this.partners = partners;
+  }
+
+  async execute() {
+    return this.partners.platformStats();
+  }
+}
+
 /**
  * Suspend / unsuspend a partner. Guards mirror role changes: never
  * yourself (locks you out mid-session) and never the last admin while

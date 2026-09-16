@@ -64,8 +64,7 @@ export class MongoPartnerRepository {
       .collation({ locale: 'en', strength: 2 })
       .countDocuments();
   }
-  /** Admin directory listing — lean, paginated, safe fields projected upstream. */
-  async listPartners({ limit = 25, skip = 0, q = '' }) {
+  /** Admin directory listing — lean, paginated, safe fields projected upstream. */  async listPartners({ limit = 25, skip = 0, q = '' }) {
     const filter = {};
     if (q) {
       const escaped = String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -77,6 +76,24 @@ export class MongoPartnerRepository {
       PartnersModel.countDocuments(filter),
     ]);
     return { items, total };
+  }
+
+  /** Platform headcount for the admin console — one parallel batch, no documents. */
+  async platformStats({ now = new Date() } = {}) {
+    const t = new Date(now).getTime();
+    const since = (days) => new Date(t - days * 24 * 60 * 60 * 1000);
+    const role = (r) => PartnersModel.find({ role: r }).collation({ locale: 'en', strength: 2 }).countDocuments();
+    const [total, new7d, new30d, user, leader, g8, admin, suspended] = await Promise.all([
+      PartnersModel.countDocuments({}),
+      PartnersModel.countDocuments({ createdAt: { $gte: since(7) } }),
+      PartnersModel.countDocuments({ createdAt: { $gte: since(30) } }),
+      role('user'),
+      role('leader'),
+      role('g8'),
+      role('admin'),
+      PartnersModel.countDocuments({ suspendedAt: { $ne: null } }),
+    ]);
+    return { total, new7d, new30d, roles: { user, leader, g8, admin }, suspended };
   }
 }
 

@@ -2,7 +2,7 @@ import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { recordAudit } from '../../audit/index.js';
 
 /** Admin console adapters — all routes behind requireAuth + requireRole('admin'). */
-export const makeAdminController = ({ setRole, listPartners, setSuspend }) => ({
+export const makeAdminController = ({ setRole, listPartners, setSuspend, platformStats }) => ({
   setRole: asyncHandler(async (req, res) => {
     const params = req.validated?.params ?? req.params;
     const body = req.validated?.body ?? req.body;
@@ -29,8 +29,7 @@ export const makeAdminController = ({ setRole, listPartners, setSuspend }) => ({
     res.status(200).json({ message: 'Partners retrieved successfully', ...data, success: true });
   }),
 
-  suspend: asyncHandler(async (req, res) => {
-    const params = req.validated?.params ?? req.params;
+  suspend: asyncHandler(async (req, res) => {    const params = req.validated?.params ?? req.params;
     const body = req.validated?.body ?? req.body;
     const data = await setSuspend.execute({
       requesterId: req.auth?.partnerId,
@@ -50,5 +49,10 @@ export const makeAdminController = ({ setRole, listPartners, setSuspend }) => ({
       data,
       success: true,
     });
+  }),
+
+  stats: asyncHandler(async (_req, res) => {
+    const data = await platformStats.execute();
+    res.status(200).json({ message: 'Platform stats retrieved successfully', data, success: true });
   }),
 });
