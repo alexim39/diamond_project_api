@@ -50,13 +50,16 @@ export class ListReviewQueueUseCase {
     this.reservations = reservations;
   }
 
-  async execute({ status = 'Pending', limit = 50, skip = 0 }) {
+  async execute({ status = 'Pending', limit = 50, skip = 0, q = '' }) {
     if (!REVIEW_STATUSES.includes(status) && status !== 'All') {
       throw new ValidationException('Invalid status filter');
     }
     const lim = Math.min(Math.max(Number(limit) || 50, 1), 200);
     const sk = Math.max(Number(skip) || 0, 0);
-    const { items, total } = await this.reservations.listByStatus(status, lim, sk);
+    const [{ items, total }, summary] = await Promise.all([
+      this.reservations.listByStatus(status, lim, sk, q),
+      this.reservations.statusSummary().catch(() => null),
+    ]);
     const partnerIds = [...new Set(items.map((r) => String(r.partnerId)).filter(Boolean))];
     const prospectIds = [...new Set(items.map((r) => String(r.prospectId ?? '')).filter(Boolean))];
     const [partners, prospects] = await Promise.all([
@@ -85,7 +88,33 @@ export class ListReviewQueueUseCase {
         prospect: r.prospectId ? (prospectLabels[String(r.prospectId)] ?? { name: 'Unknown', phone: '' }) : null,
       })),
       total,
+      summary,
     };
+  }
+}
+
+/**
+ * DELETE (admin) — hard delete with lifecycle guards. Pending/Rejected go
+ * freely; Approved only while no partner account holds the code; Used is
+ * history and never deletable (409 either way).
+ */
+export class DeleteReservationUseCase {
+  /** @param {{reservations}} deps */
+  constructor({ reservations }) {
+    this.reservations = reservations;
+  }
+
+  async execute({ reservationId }) {
+    const existing = await this.reservations.findById(reservationId);
+    if (!existing) throw new NotFoundException('Reservation code not found');
+    if (existing.status === 'Used') {
+      throw new ConflictException('Used codes are history and cannot be deleted');
+    }
+    if (existing.status === 'Approved') {
+      const held = await PartnersModel.exists({ reservationCode: existing.code }).catch(() => null);
+      if (held) throw new ConflictException('Code is held by a partner account and cannot be deleted');
+    }
+    return this.reservations.hardDelete(reservationId);
   }
 }
 

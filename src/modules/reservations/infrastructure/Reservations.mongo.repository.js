@@ -74,8 +74,13 @@ export class MongoReservationStore {
   }
 
   /** Admin review queue — oldest first (FIFO fairness on held signups). */
-  async listByStatus(status, limit = 50, skip = 0) {
+  async listByStatus(status, limit = 50, skip = 0, q = '') {
     const filter = status === 'All' ? {} : { status };
+    const query = String(q ?? '').trim();
+    if (query) {
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.code = { $regex: escaped, $options: 'i' };
+    }
     const [docs, total] = await Promise.all([
       ReservationCodeModel.find(filter).sort({ createdAt: 1 }).skip(skip).limit(limit).lean(),
       ReservationCodeModel.countDocuments(filter),
@@ -88,6 +93,35 @@ export class MongoReservationStore {
       })),
       total,
     };
+  }
+
+  /** Status counts for the admin strip — one aggregation, no documents. */
+  async statusSummary() {
+    const rows = await ReservationCodeModel.aggregate([
+      { $group: { _id: '$status', n: { $sum: 1 } } },
+    ]);
+    const out = { Pending: 0, Approved: 0, Rejected: 0, Used: 0 };
+    for (const r of rows) {
+      if (r._id in out) out[r._id] = r.n;
+      else out[r._id] = r.n;
+    }
+    return out;
+  }
+
+  /**
+   * Hard delete — Pending/Rejected always; Approved only while unconsumed;
+   * Used never (signup and partner history reference it).
+   */
+  async hardDelete(id) {
+    const doc = await ReservationCodeModel.findById(id).lean();
+    if (!doc) return null;
+    if (doc.status === 'Used') {
+      const err = new Error('Used codes are history and cannot be deleted');
+      err.code = 'CODE_USED';
+      throw err;
+    }
+    await ReservationCodeModel.deleteOne({ _id: id });
+    return { id: String(doc._id), code: doc.code, status: doc.status };
   }
 
   /**

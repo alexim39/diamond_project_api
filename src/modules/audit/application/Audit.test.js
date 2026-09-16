@@ -26,7 +26,7 @@ describe('AUDIT_ACTIONS vocabulary', () => {
       'role.set', 'account.suspend', 'account.unsuspend',
       'account.signout', 'account.reset-password', 'account.erase',
       'payout.release', 'payout.void', 'withdrawal.decide',
-      'campaign.decide', 'order.decide', 'reservation.decide',
+      'campaign.decide', 'order.decide', 'reservation.decide', 'reservation.delete',
       'training.quiz.save', 'training.media.save', 'training.media.revert',
       'ticket.decide', 'moderation.remove', 'moderation.dismiss',
       'broadcast.send', 'billing.plan.update', 'product.create', 'product.update',

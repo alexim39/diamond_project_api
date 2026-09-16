@@ -17,6 +17,7 @@ export const AUDIT_ACTIONS = Object.freeze([
   'campaign.decide',
   'order.decide',
   'reservation.decide',
+  'reservation.delete',
   'training.quiz.save',
   'training.media.save',
   'training.media.revert',
