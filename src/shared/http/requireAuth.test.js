@@ -4,7 +4,11 @@ import assert from 'node:assert/strict';
 process.env.JWTTOKENSECRET ??= 'test-secret-for-auth-suite';
 
 const { requireAuth, bearerToken } = await import('./requireAuth.js');
+const { setRevocationChecker } = await import('../../modules/identity-access/infrastructure/SessionRevocation.js');
 const jwt = (await import('jsonwebtoken')).default;
+
+// No Mongo here — revocation checks default to "not revoked".
+setRevocationChecker(async () => false);
 
 const run = (req) => new Promise((resolve) => {
   const next = (err) => resolve(err ?? null);
@@ -69,5 +73,13 @@ describe('requireAuth transports', () => {
   it('rejects tampered Bearer tokens', async () => {
     const err = await run({ cookies: {}, headers: { authorization: 'Bearer tampered.payload.sig' } });
     assert.match(err?.message ?? '', /Invalid or expired/);
+  });
+
+  it('rejects revoked sessions on the next call', async () => {
+    setRevocationChecker(async (id) => id === 'partner9');
+    const token = jwt.sign({ id: 'partner9' }, process.env.JWTTOKENSECRET);
+    const err = await run({ cookies: { jwt: token }, headers: {} });
+    assert.match(err?.message ?? '', /revoked/);
+    setRevocationChecker(async () => false);
   });
 });

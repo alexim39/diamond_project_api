@@ -10,6 +10,7 @@ import { RequestPasswordResetUseCase, ResetPasswordUseCase } from '../applicatio
 import { MongoPartnerRepository, MongoReservationRepository } from '../infrastructure/Auth.mongo.repository.js';
 import { BcryptPasswordHasher, JwtSessionIssuer } from '../infrastructure/Auth.crypto.js';
 import { PasswordResetMailer } from '../infrastructure/clients/PasswordResetMailer.js';
+import { clearRevocations } from '../infrastructure/SessionRevocation.js';
 import { runInTransaction } from '../infrastructure/Auth.models.js';
 
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
@@ -24,7 +25,10 @@ export const buildAuthRouter = (deps = {}) => {
 
   const controller = makeAuthController({
     signup: new SignupUseCase({ partners, reservations, hasher, tx }),
-    signin: new SigninUseCase({ partners, hasher, sessions }),
+    signin: new SigninUseCase({
+      partners, hasher, sessions,
+      revocations: deps.revocations ?? { clear: clearRevocations },
+    }),
     getCurrentPartner: new GetCurrentPartnerUseCase({ partners }),
     requestPasswordReset: new RequestPasswordResetUseCase({ partners, mailer, frontendUrl }),
     resetPassword: new ResetPasswordUseCase({ partners, hasher }),

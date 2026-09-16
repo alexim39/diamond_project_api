@@ -83,9 +83,9 @@ export class PlatformStatsUseCase {
  * signin immediately; live sessions die at the next session check.
  */
 export class SetSuspendUseCase {
-  /** @param {{partners}} deps */
-  constructor({ partners }) {
-    this.partners = partners;
+  /** @param {{partners, sessions?}} deps (`sessions` = {revoke, clear}; revoked live JWTs on suspend) */
+  constructor({ partners, sessions = null }) {
+    Object.assign(this, { partners, sessions });
   }
 
   async execute({ requesterId, partnerId, suspended, reason = null }) {
@@ -109,6 +109,30 @@ export class SetSuspendUseCase {
     const updated = await this.partners.updateById(partnerId, next
       ? { suspendedAt: new Date(), suspendReason: cleanReason }
       : { suspendedAt: null, suspendReason: null });
+    // Live JWTs die on the next call (denylist); unsuspend clears it.
+    if (this.sessions) {
+      if (next) await this.sessions.revoke(String(partnerId), { reason: cleanReason, by: String(requesterId) }).catch(() => null);
+      else await this.sessions.clear(String(partnerId)).catch(() => null);
+    }
     return toSafePartner(updated);
+  }
+}
+
+/**
+ * Reset-on-behalf: an admin triggers the standard reset flow for a member
+ * by id. The link goes to the MEMBER's email — admins never see or set
+ * passwords. Unknown ids 404 (admin console, no enumeration concern).
+ */
+export class ResetOnBehalfUseCase {
+  /** @param {{partners, reset}} deps (`reset` = RequestPasswordResetUseCase) */
+  constructor({ partners, reset }) {
+    Object.assign(this, { partners, reset });
+  }
+
+  async execute({ partnerId }) {
+    const target = await this.partners.findById(partnerId);
+    if (!target) throw new NotFoundException('Partner not found');
+    if (!target.email) throw new ConflictException('Partner has no email on record');
+    return this.reset.execute({ email: String(target.email).toLowerCase() });
   }
 }

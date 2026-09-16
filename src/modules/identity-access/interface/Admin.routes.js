@@ -5,9 +5,12 @@ import { requireRole } from './RequireRole.js';
 import { z } from 'zod';
 import { ROLES } from '../domain/PartnerRole.js';
 import { makeAdminController } from './Admin.controller.js';
-import { ListPartnersUseCase, SetPartnerRoleUseCase, SetSuspendUseCase, PlatformStatsUseCase } from '../application/Admin.usecase.js';
+import { ListPartnersUseCase, SetPartnerRoleUseCase, SetSuspendUseCase, PlatformStatsUseCase, ResetOnBehalfUseCase } from '../application/Admin.usecase.js';
+import { RequestPasswordResetUseCase } from '../application/PasswordReset.usecase.js';
+import { PasswordResetMailer } from '../infrastructure/clients/PasswordResetMailer.js';
 import { MongoPartnerRepository } from '../infrastructure/Auth.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
+import { revokeSessions, clearRevocations } from '../infrastructure/SessionRevocation.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 
@@ -34,13 +37,29 @@ const SetSuspendSchema = z.object({
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
 export const buildAdminRouter = (deps = {}) => {
   const partners = deps.partners ?? new MongoPartnerRepository();
+  const sessions = deps.sessions ?? {
+    revoke: (id, opts) => revokeSessions(id, opts),
+    clear: (id) => clearRevocations(id),
+  };
   const controller = makeAdminController({
     setRole: new SetPartnerRoleUseCase({ partners }),
     listPartners: new ListPartnersUseCase({ partners }),
-    setSuspend: new SetSuspendUseCase({ partners }),
+    setSuspend: new SetSuspendUseCase({ partners, sessions }),
     platformStats: new PlatformStatsUseCase({
       partners,
       progress: deps.progress ?? new MongoProgressionStore(),
+    }),
+    signOut: deps.signOut ?? (async ({ requesterId, partnerId }) => {
+      await revokeSessions(partnerId, { reason: 'Admin force sign-out', by: requesterId });
+      return { revoked: true };
+    }),
+    resetOnBehalf: deps.resetOnBehalf ?? new ResetOnBehalfUseCase({
+      partners,
+      reset: new RequestPasswordResetUseCase({
+        partners,
+        mailer: deps.mailer ?? new PasswordResetMailer(),
+        frontendUrl: deps.frontendUrl ?? process.env.FRONTEND_URL ?? 'https://c21fg.online',
+      }),
     }),
   });
 
@@ -50,6 +69,10 @@ export const buildAdminRouter = (deps = {}) => {
   router.patch('/partners/:partnerId/role', validate({ params: PartnerIdParam, body: SetRoleSchema }), controller.setRole);
   router.patch('/partners/:partnerId/suspend', validate({ params: PartnerIdParam, body: SetSuspendSchema }), controller.suspend);
   router.get('/stats', controller.stats);
+  // Force sign-out: revokes live JWTs (sessions die on next call). Self allowed.
+  router.post('/partners/:partnerId/signout', validate({ params: PartnerIdParam }), controller.signOut);
+  // Reset on behalf: the reset link goes to the MEMBER's email — admins never see passwords.
+  router.post('/partners/:partnerId/reset-password', validate({ params: PartnerIdParam }), controller.resetOnBehalf);
   return router;
 };
 

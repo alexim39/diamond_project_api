@@ -6,11 +6,9 @@ import { toSafePartner } from '../domain/Partner.entity.js';
  * password", 1-day JWT in cookie) but hashing/JWT live behind interfaces.
  */
 export class SigninUseCase {
-  /** @param {{partners, hasher, sessions}} deps */
-  constructor({ partners, hasher, sessions }) {
-    this.partners = partners;
-    this.hasher = hasher;
-    this.sessions = sessions;
+  /** @param {{partners, hasher, sessions, revocations?}} deps (`revocations.clear` runs on success) */
+  constructor({ partners, hasher, sessions, revocations = null }) {
+    Object.assign(this, { partners, hasher, sessions, revocations });
   }
 
   /**
@@ -29,6 +27,8 @@ export class SigninUseCase {
     if (user.suspendedAt) throw new ForbiddenException('Account suspended — contact support');
 
     const id = String(user._id ?? user.id);
+    // Fresh login lifts any prior revocation (force-sign-out / unsuspend path).
+    if (this.revocations?.clear) await this.revocations.clear(id).catch(() => null);
     return { token: this.sessions.sign(id), user: toSafePartner(user) };
   }
 }

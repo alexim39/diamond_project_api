@@ -129,6 +129,12 @@ export const getPartner = async (req, res) => {
     if (user.suspendedAt) {
       return res.status(403).json({ message: "Account suspended — contact support", success: false });
     }
+    try {
+      const { isSessionRevoked } = await import("../../../modules/identity-access/infrastructure/SessionRevocation.js");
+      if (await isSessionRevoked(String(user._id)).catch(() => false)) {
+        return res.status(401).json({ message: "Session revoked — sign in again", success: false });
+      }
+    } catch { /* revocation check unavailable — JWT verification still applies */ }
 
     const { password: _, ...userObject } = user.toJSON();
     res.status(200).json({ data: userObject, message: 'User authenticated', success: true });
@@ -161,6 +167,12 @@ export const signin = async (req, res) => {
     const token = jwt.sign({ id: user._id }, process.env.JWTTOKENSECRET, {
       expiresIn: "1d",
     });
+
+    // Fresh login lifts any prior revocation (force-sign-out path).
+    try {
+      const { clearRevocations } = await import("../../../modules/identity-access/infrastructure/SessionRevocation.js");
+      await clearRevocations(String(user._id)).catch(() => null);
+    } catch { /* revocation store unavailable — cookie session still applies */ }
 
     res.cookie("jwt", token, {
       httpOnly: true,

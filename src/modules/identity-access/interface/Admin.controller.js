@@ -2,7 +2,7 @@ import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { recordAudit } from '../../audit/index.js';
 
 /** Admin console adapters — all routes behind requireAuth + requireRole('admin'). */
-export const makeAdminController = ({ setRole, listPartners, setSuspend, platformStats }) => ({
+export const makeAdminController = ({ setRole, listPartners, setSuspend, platformStats, signOut, resetOnBehalf }) => ({
   setRole: asyncHandler(async (req, res) => {
     const params = req.validated?.params ?? req.params;
     const body = req.validated?.body ?? req.body;
@@ -56,5 +56,25 @@ export const makeAdminController = ({ setRole, listPartners, setSuspend, platfor
   stats: asyncHandler(async (_req, res) => {
     const data = await platformStats.execute();
     res.status(200).json({ message: 'Platform stats retrieved successfully', data, success: true });
+  }),
+
+  signOut: asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const target = await signOut({ requesterId: req.auth?.partnerId, partnerId: params.partnerId });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'account.signout',
+      targetType: 'partner', targetId: params.partnerId,
+    });
+    res.status(200).json({ message: 'Sessions revoked — the member signs in again with their password', data: target, success: true });
+  }),
+
+  resetOnBehalf: asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    await resetOnBehalf.execute({ requesterId: req.auth?.partnerId, partnerId: params.partnerId });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'account.reset-password',
+      targetType: 'partner', targetId: params.partnerId,
+    });
+    res.status(200).json({ message: 'If the account exists, a reset link was sent to the member email', success: true });
   }),
 });

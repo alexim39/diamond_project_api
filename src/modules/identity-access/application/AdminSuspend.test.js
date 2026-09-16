@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { SetSuspendUseCase } from './Admin.usecase.js';
 import { PlatformStatsUseCase } from './Admin.usecase.js';
 import { ListPartnersUseCase } from './Admin.usecase.js';
+import { ResetOnBehalfUseCase } from './Admin.usecase.js';
 import { SigninUseCase } from './Signin.usecase.js';
 import { GetCurrentPartnerUseCase } from './GetCurrentPartner.usecase.js';
 
@@ -171,5 +172,54 @@ describe('ListPartnersUseCase', () => {
     const res = await uc.execute({ limit: 5000, skip: -5 });
     assert.equal(res.limit, 100);
     assert.equal(res.skip, 0);
+  });
+});
+
+describe('SetSuspendUseCase sessions', () => {
+  it('revokes live sessions on suspend and clears on unsuspend', async () => {
+    const calls = [];
+    const sessions = {
+      revoke: async (id, opts) => { calls.push(['revoke', id, opts]); },
+      clear: async (id) => { calls.push(['clear', id]); },
+    };
+    const partners = fakePartners([partner()]);
+    const uc = new SetSuspendUseCase({ partners, sessions });
+    await uc.execute({ requesterId: 'admin1', partnerId: 'p1', suspended: true, reason: 'Abuse' });
+    assert.deepEqual(calls[0], ['revoke', 'p1', { reason: 'Abuse', by: 'admin1' }]);
+    await uc.execute({ requesterId: 'admin1', partnerId: 'p1', suspended: false });
+    assert.deepEqual(calls[1], ['clear', 'p1']);
+  });
+
+  it('succeeds without a sessions dep (backwards compatible)', async () => {
+    const uc = new SetSuspendUseCase({ partners: fakePartners([partner()]) });
+    const res = await uc.execute({ requesterId: 'admin1', partnerId: 'p1', suspended: true });
+    assert.equal(res.suspended, true);
+  });
+});
+
+describe('ResetOnBehalfUseCase', () => {
+  it('delegates to the reset flow with the member email', async () => {
+    let got = null;
+    const uc = new ResetOnBehalfUseCase({
+      partners: fakePartners([partner()]),
+      reset: { execute: async (input) => { got = input; return { sent: true }; } },
+    });
+    const res = await uc.execute({ partnerId: 'p1' });
+    assert.deepEqual(got, { email: 'a@x.test' });
+    assert.deepEqual(res, { sent: true });
+  });
+
+  it('404s unknown partners and rejects missing emails', async () => {
+    const uc = new ResetOnBehalfUseCase({
+      partners: fakePartners([]),
+      reset: { execute: async () => ({ sent: true }) },
+    });
+    await assert.rejects(uc.execute({ partnerId: 'ghost' }), /not found/i);
+
+    const noMail = new ResetOnBehalfUseCase({
+      partners: fakePartners([partner({ email: '' })]),
+      reset: { execute: async () => ({ sent: true }) },
+    });
+    await assert.rejects(noMail.execute({ partnerId: 'p1' }), /no email/i);
   });
 });
