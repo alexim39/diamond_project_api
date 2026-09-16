@@ -154,11 +154,18 @@ export class ListReviewQueueUseCase {
         const holder = holderByCode[String(r.code)] ?? null;
         const chain = holder ? (chainByHolder[String(holder._id)] ?? []) : [];
         const [nearest, ...rest] = chain;
-        // A dangling "Former member" placeholder must not shadow a real
-        // chain — it yields whenever uplines were found for the code.
-        const issuer = resolved ?? (chain.length > 0 ? null : (rawRef
-          ? { username: rawRef.slice(-6), name: 'Former member' }
-          : null));
+        // Standing admin rule: the Issuer column shows the UPLINE of the
+        // For-column user, so it tallies 1:1 with the tree's parent links.
+        // A dangling "Former member" placeholder never shadows a real chain.
+        // The recorder (when different) rides along as `recordedBy`.
+        const issuer = !chain.length
+          ? (resolved ?? (rawRef
+            ? { username: rawRef.slice(-6), name: 'Former member' }
+            : null))
+          : null;
+        const recordedBy = chain.length && resolved && resolved.username !== nearest.username
+          ? { username: resolved.username, name: resolved.name }
+          : null;
         return {
           id: String(r.id ?? r._id),
           code: r.code,
@@ -167,15 +174,15 @@ export class ListReviewQueueUseCase {
           issuer,
           prospect: r.prospectId ? (prospectLabels[String(r.prospectId)] ?? { name: 'Unknown', phone: '' }) : null,
           consumer: consumerLabels[String(r.code)] ?? null,
-          // Chain shows whenever no RESOLVED issuer exists — including the
-          // Former-member case, per the admin's standing request. Primary =
-          // nearest upline; the rest of the chain rides along.
-          issuerUpline: !resolved && nearest ? {
+          // Chain shows whenever uplines were found for the holder.
+          // Primary = nearest upline; the rest of the chain rides along.
+          issuerUpline: nearest ? {
             username: nearest.username,
             name: nearest.name,
             holderUsername: holder?.username ?? null,
             chain,
           } : null,
+          recordedBy,
         };
       }),
       total,
