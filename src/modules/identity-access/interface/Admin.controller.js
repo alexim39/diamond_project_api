@@ -25,8 +25,10 @@ export const makeAdminController = ({ setRole, listPartners, setSuspend, platfor
       limit: q?.limit,
       skip: q?.skip,
       q: q?.q,
+      role: q?.role && q.role !== 'all' ? q.role : null,
+      suspended: q?.suspended ?? 'all',
     });
-    res.status(200).json({ message: 'Partners retrieved successfully', ...data, success: true });
+    res.status(200).json({ message: 'Partners retrieved successfully', data, success: true });
   }),
 
   suspend: asyncHandler(async (req, res) => {    const params = req.validated?.params ?? req.params;

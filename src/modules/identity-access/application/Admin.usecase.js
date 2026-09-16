@@ -39,10 +39,16 @@ export class ListPartnersUseCase {
     this.partners = partners;
   }
 
-  async execute({ limit = 25, skip = 0, q = '' }) {
+  async execute({ limit = 25, skip = 0, q = '', role = null, suspended = 'all' } = {}) {
     const lim = Math.min(Math.max(Number(limit) || 25, 1), 100);
     const sk = Math.max(Number(skip) || 0, 0);
-    const { items, total } = await this.partners.listPartners({ limit: lim, skip: sk, q: String(q ?? '').trim() });
+    const { items, total } = await this.partners.listPartners({
+      limit: lim,
+      skip: sk,
+      q: String(q ?? '').trim(),
+      role: role && role !== 'all' ? String(role).toLowerCase() : null,
+      suspended: ['yes', 'no'].includes(suspended) ? suspended : 'all',
+    });
     return { items: items.map(toSafePartner), total, limit: lim, skip: sk };
   }
 }

@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { SetSuspendUseCase } from './Admin.usecase.js';
 import { PlatformStatsUseCase } from './Admin.usecase.js';
+import { ListPartnersUseCase } from './Admin.usecase.js';
 import { SigninUseCase } from './Signin.usecase.js';
 import { GetCurrentPartnerUseCase } from './GetCurrentPartner.usecase.js';
 
@@ -115,5 +116,38 @@ describe('PlatformStatsUseCase', () => {
     const rollup = { total: 10, new7d: 2, new30d: 5, roles: { user: 7, leader: 1, g8: 1, admin: 1 }, suspended: 1 };
     const uc = new PlatformStatsUseCase({ partners: { platformStats: async () => rollup } });
     assert.deepEqual(await uc.execute(), rollup);
+  });
+});
+
+describe('ListPartnersUseCase', () => {
+  const dirPartners = (rows) => ({
+    lastArgs: null,
+    async listPartners(args) {
+      this.lastArgs = args;
+      return { items: rows, total: rows.length };
+    },
+  });
+
+  it('passes role and suspended filters with bounded paging', async () => {
+    const repo = dirPartners([{ _id: 'a1', username: 'u1', role: 'admin' }]);
+    const uc = new ListPartnersUseCase({ partners: repo });
+    const res = await uc.execute({ role: 'admin', suspended: 'yes', limit: 25, skip: 0 });
+    assert.equal(res.total, 1);
+    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: 'admin', suspended: 'yes' });
+  });
+
+  it('normalizes role casing and unknown suspended values', async () => {
+    const repo = dirPartners([]);
+    const uc = new ListPartnersUseCase({ partners: repo });
+    await uc.execute({ role: 'Admin', suspended: 'maybe' });
+    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: 'admin', suspended: 'all' });
+  });
+
+  it('clamps paging bounds', async () => {
+    const repo = dirPartners([]);
+    const uc = new ListPartnersUseCase({ partners: repo });
+    const res = await uc.execute({ limit: 5000, skip: -5 });
+    assert.equal(res.limit, 100);
+    assert.equal(res.skip, 0);
   });
 });

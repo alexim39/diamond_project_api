@@ -36,6 +36,10 @@ const LEGACY_DROP = [
 export const INDEXES = [
   { collection: 'partners', keys: { partnerOf: 1 }, options: {} },
   { collection: 'partners', keys: { partnerOf: 1, createdAt: -1 }, options: {} },
+  // Admin directory: newest-first sort leg + role/suspended filter legs.
+  { collection: 'partners', keys: { createdAt: -1 }, options: {} },
+  { collection: 'partners', keys: { role: 1, createdAt: -1 }, options: {} },
+  { collection: 'partners', keys: { suspendedAt: 1 }, options: {} },
   { collection: 'partners', keys: { dobMonth: 1, dobDay: 1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, createdAt: -1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, 'status.stage': 1 }, options: {} },

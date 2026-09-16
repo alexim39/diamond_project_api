@@ -20,6 +20,10 @@ const AdminListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(25),
   skip: z.coerce.number().int().min(0).optional().default(0),
   q: z.string().trim().max(120).optional().default(''),
+  role: z.enum([...ROLES, 'all']).optional().default('all'),
+  // `all` | `yes` | `no` — plain enum avoids z.coerce.boolean's
+  // non-empty-string-is-true trap ('false' would coerce to true).
+  suspended: z.enum(['all', 'yes', 'no']).optional().default('all'),
 });
 const SetSuspendSchema = z.object({
   suspended: z.boolean(),

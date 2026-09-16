@@ -64,20 +64,27 @@ export class MongoPartnerRepository {
       .collation({ locale: 'en', strength: 2 })
       .countDocuments();
   }
-  /** Admin directory listing — lean, paginated, safe fields projected upstream. */  async listPartners({ limit = 25, skip = 0, q = '' }) {
+  /** Admin directory listing — lean, paginated, safe fields projected upstream. */
+  async listPartners({ limit = 25, skip = 0, q = '', role = null, suspended = 'all' }) {
     const filter = {};
     if (q) {
       const escaped = String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const re = new RegExp(escaped, 'i');
       filter.$or = [{ name: re }, { surname: re }, { username: re }, { email: re }];
     }
+    if (role) {
+      // Legacy rows store 'User'/'admin' free-text — match all casings.
+      const r = String(role).toLowerCase();
+      filter.role = { $in: [r, r.charAt(0).toUpperCase() + r.slice(1), r.toUpperCase()] };
+    }
+    if (suspended === 'yes') filter.suspendedAt = { $exists: true, $ne: null };
+    else if (suspended === 'no') filter.suspendedAt = null;
     const [items, total] = await Promise.all([
       PartnersModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       PartnersModel.countDocuments(filter),
     ]);
     return { items, total };
   }
-
   /** Platform headcount for the admin console — one parallel batch, no documents. */
   async platformStats({ now = new Date() } = {}) {
     const t = new Date(now).getTime();
