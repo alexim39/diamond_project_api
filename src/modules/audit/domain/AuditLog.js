@@ -17,6 +17,7 @@ export const AUDIT_ACTIONS = Object.freeze([
   'training.quiz.save',
   'training.media.save',
   'training.media.revert',
+  'ticket.decide',
 ]);
 
 const str = (v, max) => {

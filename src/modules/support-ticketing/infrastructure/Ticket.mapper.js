@@ -15,6 +15,11 @@ export const TicketMapper = {
       priority: o.priority,
       comment: o.comment ?? '',
       partnerId: String(o.partnerId),
+      // Workflow fields postdate the schema — legacy rows fall back to open.
+      status: o.status ?? 'open',
+      assigneeId: o.assigneeId ? String(o.assigneeId) : null,
+      resolutionNote: o.resolutionNote ?? null,
+      resolvedAt: o.resolvedAt ?? null,
       createdAt: o.createdAt,
       updatedAt: o.updatedAt,
     };

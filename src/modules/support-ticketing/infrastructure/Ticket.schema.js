@@ -21,11 +21,27 @@ const ticketSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // Admin inbox workflow (added after launch) — absent on legacy rows,
+    // which read back as `open` via mapper fallbacks. Never set by clients.
+    status: {
+      type: String,
+      enum: ['open', 'in-progress', 'resolved', 'closed'],
+      default: 'open',
+      index: true,
+    },
+    assigneeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Partner',
+      default: null,
+    },
+    resolutionNote: { type: String, default: null, trim: true, maxlength: 2000 },
+    resolvedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
 
 ticketSchema.index({ partnerId: 1, createdAt: -1 });
+ticketSchema.index({ status: 1, createdAt: -1 });
 
 export const TicketMongooseModel =
   mongoose.models.Ticket ?? mongoose.model('Ticket', ticketSchema);
