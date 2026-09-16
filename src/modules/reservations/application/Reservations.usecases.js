@@ -63,8 +63,13 @@ export class ListReviewQueueUseCase {
     // NOTE: filter raw values BEFORE String() — String(null) is the
     // truthy string 'null', which poisons the $in cast and blanks EVERY
     // label via the catch fallback. That was the empty-column bug.
-    const partnerIds = [...new Set(items.map((r) => r.partnerId).filter(Boolean).map(String))];
-    const prospectIds = [...new Set(items.map((r) => r.prospectId).filter(Boolean).map(String))];
+    // Go further: keep only 24-hex ids — legacy rows also store the
+    // literal strings 'undefined'/'null' as partnerId.
+    const cleanIds = (vals) => [...new Set(
+      vals.filter(Boolean).map(String).filter((x) => /^[a-f0-9]{24}$/i.test(x)),
+    )];
+    const partnerIds = cleanIds(items.map((r) => r.partnerId));
+    const prospectIds = cleanIds(items.map((r) => r.prospectId));
     const codes = [...new Set(items.map((r) => String(r.code ?? '')).filter(Boolean))];
     const [partners, prospects, consumers] = await Promise.all([
       partnerIds.length > 0
@@ -91,33 +96,64 @@ export class ListReviewQueueUseCase {
       username: p.username,
       name: [p.name, p.surname].filter(Boolean).join(' ') || p.username,
     }]));
-    // Upline-of-holder fallback: for ownerless codes held by a partner,
-    // the holder's upline is the closest identifiable chain link. Shown
-    // qualified in the UI (never presented as the recorder).
-    const holderUplines = {};
+    // Upline-chain fallback: for ownerless codes held by a partner, walk
+    // the holder's full ancestor chain (bounded, cycle-safe). Shown
+    // qualified in the UI (nearest first — never presented as the recorder).
+    const chainByHolder = {};
     {
-      const holderIds = [...new Set((consumers ?? []).map((p) => p._id))];
+      const holderIds = cleanIds((consumers ?? []).map((p) => p._id));
       const holderDocs = holderIds.length > 0
         ? await PartnersModel.find({ _id: { $in: holderIds } }).select('partnerOf').lean().catch(() => [])
         : [];
-      const uplineIds = [...new Set(holderDocs.map((h) => h.partnerOf).filter(Boolean).map(String))];
-      const uplines = uplineIds.length > 0
-        ? await PartnersModel.find({ _id: { $in: uplineIds } }).select('username name surname').lean().catch(() => [])
-        : [];
-      const uplineById = Object.fromEntries(uplines.map((u) => [String(u._id), u]));
+      const nodes = new Map();
+      const visited = new Set(holderIds);
+      let frontier = cleanIds(holderDocs.map((h) => h.partnerOf));
+      for (let depth = 0; depth < 10 && frontier.length > 0; depth++) {
+        const docs = await PartnersModel.find({ _id: { $in: frontier } })
+          .select('username name surname partnerOf').lean().catch(() => []);
+        const next = [];
+        for (const doc of docs) {
+          const id = String(doc._id);
+          if (visited.has(id)) continue;
+          visited.add(id);
+          nodes.set(id, doc);
+          if (doc.partnerOf) next.push(String(doc.partnerOf));
+        }
+        frontier = cleanIds(next);
+      }
+      const labelOf = (n) => ({
+        username: n.username,
+        name: [n.name, n.surname].filter(Boolean).join(' ') || n.username,
+      });
       for (const h of holderDocs) {
-        const up = h.partnerOf ? uplineById[String(h.partnerOf)] : null;
-        if (up) holderUplines[String(h._id)] = up;
+        const chain = [];
+        const localSeen = new Set([String(h._id)]);
+        let cur = h.partnerOf ? String(h.partnerOf) : null;
+        while (cur && !localSeen.has(cur) && chain.length < 10) {
+          localSeen.add(cur);
+          const node = nodes.get(cur);
+          if (!node) break;
+          chain.push(labelOf(node));
+          cur = node.partnerOf ? String(node.partnerOf) : null;
+        }
+        if (chain.length > 0) chainByHolder[String(h._id)] = chain;
       }
     }
     const holderByCode = Object.fromEntries((consumers ?? []).map((p) => [String(p.reservationCode), p]));
     return {
       items: items.map((r) => {
-        const issuer = partnerLabels[String(r.partnerId)] ?? (r.partnerId
-          ? { username: String(r.partnerId).slice(-6), name: 'Former member' }
+        // Guard the poisoning case again one level up: legacy rows store
+        // the literal strings 'undefined'/'null' as partnerId.
+        const rawRef = r.partnerId && !['undefined', 'null', ''].includes(String(r.partnerId))
+          ? String(r.partnerId)
+          : null;
+        const resolved = rawRef ? partnerLabels[rawRef] : null;
+        const issuer = resolved ?? (rawRef
+          ? { username: rawRef.slice(-6), name: 'Former member' }
           : null);
         const holder = holderByCode[String(r.code)] ?? null;
-        const holderUp = holder ? holderUplines[String(holder._id)] : null;
+        const chain = holder ? (chainByHolder[String(holder._id)] ?? []) : [];
+        const [nearest, ...rest] = chain;
         return {
           id: String(r.id ?? r._id),
           code: r.code,
@@ -126,11 +162,14 @@ export class ListReviewQueueUseCase {
           issuer,
           prospect: r.prospectId ? (prospectLabels[String(r.prospectId)] ?? { name: 'Unknown', phone: '' }) : null,
           consumer: consumerLabels[String(r.code)] ?? null,
-          // Only when the true issuer is unknown AND a holder chain exists.
-          issuerUpline: !issuer && holderUp ? {
-            username: holderUp.username,
-            name: [holderUp.name, holderUp.surname].filter(Boolean).join(' ') || holderUp.username,
+          // Chain shows whenever no RESOLVED issuer exists — including the
+          // Former-member case, per the admin's standing request. Primary =
+          // nearest upline; the rest of the chain rides along.
+          issuerUpline: !resolved && nearest ? {
+            username: nearest.username,
+            name: nearest.name,
             holderUsername: holder?.username ?? null,
+            chain,
           } : null,
         };
       }),

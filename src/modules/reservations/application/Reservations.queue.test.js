@@ -47,6 +47,14 @@ describe('ListReviewQueueUseCase', () => {
     const uc = new ListReviewQueueUseCase({ reservations: fakeReservations([]) });
     await assert.rejects(uc.execute({ status: 'nope' }), /Invalid status filter/);
   });
+
+  it("treats legacy 'undefined' partnerId strings as missing", async () => {
+    const fake = fakeReservations([row({ partnerId: 'undefined' })]);
+    const uc = new ListReviewQueueUseCase({ reservations: fake });
+    const res = await uc.execute({ status: 'All' });
+    assert.equal(res.items[0].issuer, null);
+    assert.equal(res.items[0].issuerUpline, null);
+  });
 });
 
 describe('DeleteReservationUseCase', () => {

@@ -2,7 +2,10 @@ import { ConflictException } from '../../../shared/domain/AppError.js';
 import { ReservationCodeModel } from '../../../apps/reservation-code/models/reservation-code.model.js';
 
 const oid = (v) => String(v);
-const shaped = (o) => (o ? { ...o, id: oid(o._id), partnerId: oid(o.partnerId) } : null);
+// Never emit the literal strings 'undefined'/'null' for missing refs —
+// they poison every downstream $in cast. Missing stays null.
+const oidOrNull = (v) => (v === undefined || v === null || v === '' ? null : String(v));
+const shaped = (o) => (o ? { ...o, id: oid(o._id), partnerId: oidOrNull(o.partnerId) } : null);
 
 /** Mongo implementation on the shared `reservation-codes` collection. Reads use `.lean()`. */
 export class MongoReservationStore {
