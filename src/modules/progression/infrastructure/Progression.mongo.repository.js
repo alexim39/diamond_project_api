@@ -210,6 +210,14 @@ export class MongoProgressionStore {
     return Object.fromEntries(rows.map((r) => [oid(r.partnerId), r.level ?? 'partner']));
   }
 
+  /** Org-wide journey-rank distribution (indexed `level` leg, one aggregation). */
+  async levelDistribution() {
+    const rows = await ProgressionModel.aggregate([
+      { $group: { _id: { $ifNull: ['$level', 'partner'] }, count: { $sum: 1 } } },
+    ]);
+    return Object.fromEntries(rows.map((r) => [String(r._id), r.count]));
+  }
+
   async requestNomination(partnerId, note) {
     const row = await ProgressionModel.findOneAndUpdate(
       { partnerId },

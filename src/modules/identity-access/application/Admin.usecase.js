@@ -55,13 +55,24 @@ export class ListPartnersUseCase {
 
 /** Platform headcount for the admin console — totals, growth, roles, suspended. */
 export class PlatformStatsUseCase {
-  /** @param {{partners}} deps */
-  constructor({ partners }) {
-    this.partners = partners;
+  /** @param {{partners, progress?}} deps (progress optional — levels omitted without it) */
+  constructor({ partners, progress = null }) {
+    Object.assign(this, { partners, progress });
   }
 
   async execute() {
-    return this.partners.platformStats();
+    const base = await this.partners.platformStats();
+    let levels = {};
+    if (this.progress?.levelDistribution) {
+      levels = await this.progress.levelDistribution().catch(() => ({}));
+    }
+    const distributed = Object.values(levels).reduce((s, n) => s + Number(n), 0);
+    return {
+      ...base,
+      levels,
+      // Partners without a journey record yet (never touched progression).
+      unranked: Math.max(0, base.total - distributed),
+    };
   }
 }
 

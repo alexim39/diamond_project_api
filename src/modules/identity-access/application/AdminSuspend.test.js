@@ -112,10 +112,32 @@ describe('suspension enforcement', () => {
 });
 
 describe('PlatformStatsUseCase', () => {
-  it('returns the repo rollup untouched', async () => {
+  it('returns the repo rollup with empty levels when progress is absent', async () => {
     const rollup = { total: 10, new7d: 2, new30d: 5, roles: { user: 7, leader: 1, g8: 1, admin: 1 }, suspended: 1 };
     const uc = new PlatformStatsUseCase({ partners: { platformStats: async () => rollup } });
-    assert.deepEqual(await uc.execute(), rollup);
+    assert.deepEqual(await uc.execute(), { ...rollup, levels: {}, unranked: 10 });
+  });
+
+  it('merges the journey-rank distribution and reconciles unranked', async () => {
+    const rollup = { total: 10, new7d: 2, new30d: 5, roles: { user: 7, leader: 1, g8: 1, admin: 1 }, suspended: 1 };
+    const uc = new PlatformStatsUseCase({
+      partners: { platformStats: async () => rollup },
+      progress: { levelDistribution: async () => ({ partner: 4, kingsman: 3 }) },
+    });
+    const res = await uc.execute();
+    assert.deepEqual(res.levels, { partner: 4, kingsman: 3 });
+    assert.equal(res.unranked, 3);
+  });
+
+  it('survives a failing distribution read', async () => {
+    const rollup = { total: 5, new7d: 0, new30d: 1, roles: { user: 5, leader: 0, g8: 0, admin: 0 }, suspended: 0 };
+    const uc = new PlatformStatsUseCase({
+      partners: { platformStats: async () => rollup },
+      progress: { levelDistribution: async () => { throw new Error('down'); } },
+    });
+    const res = await uc.execute();
+    assert.deepEqual(res.levels, {});
+    assert.equal(res.unranked, 5);
   });
 });
 
