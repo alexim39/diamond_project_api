@@ -64,8 +64,10 @@ export class MongoReservationStore {
     return { ...shaped(doc), status: doc.status, prospectId: doc.prospectId ? oid(doc.prospectId) : null };
   }
 
-  async listByPartner(partnerId, limit = 50) {    const lim = Math.min(Math.max(Number(limit) || 50, 1), 100);
-    const docs = await ReservationCodeModel.find({ partnerId })
+  async listByPartner(partnerId, limit = 50, status = null) {    const lim = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const filter = { partnerId };
+    if (status && status !== 'All') filter.status = String(status);
+    const docs = await ReservationCodeModel.find(filter)
       .sort({ createdAt: -1 })
       .limit(lim)
       .lean();

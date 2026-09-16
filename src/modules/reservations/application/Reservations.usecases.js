@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
+import { ConflictException, ForbiddenException, NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 import { createRecordEntity } from '../domain/Reservation.entity.js';
 import { PartnersModel } from '../../../apps/partner/models/partner.model.js';
 import { ProspectModel } from '../../../apps/prospect/models/prospect.model.js';
@@ -26,14 +26,29 @@ export class ListMyReservationsUseCase {
     this.reservations = reservations;
   }
 
-  async execute({ referrerId, limit = 50 }) {
-    const items = await this.reservations.listByPartner(referrerId, limit);
+  async execute({ referrerId, limit = 50, status = null }) {
+    if (status && status !== 'All' && !REVIEW_STATUSES.includes(status)) {
+      throw new ValidationException('Invalid status filter');
+    }
+    const items = await this.reservations.listByPartner(referrerId, limit, status);
+    // Resolve "activated for" names (same pattern as the admin queue).
+    const prospectIds = [...new Set(items.map((r) => r.prospectId).filter(Boolean).map(String))];
+    let prospectLabels = {};
+    if (prospectIds.length > 0) {
+      const prospects = await ProspectModel.find({ _id: { $in: prospectIds } })
+        .select('prospectName prospectSurname prospectPhone').lean().catch(() => []);
+      prospectLabels = Object.fromEntries((prospects ?? []).map((p) => [String(p._id), {
+        name: [p.prospectName, p.prospectSurname].filter(Boolean).join(' ') || 'Unnamed',
+        phone: p.prospectPhone ?? '',
+      }]));
+    }
     return {
       items: items.map((r) => ({
         id: String(r.id),
         code: r.code,
         status: r.status,
         prospectId: r.prospectId ?? null,
+        prospect: r.prospectId ? (prospectLabels[String(r.prospectId)] ?? { name: 'Unknown', phone: '' }) : null,
         createdAt: r.createdAt ?? null,
       })),
       total: items.length,
@@ -192,9 +207,10 @@ export class ListReviewQueueUseCase {
 }
 
 /**
- * DELETE (admin) — hard delete with lifecycle guards. Pending/Rejected go
+ * DELETE — hard delete with lifecycle guards. Pending/Rejected go
  * freely; Approved only while no partner account holds the code; Used is
- * history and never deletable (409 either way).
+ * history and never deletable (409 either way). With `ownerId`, the row
+ * must belong to the requester (partner self-service; 403 otherwise).
  */
 export class DeleteReservationUseCase {
   /** @param {{reservations}} deps */
@@ -202,9 +218,12 @@ export class DeleteReservationUseCase {
     this.reservations = reservations;
   }
 
-  async execute({ reservationId }) {
+  async execute({ reservationId, ownerId = null }) {
     const existing = await this.reservations.findById(reservationId);
     if (!existing) throw new NotFoundException('Reservation code not found');
+    if (ownerId && String(existing.partnerId) !== String(ownerId)) {
+      throw new ForbiddenException('You can only delete codes you recorded');
+    }
     if (existing.status === 'Used') {
       throw new ConflictException('Used codes are history and cannot be deleted');
     }

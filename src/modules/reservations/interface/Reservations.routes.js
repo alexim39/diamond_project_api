@@ -16,7 +16,10 @@ const RecordSchema = z.object({
 });
 const MineQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(50),
+  status: z.enum(['Pending', 'Approved', 'Rejected', 'Used', 'All']).optional(),
 });
+
+const MineIdParam = z.object({ id: objectId });
 
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
 export const buildReservationsRouter = (deps = {}) => {
@@ -43,8 +46,20 @@ export const buildReservationsRouter = (deps = {}) => {
 
   router.get('/mine', validate({ query: MineQuery }), asyncHandler(async (req, res) => {
     const q = req.validated?.query ?? req.query;
-    const data = await mine.execute({ referrerId: req.auth?.partnerId, limit: q?.limit });
+    const data = await mine.execute({ referrerId: req.auth?.partnerId, limit: q?.limit, status: q?.status ?? null });
     res.status(200).json({ message: 'Reservation codes retrieved successfully', data, success: true });
+  }));
+
+  // Partner self-service delete — own unconsumed codes only (Used never,
+  // Approved only while unheld; same lifecycle guards as the admin path).
+  // Static segment: no clash with DELETE /:id (different arity).
+  router.delete('/mine/:id', validate({ params: MineIdParam }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await remove.execute({ reservationId: params.id, ownerId: req.auth?.partnerId });
+    if (!data) {
+      return res.status(404).json({ message: 'Reservation code not found', success: false });
+    }
+    res.status(200).json({ message: `Code ${data.code} deleted permanently`, data, success: true });
   }));
 
   router.get('/queue', requireRole('admin'), validate({ query: z.object({

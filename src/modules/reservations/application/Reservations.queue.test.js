@@ -112,3 +112,25 @@ describe('DecideReservationUseCase transitions', () => {
     await assert.rejects(missing.execute({ reservationId: 'ghost', status: 'Approved' }), /not found/i);
   });
 });
+
+describe('DeleteReservationUseCase owner guard', () => {
+  const ownedStore = () => ({
+    async findById(id) {
+      return { id, code: 'NV1', status: 'Pending', partnerId: 'owner1' };
+    },
+    async hardDelete(id) {
+      return { id, code: 'NV1', status: 'Pending' };
+    },
+  });
+
+  it('allows the owner', async () => {
+    const uc = new DeleteReservationUseCase({ reservations: ownedStore() });
+    const res = await uc.execute({ reservationId: 'r1', ownerId: 'owner1' });
+    assert.equal(res.code, 'NV1');
+  });
+
+  it('rejects strangers with 403', async () => {
+    const uc = new DeleteReservationUseCase({ reservations: ownedStore() });
+    await assert.rejects(uc.execute({ reservationId: 'r1', ownerId: 'stranger' }), /only delete codes you recorded/);
+  });
+});
