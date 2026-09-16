@@ -78,6 +78,21 @@ export const env = {
     };
   },
   /**
+   * Outbound mail (SMTP). All platform email flows through
+   * `src/services/emailService.js`, which reads these vars directly.
+   * Missing host/user = sends resolve `{ sent: false }`, never throw.
+   */
+  get mail() {
+    const secureRaw = String(process.env.EMAIL_SECURE ?? 'false').trim().toLowerCase();
+    return {
+      host: process.env.EMAIL_HOST || '',
+      port: Number(process.env.EMAIL_PORT || 587),
+      secure: ['true', '1', 'yes'].includes(secureRaw),
+      user: process.env.EMAIL_USER || '',
+      configured: Boolean(process.env.EMAIL_HOST) && Boolean(process.env.EMAIL_USER),
+    };
+  },
+  /**
    * SMS via a generic HTTP provider (Termii-compatible shape documented
    * in .env.example). `disabled` (default) logs instead of sending.
    */

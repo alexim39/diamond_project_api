@@ -1,44 +1,79 @@
 import nodemailer from 'nodemailer';
+import { brandEmail } from './emailBrand.js';
 
-// Create Nodemailer transporter
-const transporter = nodemailer.createTransport({
-  host: 'c21fg.online',
-  secure: true,
-  port: 465,
-  auth: {
-    user: 'alex.i@c21fg.online', // your email
-    pass: process.env.EMAILPASS, // stored in environment variables
-  },
-});
-/* const transporter = nodemailer.createTransport({
-  host: 'async.ng',
-  secure: true,
-  port: 465,
-  auth: {
-    user: 'alex.i@async.ng', // your email
-    pass: process.env.EMAILPASS, // stored in environment variables
-  },
-}); */
+/**
+ * Outbound mail — single choke point for the whole platform.
+ * Transport comes from env (see .env.example # Email Service); the
+ * transporter is built lazily so importing this module never throws
+ * when vars are missing — sends fail with a clear error instead.
+ * Every body is wrapped in the branded shell (subject = title), so all
+ * notifications share one look with zero call-site changes.
+ */
+const mailConfig = () => {
+  const port = Number(process.env.EMAIL_PORT || 587);
+  const secureRaw = String(process.env.EMAIL_SECURE ?? 'false').trim().toLowerCase();
+  const secure = ['true', '1', 'yes'].includes(secureRaw);
+  return {
+    host: process.env.EMAIL_HOST || '',
+    port,
+    secure,
+    // Port 587 + secure=false means STARTTLS — still encrypted in transit.
+    requireTLS: !secure,
+    auth: {
+      user: process.env.EMAIL_USER || '',
+      // EMAILPASS is the legacy var — honored until the dashboard moves over.
+      pass: process.env.EMAIL_PASS || process.env.EMAILPASS || '',
+    },
+  };
+};
 
-/* const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-     user: 'ago.fnc@gmail.com', // your email
-    pass: process.env.EMAILPASS, // stored in environment variables
-  },
-}); */
+const fromAddress = () => {
+  const name = process.env.EMAIL_FROM_NAME || 'c21fg';
+  const email = process.env.EMAIL_FROM_EMAIL || process.env.EMAIL_USER || '';
+  return name ? `"${name}" <${email}>` : email;
+};
 
-// Reusable function to send emails
-export const sendEmail = async (email, subject, htmlContent) => {
+let transporter = null;
+const getTransporter = () => {
+  if (!transporter) {
+    const config = mailConfig();
+    if (!config.host || !config.auth.user) {
+      throw new Error('Email is not configured (EMAIL_HOST / EMAIL_USER missing)');
+    }
+    transporter = nodemailer.createTransport(config);
+  }
+  return transporter;
+};
+
+/** Test helper — drops the cached transporter (env swaps between tests). */
+export const __resetEmailTransporter = () => {
+  transporter = null;
+};
+
+// Reusable function to send emails.
+// Never throws: legacy callers `await` this bare inside request flows
+// (booking, survey, tickets), so a mail hiccup must not 500 the request.
+// Check the returned `{ sent }` when delivery actually matters.
+export const sendEmail = async (email, subject, htmlContent, options = {}) => {
+  const html = options.plain
+    ? htmlContent
+    : brandEmail({
+      title: options.title ?? subject,
+      body: htmlContent,
+      actionUrl: options.actionUrl ?? null,
+      actionLabel: options.actionLabel ?? 'Open Diamond Project',
+    });
   try {
-    await transporter.sendMail({
-      from: 'noreply@c21fg.online', // Sender email
+    await getTransporter().sendMail({
+      from: fromAddress(),
       to: email,
-      subject: subject,
-      html: htmlContent,
+      subject,
+      html,
     });
     console.log(`Email sent to ${email}`);
+    return { sent: true };
   } catch (error) {
     console.error(`Error sending email to ${email}: ${error.message}`);
+    return { sent: false, error: error.message };
   }
 };

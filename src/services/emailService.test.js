@@ -1,0 +1,57 @@
+import { describe, it, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { brandEmail, BRAND_LOGO_URL } from './emailBrand.js';
+
+describe('brandEmail', () => {
+  it('wraps title, body, logo and footer', () => {
+    const html = brandEmail({ title: 'Hello', body: '<p>World</p>' });
+    assert.match(html, /Hello/);
+    assert.match(html, /<p>World<\/p>/);
+    assert.ok(html.includes(BRAND_LOGO_URL));
+    assert.match(html, /contacts@c21fg\.online/);
+  });
+
+  it('escapes the title but trusts the body HTML', () => {
+    const html = brandEmail({ title: '<script>x</script>', body: '<b>ok</b>' });
+    assert.doesNotMatch(html, /<script>x<\/script>/);
+    assert.match(html, /<b>ok<\/b>/);
+  });
+
+  it('renders the action button only when a URL is given', () => {
+    assert.match(
+      brandEmail({ title: 'T', body: 'B', actionUrl: 'https://c21fg.online/x' }).toString(),
+      /https:\/\/c21fg\.online\/x/,
+    );
+    assert.doesNotMatch(brandEmail({ title: 'T', body: 'B' }), /Open Diamond Project<\/a>/);
+  });
+});
+
+describe('sendEmail transport', () => {
+  const keep = { ...process.env };
+
+  beforeEach(async () => {
+    const { __resetEmailTransporter } = await import('./emailService.js');
+    __resetEmailTransporter();
+  });
+
+  it('resolves { sent: false } without throwing when unconfigured', async () => {
+    delete process.env.EMAIL_HOST;
+    delete process.env.EMAIL_USER;
+    process.env = { ...process.env };
+    const { sendEmail, __resetEmailTransporter } = await import('./emailService.js');
+    __resetEmailTransporter();
+    const res = await sendEmail('a@x.test', 'Hi', '<p>body</p>');
+    assert.deepEqual(res.sent, false);
+    Object.assign(process.env, keep);
+  });
+
+  it('parses secure flag strictly (port-587 STARTTLS default)', async () => {
+    const { env } = await import('../shared/config/env.js');
+    process.env.EMAIL_SECURE = 'false';
+    assert.equal(env.mail.secure, false);
+    assert.equal(env.mail.port, 587);
+    process.env.EMAIL_SECURE = 'true';
+    assert.equal(env.mail.secure, true);
+    Object.assign(process.env, keep);
+  });
+});
