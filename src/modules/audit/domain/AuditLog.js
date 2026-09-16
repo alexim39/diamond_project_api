@@ -18,6 +18,8 @@ export const AUDIT_ACTIONS = Object.freeze([
   'training.media.save',
   'training.media.revert',
   'ticket.decide',
+  'moderation.remove',
+  'moderation.dismiss',
 ]);
 
 const str = (v, max) => {

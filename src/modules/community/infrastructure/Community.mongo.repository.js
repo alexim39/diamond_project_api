@@ -240,6 +240,83 @@ export class MongoCommunityStore {
     return new Set(rows.map((r) => oid(r.postId)));
   }
 
+  /**
+   * Admin moderation queue — reported posts with counts, newest reports
+   * first. Deleted posts drop out via the $lookup filter. Bounded.
+   */
+  async reportedQueue({ limit = 25, skip = 0 } = {}) {
+    const lim = Math.min(Math.max(Number(limit) || 25, 1), 100);
+    const sk = Math.max(Number(skip) || 0, 0);
+    const [rows, totalAgg] = await Promise.all([
+      PostReportModel.aggregate([
+        {
+          $group: {
+            _id: '$postId',
+            reports: { $sum: 1 },
+            latestAt: { $max: '$createdAt' },
+            reasons: { $addToSet: '$reason' },
+          },
+        },
+        { $sort: { reports: -1, latestAt: -1 } },
+        { $skip: sk },
+        { $limit: lim },
+        {
+          $lookup: {
+            from: PostModel.collection.name,
+            localField: '_id',
+            foreignField: '_id',
+            as: 'post',
+          },
+        },
+        { $match: { 'post.0': { $exists: true } } },
+        {
+          $lookup: {
+            from: PartnersModel.collection.name,
+            localField: 'post.authorId',
+            foreignField: '_id',
+            as: 'author',
+          },
+        },
+        {
+          $project: {
+            postId: '$_id',
+            reports: 1,
+            latestAt: 1,
+            reasons: { $slice: ['$reasons', 5] },
+            post: { $arrayElemAt: ['$post', 0] },
+            author: { $arrayElemAt: ['$author', 0] },
+          },
+        },
+      ]),
+      PostReportModel.aggregate([
+        { $group: { _id: '$postId' } },
+        { $count: 'n' },
+      ]),
+    ]);
+    return {
+      items: rows.map((r) => ({
+        postId: oid(r.postId),
+        reports: r.reports,
+        latestAt: r.latestAt,
+        reasons: (r.reasons ?? []).filter(Boolean),
+        excerpt: String(r.post?.body ?? '').slice(0, 280),
+        kind: r.post?.kind ?? null,
+        authorId: r.post?.authorId ? oid(r.post.authorId) : null,
+        authorUsername: r.author?.username ?? null,
+        postedAt: r.post?.createdAt ?? null,
+      })),
+      total: totalAgg[0]?.n ?? 0,
+      limit: lim,
+      skip: sk,
+    };
+  }
+
+  /** Admin dismiss — clears reports, keeps the post. */
+  async dismissReports(postId) {
+    const res = await PostReportModel.deleteMany({ postId });
+    return { dismissed: res.deletedCount ?? 0 };
+  }
+
   /** Lowercase username for mention matching (null when unknown). */
   async findUsername(partnerId) {
     const doc = await PartnersModel.findById(partnerId).select('username').lean();

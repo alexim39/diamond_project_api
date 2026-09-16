@@ -27,7 +27,7 @@ describe('AUDIT_ACTIONS vocabulary', () => {
       'payout.release', 'payout.void', 'withdrawal.decide',
       'campaign.decide', 'order.decide', 'reservation.decide',
       'training.quiz.save', 'training.media.save', 'training.media.revert',
-      'ticket.decide',
+      'ticket.decide', 'moderation.remove', 'moderation.dismiss',
     ]) {
       assert.ok(AUDIT_ACTIONS.includes(a), `missing ${a}`);
     }

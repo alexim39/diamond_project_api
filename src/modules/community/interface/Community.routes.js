@@ -7,6 +7,9 @@ import {
   AddCommentUseCase, CommunityAnalyticsUseCase, CreatePostUseCase, DeletePostUseCase, DirectoryUseCase, GetFeedUseCase,
   ListCommentsUseCase, PinPostUseCase, ReportPostUseCase, ToggleLikeUseCase, ToggleSaveUseCase, UpdatePostUseCase,
 } from '../application/Community.usecases.js';
+import { ListReportedUseCase, ModeratePostUseCase } from '../application/Community.moderation.usecase.js';
+import { requireRole } from '../../identity-access/interface/RequireRole.js';
+import { recordAudit } from '../../audit/index.js';
 import { MongoCommunityStore } from '../infrastructure/Community.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
@@ -105,6 +108,8 @@ export const buildCommunityRouter = (deps = {}) => {
   const images = deps.images ?? buildImageStore({ ...(env.cloudinary ?? {}), folder: 'diamond-projects/community' });
   const directory = new DirectoryUseCase({ community });
   const analytics = new CommunityAnalyticsUseCase({ community });
+  const reported = deps.reported ?? new ListReportedUseCase({ community });
+  const moderate = deps.moderate ?? new ModeratePostUseCase({ community });
 
   const router = express.Router();
   router.use(requireAuth);
@@ -209,6 +214,24 @@ export const buildCommunityRouter = (deps = {}) => {
     const params = req.validated?.params ?? req.params;
     const data = await like.execute({ partnerId: req.auth?.partnerId, commentId: params.commentId });
     res.status(200).json({ message: 'Like toggled successfully', data, success: true });
+  }));
+
+  // Moderation queue — static segments, no clash with `/:postId` routes.
+  router.get('/moderation/queue', requireRole('admin'), asyncHandler(async (req, res) => {
+    const data = await reported.execute({ limit: req.query?.limit, skip: req.query?.skip });
+    res.status(200).json({ message: 'Reported posts retrieved successfully', data, success: true });
+  }));
+
+  router.post('/moderation/:postId', requireRole('admin'), validate({ params: z.object({ postId: objectId }), body: z.object({ decision: z.enum(['remove', 'dismiss']) }) }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const data = await moderate.execute({ postId: params.postId, decision: body.decision });
+    void recordAudit({
+      actorId: req.auth?.partnerId,
+      action: body.decision === 'remove' ? 'moderation.remove' : 'moderation.dismiss',
+      targetType: 'post', targetId: params.postId,
+    });
+    res.status(200).json({ message: body.decision === 'remove' ? 'Post removed' : 'Reports dismissed', data, success: true });
   }));
 
   return router;
