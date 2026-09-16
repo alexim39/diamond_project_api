@@ -2,7 +2,7 @@ import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { recordAudit } from '../../audit/index.js';
 
 /** Admin console adapters — all routes behind requireAuth + requireRole('admin'). */
-export const makeAdminController = ({ setRole, listPartners, setSuspend, platformStats, signOut, resetOnBehalf }) => ({
+export const makeAdminController = ({ setRole, listPartners, setSuspend, platformStats, signOut, resetOnBehalf, erase }) => ({
   setRole: asyncHandler(async (req, res) => {
     const params = req.validated?.params ?? req.params;
     const body = req.validated?.body ?? req.body;
@@ -76,5 +76,17 @@ export const makeAdminController = ({ setRole, listPartners, setSuspend, platfor
       targetType: 'partner', targetId: params.partnerId,
     });
     res.status(200).json({ message: 'If the account exists, a reset link was sent to the member email', success: true });
+  }),
+
+  erase: asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await erase.execute({ requesterId: req.auth?.partnerId, partnerId: params.partnerId });
+    // Audit carries counts only — never the erased PII.
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'account.erase',
+      targetType: 'partner', targetId: params.partnerId,
+      detail: { removed: data?.removed ?? null },
+    });
+    res.status(200).json({ message: 'Account erased — profile anonymized, owned prospects/tickets/codes removed', data, success: true });
   }),
 });

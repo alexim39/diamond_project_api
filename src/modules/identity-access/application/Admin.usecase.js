@@ -136,3 +136,88 @@ export class ResetOnBehalfUseCase {
     return this.reset.execute({ email: String(target.email).toLowerCase() });
   }
 }
+
+/**
+ * GDPR erasure: anonymize PII + delete member-owned working data.
+ * Guards: never yourself, never the last admin, and never a partner
+ * with downline — reassign recruits first (dangling partnerOf links
+ * would orphan subtrees in trees, compliance and commission flow).
+ *
+ * Boundary (documented, deliberate): financial records (ledger entries,
+ * transactions, carts/orders) and community posts are RETAINED for
+ * dispute and accounting history; the author link stays but the profile
+ * behind it is anonymous. The audit row records targetId + counts only —
+ * never the erased PII.
+ */
+export class ErasePartnerUseCase {
+  /** @param {{partners, prospects, tickets, codes, sessions?}} deps */
+  constructor({ partners, prospects, tickets, codes, sessions = null }) {
+    Object.assign(this, { partners, prospects, tickets, codes, sessions });
+  }
+
+  async execute({ requesterId, partnerId }) {
+    if (String(requesterId) === String(partnerId)) {
+      throw new ForbiddenException('You cannot erase your own account');
+    }
+    const target = await this.partners.findById(partnerId);
+    if (!target) throw new NotFoundException('Partner not found');
+    if (lenientRole(target.role) === 'admin') {
+      const remaining = await this.partners.countByRole('admin');
+      if (remaining <= 1) {
+        throw new ConflictException('Cannot erase the last admin');
+      }
+    }
+    const downline = await this.partners.countDownline
+      ? await this.partners.countDownline(partnerId)
+      : 0;
+    if (downline > 0) {
+      throw new ConflictException(`Reassign ${downline} downline member(s) before erasing this account`);
+    }
+
+    const tag = `${String(target._id ?? target.id ?? partnerId).slice(-6)}${Math.random().toString(36).slice(2, 6)}`;
+    const anonymized = {
+      name: 'Deleted',
+      surname: 'Member',
+      email: `deleted_${tag}@deleted.local`.toLowerCase(),
+      phone: `deleted_${tag}`,
+      username: `deleted_${tag}`.toLowerCase(),
+      password: `unusable:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`,
+      bio: null,
+      profileImage: null,
+      testimonial: null,
+      jobTitle: null,
+      educationBackground: null,
+      hobby: null,
+      skill: null,
+      whatsappGroupLink: null,
+      whatsappChatLink: null,
+      linkedinPage: null,
+      youtubePage: null,
+      instagramPage: null,
+      tiktokPage: null,
+      facebookPage: null,
+      twitterPage: null,
+      address: null,
+      resetPasswordToken: undefined,
+      resetPasswordExpires: undefined,
+      suspendedAt: new Date(),
+      suspendReason: 'Account erased (GDPR)',
+    };
+    const updated = await this.partners.updateById(partnerId, anonymized);
+
+    const removed = { prospects: 0, tickets: 0, codes: 0 };
+    if (this.prospects?.deleteByPartner) {
+      removed.prospects = await this.prospects.deleteByPartner(partnerId).catch(() => 0);
+    }
+    if (this.tickets?.deleteByPartner) {
+      removed.tickets = await this.tickets.deleteByPartner(partnerId).catch(() => 0);
+    }
+    if (this.codes?.deleteByPartner) {
+      removed.codes = await this.codes.deleteByPartner(partnerId).catch(() => 0);
+    }
+    if (this.sessions?.revoke) {
+      await this.sessions.revoke(String(partnerId), { reason: 'Account erased', by: String(requesterId) }).catch(() => null);
+    }
+    return { erased: toSafePartner(updated), removed };
+  }
+}

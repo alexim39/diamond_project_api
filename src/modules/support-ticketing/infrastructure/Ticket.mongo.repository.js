@@ -51,4 +51,10 @@ export class MongoTicketRepository {
     ).lean();
     return doc ? TicketMapper.toDomain(doc) : null;
   }
+
+  /** GDPR erasure helper — count of owned tickets removed. */
+  async deleteByPartner(partnerId) {
+    const res = await TicketMongooseModel.deleteMany({ partnerId });
+    return res.deletedCount ?? 0;
+  }
 }

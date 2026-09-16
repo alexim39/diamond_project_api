@@ -64,6 +64,12 @@ export class MongoPartnerRepository {
       .collation({ locale: 'en', strength: 2 })
       .countDocuments();
   }
+
+  /** Direct recruits — GDPR erasure refuses while this is nonzero. */
+  async countDownline(partnerId) {
+    return PartnersModel.countDocuments({ partnerOf: partnerId });
+  }
+
   /** Admin directory listing — lean, paginated, safe fields projected upstream. */
   async listPartners({ limit = 25, skip = 0, q = '', role = null, suspended = 'all' }) {
     const filter = {};

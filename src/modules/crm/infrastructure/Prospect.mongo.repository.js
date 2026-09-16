@@ -186,6 +186,12 @@ export class MongoProspectRepository {
     return (await ProspectModel.findByIdAndDelete(id).lean()) !== null;
   }
 
+  /** GDPR erasure helper — count of owned prospects removed. */
+  async deleteByPartner(partnerId) {
+    const res = await ProspectModel.deleteMany({ partnerId });
+    return res.deletedCount ?? 0;
+  }
+
   /** Unsubmitted onboarding-list rows, oldest first. */
   async listUnsubmitted(partnerId) {
     const docs = await ProspectModel.find({ partnerId, listSubmitted: { $ne: true } })
@@ -303,5 +309,11 @@ export class MongoReservationCodes {
       status: 'Approved',
     });
     return { id: String(doc._id), code: doc.code, status: doc.status };
+  }
+
+  /** GDPR erasure helper — count of owned codes removed. */
+  async deleteByPartner(partnerId) {
+    const res = await ReservationCodeModel.deleteMany({ partnerId });
+    return res.deletedCount ?? 0;
   }
 }

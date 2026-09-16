@@ -5,11 +5,13 @@ import { requireRole } from './RequireRole.js';
 import { z } from 'zod';
 import { ROLES } from '../domain/PartnerRole.js';
 import { makeAdminController } from './Admin.controller.js';
-import { ListPartnersUseCase, SetPartnerRoleUseCase, SetSuspendUseCase, PlatformStatsUseCase, ResetOnBehalfUseCase } from '../application/Admin.usecase.js';
+import { ListPartnersUseCase, SetPartnerRoleUseCase, SetSuspendUseCase, PlatformStatsUseCase, ResetOnBehalfUseCase, ErasePartnerUseCase } from '../application/Admin.usecase.js';
 import { RequestPasswordResetUseCase } from '../application/PasswordReset.usecase.js';
 import { PasswordResetMailer } from '../infrastructure/clients/PasswordResetMailer.js';
 import { MongoPartnerRepository } from '../infrastructure/Auth.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
+import { MongoProspectRepository, MongoReservationCodes } from '../../crm/infrastructure/Prospect.mongo.repository.js';
+import { MongoTicketRepository } from '../../support-ticketing/infrastructure/Ticket.mongo.repository.js';
 import { revokeSessions, clearRevocations } from '../infrastructure/SessionRevocation.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
@@ -61,6 +63,13 @@ export const buildAdminRouter = (deps = {}) => {
         frontendUrl: deps.frontendUrl ?? process.env.FRONTEND_URL ?? 'https://c21fg.online',
       }),
     }),
+    erase: deps.erase ?? new ErasePartnerUseCase({
+      partners,
+      prospects: deps.prospects ?? new MongoProspectRepository(),
+      tickets: deps.tickets ?? new MongoTicketRepository(),
+      codes: deps.codes ?? new MongoReservationCodes(),
+      sessions,
+    }),
   });
 
   const router = express.Router();
@@ -73,6 +82,10 @@ export const buildAdminRouter = (deps = {}) => {
   router.post('/partners/:partnerId/signout', validate({ params: PartnerIdParam }), controller.signOut);
   // Reset on behalf: the reset link goes to the MEMBER's email — admins never see passwords.
   router.post('/partners/:partnerId/reset-password', validate({ params: PartnerIdParam }), controller.resetOnBehalf);
+  // GDPR erasure: anonymize + delete owned working data. Refuses with
+  // downline (reassign first), self, last admin. Retained: ledger,
+  // transactions, orders, posts (dispute/accounting history).
+  router.delete('/partners/:partnerId', validate({ params: PartnerIdParam }), controller.erase);
   return router;
 };
 

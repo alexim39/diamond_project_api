@@ -24,7 +24,7 @@ describe('AUDIT_ACTIONS vocabulary', () => {
   it('covers every money-adjacent and governance decision', () => {
     for (const a of [
       'role.set', 'account.suspend', 'account.unsuspend',
-      'account.signout', 'account.reset-password',
+      'account.signout', 'account.reset-password', 'account.erase',
       'payout.release', 'payout.void', 'withdrawal.decide',
       'campaign.decide', 'order.decide', 'reservation.decide',
       'training.quiz.save', 'training.media.save', 'training.media.revert',
