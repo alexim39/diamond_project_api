@@ -12,6 +12,7 @@ import {
   GetEarningsTrendUseCase, GetMyCommissionsUseCase, GetPendingCartsUseCase, GetPerformanceUseCase,
   ResolveAccountUseCase,
 } from '../application/Commission.queries.js';
+import { GetPlanUseCase, UpdatePlanUseCase } from '../application/Commission.plan.js';
 import { MongoCommissionLedger, MongoOrderReader } from '../infrastructure/Billing.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
@@ -47,6 +48,8 @@ export const buildBillingRouter = (deps = {}) => {
     pendingCarts: new GetPendingCartsUseCase({ ledger }),
     release: new ReleaseCartCommissionsUseCase({ ledger, orders }),
     void: new VoidCartCommissionsUseCase({ ledger, orders }),
+    plan: new GetPlanUseCase({ ledger }),
+    updatePlan: new UpdatePlanUseCase({ ledger }),
   });
 
   const router = express.Router();
@@ -65,6 +68,16 @@ export const buildBillingRouter = (deps = {}) => {
   router.get('/pending-carts', requireRole('admin'), validate({ query: PageQuery }), c.pendingCarts);
   router.post('/release/:cartId', requireRole('admin'), validate({ params: CartIdParam }), c.release);
   router.post('/void/:cartId', requireRole('admin'), validate({ params: CartIdParam }), c.void);
+
+  // Commission plan — readable by any partner, writable by admins only.
+  // New rates apply to future accrues; settled entries are never rewritten.
+  router.get('/plan', c.plan);
+  router.put('/plan', requireRole('admin'), validate({
+    body: z.object({
+      rates: z.array(z.number().min(0).max(1)).min(1).max(5),
+      name: z.string().trim().max(120).optional(),
+    }),
+  }), c.updatePlan);
   return router;
 };
 

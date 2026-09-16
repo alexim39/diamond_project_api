@@ -21,6 +21,9 @@ export const AUDIT_ACTIONS = Object.freeze([
   'moderation.remove',
   'moderation.dismiss',
   'broadcast.send',
+  'billing.plan.update',
+  'product.create',
+  'product.update',
 ]);
 
 const str = (v, max) => {

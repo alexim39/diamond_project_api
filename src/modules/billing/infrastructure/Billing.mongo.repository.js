@@ -15,6 +15,18 @@ export class MongoCommissionLedger {
     return CommissionPlanModel.create({ name: 'Default Unilevel', rates: DEFAULT_RATES, active: true });
   }
 
+  /**
+   * Plan rotation — deactivates every active row, activates the new one.
+   * Old rows stay for dispute time-travel; accrues always read active.
+   */
+  async rotatePlan({ name, rates, updatedBy = null }) {
+    await CommissionPlanModel.updateMany({ active: true }, { $set: { active: false } });
+    const doc = await CommissionPlanModel.create({
+      name, rates, active: true, ...(updatedBy ? { updatedBy } : {}),
+    });
+    return doc.toObject();
+  }
+
   async findByCart(cartId) {
     return CommissionModel.find({ cartId }).lean();
   }

@@ -101,7 +101,6 @@ export const decideOrder = async (req, res) => {
       orderId: String(order._id),
       status,
     });
-
     res.status(200).json({ message: `Order marked as ${status.toLowerCase()}!`, data: order, success: true });
     void recordAudit({
       actorId: req.auth?.partnerId, action: 'order.decide',
@@ -110,6 +109,66 @@ export const decideOrder = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error deciding order', error: error.message, success: false });
+  }
+};
+
+const cleanProductFields = (body = {}) => {
+  const out = {};
+  if (body.name !== undefined) {
+    const name = String(body.name).trim().slice(0, 200);
+    if (!name) throw new Error('Product name is required');
+    out.name = name;
+  }
+  if (body.price !== undefined) {
+    const price = Number(body.price);
+    if (!Number.isFinite(price) || price < 0) throw new Error('Product price must be zero or more');
+    out.price = Math.round(price * 100) / 100;
+  }
+  if (body.desc !== undefined) out.desc = String(body.desc).slice(0, 2000);
+  if (body.img !== undefined) out.img = String(body.img).slice(0, 500);
+  return out;
+};
+
+/**
+ * Admin product catalog (role-gated at the route). Whitelisted fields
+ * only — unlike legacy `updateProduct`, this never duplicates the row.
+ */
+export const adminCreateProduct = async (req, res) => {
+  try {
+    const fields = cleanProductFields(req.body ?? {});
+    if (!fields.name || fields.price === undefined) {
+      return res.status(400).json({ message: 'Product name and price are required', success: false });
+    }
+    const product = await ProductModel.create(fields);
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'product.create',
+      targetType: 'product', targetId: String(product._id),
+      detail: { name: product.name, price: product.price },
+    });
+    res.status(200).json({ message: 'Product created successfully!', data: product, success: true });
+  } catch (error) {
+    res.status(400).json({ message: error.message || 'Error creating product', success: false });
+  }
+};
+
+export const adminUpdateProduct = async (req, res) => {
+  try {
+    const fields = cleanProductFields(req.body ?? {});
+    if (Object.keys(fields).length === 0) {
+      return res.status(400).json({ message: 'Nothing to update', success: false });
+    }
+    const product = await ProductModel.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true }).lean();
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found', success: false });
+    }
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'product.update',
+      targetType: 'product', targetId: String(product._id),
+      detail: fields,
+    });
+    res.status(200).json({ message: 'Product updated successfully!', data: product, success: true });
+  } catch (error) {
+    res.status(400).json({ message: error.message || 'Error updating product', success: false });
   }
 };
 

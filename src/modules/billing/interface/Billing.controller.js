@@ -61,4 +61,24 @@ export const makeBillingController = (uc) => ({
     });
     res.status(200).json({ message: 'Order commissions voided successfully', data, success: true });
   }),
+
+  plan: asyncHandler(async (req, res) => {
+    const data = await uc.plan.execute();
+    res.status(200).json({ message: 'Commission plan retrieved successfully', data, success: true });
+  }),
+
+  updatePlan: asyncHandler(async (req, res) => {
+    const body = req.validated?.body ?? req.body;
+    const data = await uc.updatePlan.execute({
+      rates: body.rates,
+      name: body.name ?? null,
+      updatedBy: req.auth?.partnerId,
+    });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'billing.plan.update',
+      targetType: 'commission-plan', targetId: data.id,
+      detail: { rates: data.rates },
+    });
+    res.status(200).json({ message: 'Commission plan updated — applies to future accrues only', data, success: true });
+  }),
 });
