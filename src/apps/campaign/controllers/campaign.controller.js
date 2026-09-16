@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import {TransactionModel} from '../../transaction/models/transaction.model.js';
 import { NotifyUseCase } from '../../../modules/notifications/application/NotificationsCenter.usecases.js';
 import { MongoStoredNotificationStore } from '../../../modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
+import { recordAudit } from '../../../modules/audit/index.js';
 import { sendEmail } from '../../../services/emailService.js';
 
 const ADMIN_STATUSES = ['Pending', 'Active', 'Rejected', 'Ended'];
@@ -571,6 +572,11 @@ export const updateCampaignStatus = async (req, res) => {
     await notifyOwner(campaign.createdBy, { title, body, campaignId: String(campaign._id), status });
 
     res.status(200).json({ message: `Campaign ${status.toLowerCase()} successfully!`, data: campaign, success: true });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'campaign.decide',
+      targetType: 'campaign', targetId: String(campaign._id),
+      detail: { from, to: status, name: campaign.campaignName ?? null },
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error updating campaign', error: error.message, success: false });
   }

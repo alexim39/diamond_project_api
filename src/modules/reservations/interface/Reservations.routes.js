@@ -6,6 +6,7 @@ import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { ListMyReservationsUseCase, RecordReservationUseCase, ListReviewQueueUseCase, DecideReservationUseCase } from '../application/Reservations.usecases.js';
 import { MongoReservationStore } from '../infrastructure/Reservations.mongo.repository.js';
 import { requireRole } from '../../identity-access/interface/RequireRole.js';
+import { recordAudit } from '../../audit/index.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 
@@ -62,6 +63,11 @@ export const buildReservationsRouter = (deps = {}) => {
     if (!data) {
       return res.status(409).json({ message: 'Only Pending codes can be decided', success: false });
     }
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'reservation.decide',
+      targetType: 'reservation-code', targetId: req.params.id,
+      detail: { status: data.status, code: data.code ?? null },
+    });
     res.status(200).json({ message: `Code ${data.status.toLowerCase()} successfully!`, data, success: true });
   }));
 

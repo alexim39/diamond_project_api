@@ -1,4 +1,5 @@
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
+import { recordAudit } from '../../audit/index.js';
 
 const param = (req, key) => req.validated?.params?.[key] ?? req.params[key];
 
@@ -45,11 +46,19 @@ export const makeBillingController = (uc) => ({
 
   release: asyncHandler(async (req, res) => {
     const data = await uc.release.execute({ cartId: param(req, 'cartId'), releasedBy: req.auth?.partnerId });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'payout.release',
+      targetType: 'cart', targetId: param(req, 'cartId'),
+    });
     res.status(200).json({ message: 'Commissions released successfully', data, success: true });
   }),
 
   void: asyncHandler(async (req, res) => {
     const data = await uc.void.execute({ cartId: param(req, 'cartId'), releasedBy: req.auth?.partnerId });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'payout.void',
+      targetType: 'cart', targetId: param(req, 'cartId'),
+    });
     res.status(200).json({ message: 'Order commissions voided successfully', data, success: true });
   }),
 });

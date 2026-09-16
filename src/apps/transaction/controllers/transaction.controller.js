@@ -6,6 +6,7 @@ import { ownerEmailTemplate } from '../services/email/withdrawal/ownerTemplate.j
 import { userWithdrawalEmailTemplate } from '../services/email/withdrawal/userTemplate.js';
 import { NotifyUseCase } from '../../../modules/notifications/application/NotificationsCenter.usecases.js';
 import { MongoStoredNotificationStore } from '../../../modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
+import { recordAudit } from '../../../modules/audit/index.js';
 
 const WITHDRAWAL_STATUSES = ['Pending', 'Paid', 'Rejected'];
 
@@ -318,6 +319,11 @@ export const decideWithdrawal = async (req, res) => {
     });
 
     res.status(200).json({ message: `Withdrawal marked as ${status.toLowerCase()}!`, data: tx, success: true });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'withdrawal.decide',
+      targetType: 'withdrawal', targetId: String(tx._id),
+      detail: { status, amount: Number(tx.amount) ?? null, owner: String(tx.partnerId) },
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error deciding withdrawal', error: error.message, success: false });
   }

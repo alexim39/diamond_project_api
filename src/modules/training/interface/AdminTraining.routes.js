@@ -5,6 +5,7 @@ import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { requireRole } from '../../identity-access/interface/RequireRole.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { MongoTrainingStore } from '../../training/infrastructure/Training.mongo.repository.js';
+import { recordAudit } from '../../audit/index.js';
 import { COURSES } from '../../training/domain/Training.catalog.js';
 
 const slug = z.string().trim().min(1).max(64);
@@ -80,6 +81,11 @@ export const buildAdminTrainingRouter = (deps = {}) => {
       return res.status(404).json({ message: 'Unknown lesson', success: false });
     }
     const data = await training.upsertQuiz(params.courseId, params.lessonId, body);
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'training.quiz.save',
+      targetType: 'lesson', targetId: `${params.courseId}:${params.lessonId}`,
+      detail: { questions: body.length },
+    });
     res.status(200).json({ message: 'Quiz saved successfully', data, success: true });
   }));
 
@@ -97,6 +103,11 @@ export const buildAdminTrainingRouter = (deps = {}) => {
       return res.status(404).json({ message: 'Unknown lesson', success: false });
     }
     const data = await training.upsertMedia(params.courseId, params.lessonId, body, req.auth?.partnerId);
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'training.media.save',
+      targetType: 'lesson', targetId: `${params.courseId}:${params.lessonId}`,
+      detail: { videoUrl: body.videoUrl ?? null },
+    });
     res.status(200).json({ message: 'Media saved successfully', data, success: true });
   }));
 
@@ -108,6 +119,12 @@ export const buildAdminTrainingRouter = (deps = {}) => {
       return res.status(404).json({ message: 'Unknown lesson', success: false });
     }
     const data = await training.deleteMedia(params.courseId, params.lessonId);
+    if (data?.reverted) {
+      void recordAudit({
+        actorId: req.auth?.partnerId, action: 'training.media.revert',
+        targetType: 'lesson', targetId: `${params.courseId}:${params.lessonId}`,
+      });
+    }
     res.status(200).json({ message: 'Media reverted to catalog', data, success: true });
   }));
 

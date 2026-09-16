@@ -4,6 +4,7 @@ import {TransactionModel} from '../../transaction/models/transaction.model.js';
 import { PartnersModel } from '../../partner/models/partner.model.js';
 import { NotifyUseCase } from '../../../modules/notifications/application/NotificationsCenter.usecases.js';
 import { MongoStoredNotificationStore } from '../../../modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
+import { recordAudit } from '../../../modules/audit/index.js';
 
 // Admin queue: every order by status, oldest first (money already debited).
 export const listOrdersForAdmin = async (req, res) => {
@@ -102,6 +103,11 @@ export const decideOrder = async (req, res) => {
     });
 
     res.status(200).json({ message: `Order marked as ${status.toLowerCase()}!`, data: order, success: true });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'order.decide',
+      targetType: 'order', targetId: String(order._id),
+      detail: { status, amount: Number(order.totalCost) ?? null, owner: String(order.partner) },
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error deciding order', error: error.message, success: false });
   }
