@@ -20,6 +20,7 @@ export const AUDIT_ACTIONS = Object.freeze([
   'ticket.decide',
   'moderation.remove',
   'moderation.dismiss',
+  'broadcast.send',
 ]);
 
 const str = (v, max) => {
