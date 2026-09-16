@@ -151,12 +151,14 @@ export class ListReviewQueueUseCase {
           ? String(r.partnerId)
           : null;
         const resolved = rawRef ? partnerLabels[rawRef] : null;
-        const issuer = resolved ?? (rawRef
-          ? { username: rawRef.slice(-6), name: 'Former member' }
-          : null);
         const holder = holderByCode[String(r.code)] ?? null;
         const chain = holder ? (chainByHolder[String(holder._id)] ?? []) : [];
         const [nearest, ...rest] = chain;
+        // A dangling "Former member" placeholder must not shadow a real
+        // chain — it yields whenever uplines were found for the code.
+        const issuer = resolved ?? (chain.length > 0 ? null : (rawRef
+          ? { username: rawRef.slice(-6), name: 'Former member' }
+          : null));
         return {
           id: String(r.id ?? r._id),
           code: r.code,
