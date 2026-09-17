@@ -20,6 +20,7 @@ const matches = (doc, filter) => Object.entries(filter ?? {}).every(([k, v]) => 
   if (v && typeof v === 'object' && !Array.isArray(v)) {
     if ('$ne' in v) return doc[k] !== v.$ne;
     if ('$gte' in v) return Number(doc[k]) >= Number(v.$gte);
+    if ('$gt' in v) return Number(doc[k]) > Number(v.$gt);
     return false;
   }
   return String(doc[k]) === String(v);
@@ -33,10 +34,12 @@ const fakes = ({ surveys = {}, partners = {}, prospects = [] } = {}) => {
     surveyRows, partnerRows, prospectRows,
     txs: [],
     surveys: {
-      findById: async (id) => {
-        const r = surveyRows.get(String(id));
-        return r ? { ...r, lean: undefined } : null;
-      },
+      findById: (id) => ({
+        lean: async () => {
+          const r = surveyRows.get(String(id));
+          return r ? { ...r } : null;
+        },
+      }),
       findOneAndUpdate: (filter, update) => {
         const row = [...surveyRows.values()].find((r) => matches(r, filter));
         if (!row) return { lean: async () => null };
@@ -57,6 +60,7 @@ const fakes = ({ surveys = {}, partners = {}, prospects = [] } = {}) => {
           return row ? { ...row } : null;
         },
       }),
+      countDocuments: async (filter) => prospectRows.filter((r) => matches(r, filter)).length,
       create: async (doc) => {
         if (doc.__failCreate) throw new Error('db down');
         const row = { _id: `c${prospectRows.length + 1}`, ...doc };
@@ -96,9 +100,6 @@ const base = () => {
     surveys: { s1: survey() },
     partners: { p1: { _id: 'p1', balance: 1000 } },
   });
-  // findById must be chainable (.lean()); findOneAndUpdate returns doc directly.
-  const rawFind = f.surveys.findById;
-  f.surveys.findById = (id) => ({ lean: () => rawFind(id) });
   return f;
 };
 
@@ -114,6 +115,25 @@ test('claim debits the fee, creates the prospect and clears the pool row', async
   assert.equal(f.prospectRows[0].claimFeePaid, FEE);
   assert.ok(f.prospectRows[0].claimedAt);
   assert.equal(f.surveyRows.has('s1'), false);
+});
+
+test('daily claim limit blocks the fourth pickup', async () => {
+  const prior = [0, 1, 2].map((i) => ({
+    _id: `old${i}`, partnerId: 'p1', prospectPhone: `0800000000${i}`,
+    claimedAt: new Date(), claimFeePaid: 250,
+  }));
+  const f = fakes({
+    surveys: { s1: survey() },
+    partners: { p1: { _id: 'p1', balance: 10000 } },
+    prospects: prior,
+  });
+  const uc = new ClaimPoolLeadUseCase({ ...f, fee: FEE, dailyLimit: 3 });
+  await assert.rejects(
+    uc.execute({ partnerId: 'p1', surveyId: 's1' }),
+    /Daily claim limit reached/,
+  );
+  assert.equal(f.partnerRows.get('p1').balance, 10000);
+  assert.equal(f.surveyRows.get('s1').prospectStatus, 'Not Moved');
 });
 
 test('claim refuses overdrafts, taken leads, dupes and foreign pools', async () => {

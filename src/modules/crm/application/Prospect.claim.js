@@ -1,5 +1,6 @@
 import { AppError, ConflictException, NotFoundException } from '../../../shared/domain/AppError.js';
 import { LEAD_CLAIM_FEE } from '../domain/LeadClaimFees.js';
+import { DAILY_CLAIM_LIMIT } from '../domain/LeadPool.js';
 import { ProspectModel } from '../infrastructure/Prospect.models.js';
 import { PartnersModel } from '../../../apps/partner/models/partner.model.js';
 import { TransactionModel } from '../../../apps/transaction/models/transaction.model.js';
@@ -20,14 +21,15 @@ const sourceName = (source) => {
  * compensation (refund + survey release) so money never strands.
  */
 export class ClaimPoolLeadUseCase {
-  /** @param {{surveys, prospects, partners, transactions, fee?}} deps */
-  constructor({ surveys, prospects, partners, transactions, fee } = {}) {
+  /** @param {{surveys, prospects, partners, transactions, fee?, dailyLimit?}} deps */
+  constructor({ surveys, prospects, partners, transactions, fee, dailyLimit } = {}) {
     Object.assign(this, {
       surveys: surveys ?? ProspectSurveyModel,
       prospects: prospects ?? ProspectModel,
       partners: partners ?? PartnersModel,
       transactions: transactions ?? TransactionModel,
       fee: fee ?? LEAD_CLAIM_FEE,
+      dailyLimit: dailyLimit ?? DAILY_CLAIM_LIMIT,
     });
   }
 
@@ -36,6 +38,15 @@ export class ClaimPoolLeadUseCase {
     if (!survey || survey.username !== 'business') throw new NotFoundException('Lead is no longer in the pool');
     if (survey.prospectStatus === 'Moved to Contact') {
       throw new ConflictException('This lead was just claimed by someone else');
+    }
+    // Daily anti-hoarding cap counts paid pickups since local midnight.
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const claimedToday = await this.prospects.countDocuments({
+      partnerId, claimedAt: { $gte: dayStart }, claimFeePaid: { $gt: 0 },
+    }).catch(() => 0);
+    if (claimedToday >= (this.dailyLimit ?? DAILY_CLAIM_LIMIT)) {
+      throw new ConflictException(`Daily claim limit reached (${this.dailyLimit ?? DAILY_CLAIM_LIMIT} leads per day)`);
     }
     // Duplicate guard before money moves (scoped to the claimer's contacts;
     // blank emails never match — families share inboxes, phone is the key).
@@ -76,6 +87,7 @@ export class ClaimPoolLeadUseCase {
         partnerId,
         claimedAt: new Date(),
         claimFeePaid: this.fee,
+        poolReturns: Number(survey.claimCount) || 0,
         surverId: survey._id,
         survey: {
           ageRange: survey.ageRange,

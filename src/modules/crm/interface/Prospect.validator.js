@@ -110,3 +110,22 @@ export const ClaimProspectSchema = z.object({
   surveyId: objectId,
   source: z.enum(['website', 'link']).optional().default('website'),
 });
+
+/** GET /v1/prospects/pool — geo-fenced scored shelf (admins may filter state). */
+export const PoolQuery = z.object({
+  state: z.string().trim().max(80).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  skip: z.coerce.number().int().min(0).optional(),
+  q: z.string().trim().max(60).optional(),
+});
+
+/** POST /v1/prospects/:prospectId/rate — 1–5 star quality vote. */
+export const RateLeadSchema = z.object({
+  score: z.number().min(1).max(5),
+  note: z.string().trim().max(500).optional().default(''),
+});
+
+/** POST /v1/admin/leads/import — bulk pool seeding (admin). */
+export const ImportLeadsSchema = z.object({
+  rows: z.array(z.object({}).passthrough()).min(1).max(500),
+});

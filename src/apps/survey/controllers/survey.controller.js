@@ -3,6 +3,9 @@ import { PartnersModel } from '../../partner/models/partner.model.js';
 import { sendEmail } from "../../../services/emailService.js";
 import { ownerEmailTemplate, partnerOwnerEmailTemplate } from '../services/email/ownerTemplate.js';
 import { userWelcomeEmailTemplate } from '../services/email/userTemplate.js';
+import { normalizeState, sameState } from '../../../shared/geo/nigerianStates.js';
+import { NotifyUseCase } from '../../../modules/notifications/application/NotificationsCenter.usecases.js';
+import { MongoStoredNotificationStore } from '../../../modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
 
 // Prospect survey form handler
 export const ProspectSurveyForm = async (req, res) => {
@@ -24,9 +27,25 @@ export const ProspectSurveyForm = async (req, res) => {
       });
     }
 
-    // Save the survey data to MongoDB
-    const survey = new ProspectSurveyModel(surveyData);
+    // Save the survey data to MongoDB (state normalized for pool geo matching).
+    const survey = new ProspectSurveyModel({ ...surveyData, stateNorm: normalizeState(surveyData.state) });
     await survey.save();
+
+    const notifyNewLead = async (partner) => {
+      try {
+        const stored = new MongoStoredNotificationStore();
+        await new NotifyUseCase({ stored }).execute({
+          recipientId: String(partner._id),
+          category: 'system',
+          priority: 'medium',
+          title: `New lead in ${surveyData.state || 'your area'}`,
+          body: `${surveyData.name ?? 'Someone'} just asked to be contacted — open Buy Prospect to claim first.`,
+          icon: 'person_add',
+          link: '/dashboard/prospects/general-list',
+          key: `new-lead:${String(survey._id)}:${String(partner._id)}`,
+        });
+      } catch { /* arrival alerts never fail the submit */ }
+    };
 
     // Prepare email templates
     const ownerSubject = 'New Prospect Notification - Diamond Project';
@@ -47,19 +66,23 @@ export const ProspectSurveyForm = async (req, res) => {
     ) {
       await sendEmail(referringPartner.email, ownerSubject, ownerMessage);
     } else {
-      // Case 2: Try to send to partners in the same state as the prospect, but only if receive notification is not 'off'
-      const statePartners = await PartnersModel.find({ 'address.state': surveyData.state });
-
-      const eligibleStatePartners = statePartners.filter(
+      // Case 2: partners in the lead's (normalized) state. Normalization
+      // matters: exact-match once spammed the whole platform over casing.
+      // Only partners with a state set are candidates (null can't match).
+      const candidates = await PartnersModel.find({ 'address.state': { $ne: null } })
+        .select('email settings address').lean();
+      const eligibleStatePartners = candidates.filter(
         partner =>
-          !partner.settings ||
-          !partner.settings.notification ||
-          partner.settings.notification.receive !== 'off'
+          sameState(partner?.address?.state, surveyData.state) &&
+          (!partner.settings ||
+            !partner.settings.notification ||
+            partner.settings.notification.receive !== 'off')
       );
 
       if (eligibleStatePartners.length > 0) {
         for (const partner of eligibleStatePartners) {
           await sendEmail(partner.email, ownerSubject, ownerMessage);
+          await notifyNewLead(partner);
         }
       } else {
         // Case 3: Fallback – send to all partners, but only if receive notification is not 'off'

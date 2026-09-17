@@ -72,6 +72,7 @@ test('releases a pool lead inside the window and restores the pool row', async (
   assert.equal(f.created[0].prospectStatus, 'Not Moved');
   assert.equal(f.created[0].phoneNumber, '08031234567');
   assert.equal(f.created[0].state, 'Lagos');
+  assert.equal(f.created[0].stateNorm, 'lagos');
   // Paid claim → ₦120 refund + credit record.
   assert.equal(res.refunded, 120);
   assert.equal(f.txs.length, 1);

@@ -1,5 +1,6 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '../../../shared/domain/AppError.js';
 import { LEAD_RETURN_REFUND } from '../domain/LeadClaimFees.js';
+import { normalizeState } from '../../../shared/geo/nigerianStates.js';
 import { ProspectSurveyModel } from '../../../apps/survey/models/survey.model.js';
 import { PartnersModel } from '../../../apps/partner/models/partner.model.js';
 import { TransactionModel } from '../../../apps/transaction/models/transaction.model.js';
@@ -18,6 +19,17 @@ export const RELEASE_WINDOW_DAYS = Number(process.env.LEAD_RELEASE_DAYS ?? 7) ||
 const required = (v, fallback = 'Not provided') => {
   const s = String(v ?? '').trim();
   return s || fallback;
+};
+
+/** Prospect-side rating → pool ratings entry (score 1–5 only). */
+const validRating = (r) => {
+  const score = Number(r?.score);
+  if (!Number.isFinite(score) || score < 1 || score > 5) return null;
+  return {
+    score: Math.round(score),
+    at: r?.at ? new Date(r.at) : new Date(),
+    ...(String(r?.note ?? '').trim() ? { note: String(r.note).trim().slice(0, 500) } : {}),
+  };
 };
 
 export class ReleaseProspectToPoolUseCase {
@@ -72,8 +84,13 @@ export class ReleaseProspectToPoolUseCase {
       referral: snap.referral ?? '',
       country: snap.country ?? 'Nigeria',
       state: snap.state ?? '',
+      stateNorm: normalizeState(snap.state),
       username: 'business',
       prospectStatus: 'Not Moved',
+      // Returns sink future rank (carried across cycles via the pickup
+      // snapshot); a rating left on the prospect rides home.
+      claimCount: (Number(p.poolReturns) || 0) + 1,
+      ratings: validRating(p.rating) ? [{ ...validRating(p.rating), by: String(partnerId) }] : [],
     });
     await this.prospects.deleteById(prospectId);
     // Claim-fee refund (only when a fee was actually paid — legacy

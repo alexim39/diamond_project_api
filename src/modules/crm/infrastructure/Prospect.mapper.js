@@ -24,6 +24,7 @@ export const ProspectMapper = {
       surverId: o.surverId === undefined || o.surverId === null ? o.surverId : str(o.surverId),
       claimedAt: o.claimedAt ?? null,
       claimFeePaid: o.claimFeePaid ?? null,
+      poolReturns: o.poolReturns ?? null,
       campaignId: o.campaignId === undefined || o.campaignId === null ? o.campaignId ?? null : str(o.campaignId),
       survey: o.survey,
       role: o.role,

@@ -100,6 +100,23 @@ const prospectSchema = mongoose.Schema(
             type: Number,
             default: null,
         },
+        // Pool return count snapshot at pickup — release restores
+        // claimCount = poolReturns + 1 so chronic returners keep sinking.
+        poolReturns: {
+            type: Number,
+            default: null,
+        },
+        // Expiry-warning bookkeeping (engine sets it once per claim).
+        claimWarningAt: {
+            type: Date,
+            default: null,
+        },
+        // Partner quality rating (1–5) feeding pool prioritization.
+        rating: {
+            score: { type: Number, min: 1, max: 5 },
+            note: { type: String, maxlength: 500 },
+            at: { type: Date },
+        },
         // Optional campaign attribution (R4): stamped when a prospect
         // arrives via a tracked campaign link. Sparse — absent historically.
         campaignId: {

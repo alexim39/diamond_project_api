@@ -1,11 +1,13 @@
 import express from 'express';
 import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
+import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
   ProspectIdParam, PartnerIdParam, CreateProspectSchema, UpdateProspectSchema,
   UpdateStatusSchema, LogCommunicationSchema, PaginationQuery, CommIdsParam, StuckQuery,
-  ConvertProspectSchema, ClaimProspectSchema,
+  ConvertProspectSchema, ClaimProspectSchema, PoolQuery, RateLeadSchema, ImportLeadsSchema,
 } from './Prospect.validator.js';
+import { requireRole } from '../../identity-access/interface/RequireRole.js';
 import { makeProspectController } from './Prospect.controller.js';
 import {
   CreateProspectUseCase, UpdateProspectUseCase, UpdateProspectStatusUseCase, DeleteProspectUseCase,
@@ -23,7 +25,8 @@ import { MongoCampaignLookup } from '../../marketing/infrastructure/Marketing.mo
 import { ConvertProspectToPartnerUseCase } from '../application/Prospect.convert.js';
 import { ReleaseProspectToPoolUseCase } from '../application/Prospect.release.js';
 import { ClaimPoolLeadUseCase } from '../application/Prospect.claim.js';
-import { domainEvents } from '../../../shared/events/DomainEvents.js';
+import { GetPoolUseCase, RateLeadUseCase, ImportLeadsUseCase } from '../application/Prospect.pool.js';
+import { recordAudit } from '../../audit/index.js';import { domainEvents } from '../../../shared/events/DomainEvents.js';
 
 /**
  * Manual wiring — explicit for onboarding; pass fakes in tests.
@@ -57,6 +60,9 @@ export const buildProspectRouter = (deps = {}) => {
     convert: new ConvertProspectToPartnerUseCase({ prospects, reservations }),
     release: new ReleaseProspectToPoolUseCase({ prospects }),
     claim: new ClaimPoolLeadUseCase({}),
+    pool: new GetPoolUseCase({}),
+    rate: new RateLeadUseCase({}),
+    importLeads: new ImportLeadsUseCase({}),
     contactListMine: new GetMyContactListUseCase({ prospects }),
     contactListSubmit: deps.contactListSubmit
       ?? new SubmitContactListUseCase({ prospects, network, events }),
@@ -78,6 +84,7 @@ export const buildProspectRouter = (deps = {}) => {
   router.post('/contact-list/submit', c.contactListSubmit);
   router.get('/contact-list/downline', c.contactListDownline);
   router.get('/contact-list/activation', c.contactListActivation);
+  router.get('/pool', validate({ query: PoolQuery }), c.pool);
   router.put('/update', validate({ body: UpdateProspectSchema }), c.update);
   router.put('/:prospectId', validate({ params: ProspectIdParam, body: UpdateProspectSchema }), c.update);
 
@@ -98,7 +105,27 @@ export const buildProspectRouter = (deps = {}) => {
 
   router.post('/:prospectId/release', validate({ params: ProspectIdParam }), c.release);
 
+  router.post('/:prospectId/rate', validate({ params: ProspectIdParam, body: RateLeadSchema }), c.rate);
+
   router.post('/claim', validate({ body: ClaimProspectSchema }), c.claim);
+
+  router.get('/pool', validate({ query: PoolQuery }), c.pool);
+
+  router.post('/:prospectId/rate', validate({ params: ProspectIdParam, body: RateLeadSchema }), c.rate);
+
+  router.post('/admin/leads/import', requireRole('admin'), validate({ body: ImportLeadsSchema }), asyncHandler(async (req, res) => {
+    const body = req.validated?.body ?? req.body;
+    // Route-scope usecase (c.* are req/res handlers, not usecases) so the
+    // audit below can record the outcome.
+    const importer = deps.importLeads ?? new ImportLeadsUseCase({});
+    const data = await importer.execute({ rows: body.rows });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'lead.import',
+      targetType: 'leadpool', targetId: null,
+      detail: { inserted: data.inserted, failed: data.failed.length, total: data.total },
+    });
+    res.status(200).json({ message: `Imported ${data.inserted} of ${data.total} leads`, data, success: true });
+  }));
 
   router.post('/:prospectId/communications', validate({ params: ProspectIdParam, body: LogCommunicationSchema }), c.logCommunication);
   router.post('/communications', validate({ body: LogCommunicationSchema }), c.logCommunication);

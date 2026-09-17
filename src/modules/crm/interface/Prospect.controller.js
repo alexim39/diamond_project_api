@@ -1,6 +1,20 @@
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
+import { PartnersModel } from '../infrastructure/Prospect.models.js';
+import { adminBootstrapEmails, lenientRole } from '../../identity-access/domain/PartnerRole.js';
 
 const pid = (req) => req.validated?.params?.prospectId ?? req.params.prospectId;
+
+/** Admin check mirroring requireRole (pool reads stay open to members). */
+const isAdminRequest = async (req) => {
+  try {
+    const doc = await PartnersModel.findById(req.auth?.partnerId).select('role email').lean();
+    if (!doc) return false;
+    if (lenientRole(doc.role) === 'admin') return true;
+    return adminBootstrapEmails().includes(String(doc.email ?? '').toLowerCase());
+  } catch {
+    return false;
+  }
+};
 
 /** Interface: HTTP adapters preserving legacy envelopes (+ additive `data`/`meta`). */
 export const makeProspectController = (uc) => ({
@@ -57,6 +71,35 @@ export const makeProspectController = (uc) => ({
     res.status(200).json({ message: `Lead claimed — ₦${Number(data.fee).toLocaleString()} from your wallet.`, data, success: true });
   }),
 
+  pool: asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const data = await uc.pool.execute({
+      partnerId: req.auth?.partnerId,
+      isAdmin: await isAdminRequest(req),
+      state: q.state,
+      limit: q.limit,
+      skip: q.skip,
+      q: q.q,
+    });
+    res.status(200).json({ message: 'Lead pool retrieved successfully', data, success: true });
+  }),
+
+  rate: asyncHandler(async (req, res) => {
+    const body = req.validated?.body ?? req.body;
+    const data = await uc.rate.execute({
+      partnerId: req.auth?.partnerId,
+      prospectId: pid(req),
+      score: body.score,
+      note: body.note ?? '',
+    });
+    res.status(200).json({ message: 'Thanks — your rating sharpens future leads.', data, success: true });
+  }),
+
+  importLeads: asyncHandler(async (req, res) => {
+    const body = req.validated?.body ?? req.body;
+    const data = await uc.importLeads.execute({ rows: body.rows });
+    res.status(200).json({ message: `Imported ${data.inserted} of ${data.total} leads`, data, success: true });
+  }),
   getById: asyncHandler(async (req, res) => {
     const data = await uc.getById.execute({ prospectId: pid(req) });
     res.status(200).json({ message: 'Prospect retrieved successfully!', data, success: true });
