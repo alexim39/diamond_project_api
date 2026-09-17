@@ -29,7 +29,7 @@ const broadcastSchema = new mongoose.Schema(
     sendAt: { type: Date, default: null, index: true },
     status: {
       type: String,
-      enum: ['sending', 'sent', 'scheduled', 'failed'],
+      enum: ['sending', 'sent', 'scheduled', 'failed', 'cancelled'],
       default: 'sending',
       index: true,
     },

@@ -1,4 +1,4 @@
-import { NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
+import { ConflictException, NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 import {
   BROADCAST_CAP, createCampaignInput, estimateSmsSpend, smsPages,
 } from '../domain/Broadcast.js';
@@ -6,7 +6,7 @@ import { BroadcastModel } from '../infrastructure/Broadcast.mongo.model.js';
 import { PartnersModel } from '../../../apps/partner/models/partner.model.js';
 import { resolvePreferences } from '../../notifications/domain/StoredNotifications.js';
 import { resolveChannels, plainEmailHtml } from '../../notifications/domain/Delivery.js';
-import { NotificationPreferenceModel } from '../../notifications/infrastructure/StoredNotifications.mongo.repository.js';
+import { NotificationPreferenceModel, StoredNotificationModel } from '../../notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { sendEmail } from '../../../services/emailService.js';
 import { buildSmsSender } from '../../notifications/infrastructure/SmsSender.js';
 import { env } from '../../../shared/config/env.js';
@@ -291,5 +291,74 @@ export class GetCampaignUseCase {
       capped: !!d.capped,
       createdAt: d.createdAt ?? null,
     };
+  }
+}
+
+/**
+ * Cancel a scheduled campaign (scheduled → cancelled, atomic). Sent rows
+ * are history — use delete for those. A cancelled row never fires: the
+ * worker only claims `scheduled`.
+ */
+export class CancelCampaignUseCase {
+  /** @param {{broadcasts}} deps */
+  constructor({ broadcasts } = {}) {
+    this.broadcasts = broadcasts ?? BroadcastModel;
+  }
+
+  async execute({ id }) {
+    if (!/^[a-fA-F0-9]{24}$/.test(String(id ?? ''))) throw new ValidationException('Invalid broadcast id');
+    const doc = await this.broadcasts.findOneAndUpdate(
+      { _id: id, status: 'scheduled' },
+      { $set: { status: 'cancelled' } },
+      { new: true },
+    ).lean().catch(() => null);
+    if (!doc) throw new ConflictException('Only scheduled campaigns can be cancelled');
+    return { id: String(doc._id), status: doc.status };
+  }
+}
+
+/**
+ * Retry a failed campaign (failed → scheduled, fires within a minute).
+ * History is preserved — the same row reruns, stats overwritten on success.
+ */
+export class RetryCampaignUseCase {
+  /** @param {{broadcasts}} deps */
+  constructor({ broadcasts } = {}) {
+    this.broadcasts = broadcasts ?? BroadcastModel;
+  }
+
+  async execute({ id }) {
+    if (!/^[a-fA-F0-9]{24}$/.test(String(id ?? ''))) throw new ValidationException('Invalid broadcast id');
+    const doc = await this.broadcasts.findOneAndUpdate(
+      { _id: id, status: 'failed' },
+      { $set: { status: 'scheduled', sendAt: new Date(), error: null } },
+      { new: true },
+    ).lean().catch(() => null);
+    if (!doc) throw new ConflictException('Only failed campaigns can be retried');
+    return { id: String(doc._id), status: doc.status, sendAt: doc.sendAt };
+  }
+}
+
+/**
+ * Hard delete a broadcast record + its fanned-out inbox rows
+ * (key `broadcast:<id>`). Deleting history never unsends email/SMS —
+ * the confirm copy says so plainly. Audited at the route.
+ */
+export class DeleteBroadcastUseCase {
+  /** @param {{broadcasts, inbox}} deps */
+  constructor({ broadcasts, inbox } = {}) {
+    Object.assign(this, {
+      broadcasts: broadcasts ?? BroadcastModel,
+      inbox: inbox ?? StoredNotificationModel,
+    });
+  }
+
+  async execute({ id }) {
+    if (!/^[a-fA-F0-9]{24}$/.test(String(id ?? ''))) throw new ValidationException('Invalid broadcast id');
+    const doc = await this.broadcasts.findById(id).lean().catch(() => null);
+    if (!doc) throw new NotFoundException('Broadcast not found');
+    const swept = await this.inbox.deleteMany({ key: `broadcast:${String(doc._id)}` }).catch(() => ({ deletedCount: 0 }));
+    await this.broadcasts.deleteOne({ _id: doc._id }).catch(() => null);
+    return { id: String(doc._id), inboxRowsRemoved: swept?.deletedCount ?? 0 };
   }
 }

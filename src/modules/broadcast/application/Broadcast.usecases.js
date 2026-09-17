@@ -67,19 +67,27 @@ export class SendBroadcastUseCase {
   }
 }
 
-/** GET (admin) — broadcast history, newest first. */
+/** GET (admin) — broadcast history, newest first, filterable for scale. */
 export class ListBroadcastsUseCase {
   /** @param {{broadcasts}} deps */
-  constructor({ broadcasts }) {
+  constructor({ broadcasts } = {}) {
     this.broadcasts = broadcasts ?? BroadcastModel;
   }
 
-  async execute({ limit = 25, skip = 0 } = {}) {
+  async execute({ limit = 25, skip = 0, status = null, kind = null, q = null } = {}) {
     const lim = Math.min(Math.max(Number(limit) || 25, 1), 100);
     const sk = Math.max(Number(skip) || 0, 0);
+    const filter = {};
+    if (['sending', 'sent', 'scheduled', 'failed', 'cancelled'].includes(status)) filter.status = status;
+    if (['system', 'marketing'].includes(kind)) filter.kind = kind;
+    const needle = String(q ?? '').trim().slice(0, 120);
+    if (needle) {
+      const rx = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [{ title: rx }, { body: rx }];
+    }
     const [docs, total] = await Promise.all([
-      this.broadcasts.find({}).sort({ createdAt: -1 }).skip(sk).limit(lim).lean(),
-      this.broadcasts.countDocuments({}),
+      this.broadcasts.find(filter).sort({ createdAt: -1 }).skip(sk).limit(lim).lean(),
+      this.broadcasts.countDocuments(filter),
     ]);
     return {
       items: docs.map((d) => ({

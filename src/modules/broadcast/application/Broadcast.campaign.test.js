@@ -259,3 +259,92 @@ test('get campaign validates id and reports missing rows', async () => {
   await assert.rejects(uc.execute({ id: 'nope' }), /Invalid broadcast id/);
   await assert.rejects(uc.execute({ id: '0123456789abcdef01234567' }), /not found/);
 });
+
+test('cancel only works on scheduled rows, atomically', async () => {
+  const { CancelCampaignUseCase } = await import('./Broadcast.campaign.js');
+  const broadcasts = fakeBroadcasts();
+  const id = '0123456789abcdef01234567';
+  broadcasts.rows.set(id, { _id: id, status: 'scheduled', title: 'T' });
+  const uc = new CancelCampaignUseCase({ broadcasts });
+  const out = await uc.execute({ id });
+  assert.equal(out.status, 'cancelled');
+  await assert.rejects(uc.execute({ id }), /Only scheduled/);
+  await assert.rejects(uc.execute({ id: 'nope' }), /Invalid broadcast id/);
+});
+
+test('retry only works on failed rows and resets the error', async () => {
+  const { RetryCampaignUseCase } = await import('./Broadcast.campaign.js');
+  const broadcasts = fakeBroadcasts();
+  const id = '0123456789abcdef01234567';
+  broadcasts.rows.set(id, { _id: id, status: 'failed', error: 'boom', sendAt: new Date(Date.now() - 1000) });
+  const uc = new RetryCampaignUseCase({ broadcasts });
+  const out = await uc.execute({ id });
+  assert.equal(out.status, 'scheduled');
+  assert.ok(new Date(out.sendAt).getTime() >= Date.now() - 5000);
+  assert.equal(broadcasts.rows.get(id).error, null);
+  await assert.rejects(uc.execute({ id }), /Only failed/);
+});
+
+test('hard delete removes the row plus fanned-out inbox copies', async () => {
+  const { DeleteBroadcastUseCase } = await import('./Broadcast.campaign.js');
+  const broadcasts = fakeBroadcasts();
+  const id = '0123456789abcdef01234567';
+  broadcasts.rows.set(id, { _id: id, status: 'sent', title: 'T' });
+  const inbox = {
+    deleted: 0,
+    deleteMany: async (filter) => {
+      assert.equal(filter.key, `broadcast:${id}`);
+      inbox.deleted = 3;
+      return { deletedCount: 3 };
+    },
+  };
+  broadcasts.deleteOne = async (filter) => {
+    broadcasts.rows.delete(String(filter._id));
+    return { deletedCount: 1 };
+  };
+  const uc = new DeleteBroadcastUseCase({ broadcasts, inbox });
+  const out = await uc.execute({ id });
+  assert.equal(out.inboxRowsRemoved, 3);
+  assert.equal(broadcasts.rows.has(id), false);
+  await assert.rejects(uc.execute({ id }), /not found/);
+});
+
+test('history filters by status, kind and text with matching totals', async () => {
+  const rows = [
+    { _id: 'a1', title: 'Maintenance tonight', body: 'x', status: 'sent', kind: 'system', createdAt: new Date('2024-02-01') },
+    { _id: 'a2', title: 'News blast', body: 'y', status: 'scheduled', kind: 'marketing', createdAt: new Date('2024-03-01') },
+    { _id: 'a3', title: 'Maintenance followup', body: 'z', status: 'sent', kind: 'system', createdAt: new Date('2024-04-01') },
+  ];
+  const store = {
+    find: (filter) => {
+      const out = rows.filter((r) => Object.entries(filter ?? {}).every(([k, v]) => {
+        if (k === '$or') return v.some((c) => Object.entries(c).some(([fk, rx]) => rx.test(String(r[fk] ?? ''))));
+        return String(r[k]) === String(v);
+      }));
+      const chain = {
+        sort: (spec) => {
+          const [[key, dir]] = Object.entries(spec ?? { createdAt: -1 });
+          out.sort((a, b) => (dir === -1 ? -1 : 1) * (new Date(a[key]) - new Date(b[key])));
+          return chain;
+        },
+        skip: (n) => ({ limit: (l) => ({ lean: async () => out.slice(n, n + l).map((x) => ({ ...x })) }) }),
+        limit: (l) => ({ lean: async () => out.slice(0, l).map((x) => ({ ...x })) }),
+      };
+      return chain;
+    },
+    countDocuments: async (filter) => rows.filter((r) => Object.entries(filter ?? {}).every(([k, v]) => {
+      if (k === '$or') return v.some((c) => Object.entries(c).some(([fk, rx]) => rx.test(String(r[fk] ?? ''))));
+      return String(r[k]) === String(v);
+    })).length,
+  };
+  // Import the real list usecase from its module file.
+  const { ListBroadcastsUseCase: List } = await import('./Broadcast.usecases.js');
+  const uc = new List({ broadcasts: store });
+  const sent = await uc.execute({ status: 'sent' });
+  assert.equal(sent.total, 2);
+  const maint = await uc.execute({ q: 'maintenance' });
+  assert.equal(maint.total, 2);
+  assert.equal(maint.items[0].id, 'a3'); // newest first
+  const both = await uc.execute({ status: 'sent', kind: 'marketing' });
+  assert.equal(both.total, 0);
+});

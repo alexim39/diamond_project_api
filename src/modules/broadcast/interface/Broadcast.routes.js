@@ -6,7 +6,8 @@ import { requireRole } from '../../identity-access/interface/RequireRole.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { SendBroadcastUseCase, ListBroadcastsUseCase } from '../application/Broadcast.usecases.js';
 import {
-  EstimateAudienceUseCase, GetCampaignUseCase, ScheduleCampaignUseCase,
+  CancelCampaignUseCase, DeleteBroadcastUseCase, EstimateAudienceUseCase,
+  GetCampaignUseCase, RetryCampaignUseCase, ScheduleCampaignUseCase,
 } from '../application/Broadcast.campaign.js';
 import { NotifyUseCase } from '../../notifications/application/NotificationsCenter.usecases.js';
 import { MongoStoredNotificationStore } from '../../notifications/infrastructure/StoredNotifications.mongo.repository.js';
@@ -60,6 +61,18 @@ export const buildBroadcastRouter = (deps = {}) => {
   const estimate = deps.estimate ?? new EstimateAudienceUseCase({});
   const schedule = deps.schedule ?? new ScheduleCampaignUseCase({});
   const detail = deps.detail ?? new GetCampaignUseCase({});
+  const cancel = deps.cancel ?? new CancelCampaignUseCase({});
+  const retry = deps.retry ?? new RetryCampaignUseCase({});
+  const remove = deps.remove ?? new DeleteBroadcastUseCase({});
+
+  const HistoryQuery = z.object({
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+    skip: z.coerce.number().int().min(0).optional(),
+    status: z.enum(['sending', 'sent', 'scheduled', 'failed', 'cancelled']).optional(),
+    kind: z.enum(['system', 'marketing']).optional(),
+    q: z.string().trim().max(120).optional(),
+  });
+  const CampaignIdParam = z.object({ id: z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id') });
 
   const router = express.Router();
   router.use(requireAuth, requireRole('admin'));
@@ -81,8 +94,9 @@ export const buildBroadcastRouter = (deps = {}) => {
     res.status(200).json({ message: `Broadcast sent to ${data.delivered} members${data.capped ? ' (capped)' : ''}`, data, success: true });
   }));
 
-  router.get('/', asyncHandler(async (req, res) => {
-    const data = await list.execute({ limit: req.query?.limit, skip: req.query?.skip });
+  router.get('/', validate({ query: HistoryQuery }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const data = await list.execute({ limit: q.limit, skip: q.skip, status: q.status, kind: q.kind, q: q.q });
     res.status(200).json({ message: 'Broadcasts retrieved successfully', data, success: true });
   }));
 
@@ -126,6 +140,41 @@ export const buildBroadcastRouter = (deps = {}) => {
   router.get('/campaigns/:id', asyncHandler(async (req, res) => {
     const data = await detail.execute({ id: req.params?.id });
     res.status(200).json({ message: 'Campaign retrieved successfully', data, success: true });
+  }));
+
+  // Lifecycle: cancel a scheduled campaign before it fires.
+  router.post('/campaigns/:id/cancel', validate({ params: CampaignIdParam }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await cancel.execute({ id: params.id });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'broadcast.campaign.cancel',
+      targetType: 'broadcast', targetId: data.id, detail: null,
+    });
+    res.status(200).json({ message: 'Scheduled campaign cancelled — it will not send', data, success: true });
+  }));
+
+  // Lifecycle: requeue a failed campaign (same row, fresh stats on success).
+  router.post('/campaigns/:id/retry', validate({ params: CampaignIdParam }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await retry.execute({ id: params.id });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'broadcast.campaign.retry',
+      targetType: 'broadcast', targetId: data.id, detail: null,
+    });
+    res.status(200).json({ message: 'Campaign requeued — sending restarts within a minute', data, success: true });
+  }));
+
+  // Hard delete: removes the record + its fanned-out inbox rows.
+  // Never unsends email/SMS already delivered — the UI must say so.
+  router.delete('/campaigns/:id', validate({ params: CampaignIdParam }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await remove.execute({ id: params.id });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'broadcast.delete',
+      targetType: 'broadcast', targetId: data.id,
+      detail: { inboxRowsRemoved: data.inboxRowsRemoved },
+    });
+    res.status(200).json({ message: `Broadcast deleted (${data.inboxRowsRemoved} inbox copies removed)`, data, success: true });
   }));
 
   return router;
