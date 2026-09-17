@@ -153,8 +153,8 @@ export class ScheduleCampaignUseCase {
  * brakes, not a wallet charge. Failures counted per channel, never thrown.
  */
 export class RunBroadcastDueUseCase {
-  /** @param {{broadcasts, partners, prefs, notify, mail, sms, batch?}} deps */
-  constructor({ broadcasts, partners, prefs, notify, mail, sms, batch = 5 } = {}) {
+  /** @param {{broadcasts, partners, prefs, notify, mail, sms, appBaseUrl, batch?}} deps */
+  constructor({ broadcasts, partners, prefs, notify, mail, sms, appBaseUrl = null, batch = 5 } = {}) {
     Object.assign(this, {
       broadcasts: broadcasts ?? BroadcastModel,
       partners: partners ?? PartnersModel,
@@ -162,6 +162,7 @@ export class RunBroadcastDueUseCase {
       notify,
       mail: mail ?? sendEmail,
       sms: sms ?? buildSmsSender(env.sms),
+      appBaseUrl: appBaseUrl ?? env.appBaseUrl ?? 'https://c21fg.online',
       batch: Math.min(Math.max(Number(batch) || 5, 1), 25),
     });
   }
@@ -237,7 +238,7 @@ export class RunBroadcastDueUseCase {
       }
     }
     if (input.channels.email) {
-      const html = plainEmailHtml(input.title, input.body, input.link);
+      const html = plainEmailHtml(input.title, input.body, input.link, this.appBaseUrl);
       for (const m of split.email) {
         try {
           const receipt = await this.mail(m.email, input.subject, html);

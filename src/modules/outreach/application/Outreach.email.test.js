@@ -21,13 +21,15 @@ const deps = (over = {}) => ({
 test('deliverBulkEmail sends, records, and reports sent/total', async () => {
   const d = deps();
   let mailedTo = null;
-  d.mail = async (to) => { mailedTo = to; return { sent: true }; };
+  let mailedHtml = null;
+  d.mail = async (to, subject, html) => { mailedTo = to; mailedHtml = html; return { sent: true }; };
   const res = await deliverBulkEmail(d, {
     partnerId: 'p1', to: ['A@x.test'], subject: 'Hi', body: 'Hello there',
   });
   assert.deepEqual({ sent: res.sent, total: res.total, status: res.status }, { sent: 1, total: 1, status: 'success' });
   assert.deepEqual(res.failed, []);
   assert.equal(mailedTo, 'a@x.test');
+  assert.match(mailedHtml, /<p style="margin:0 0 1em;">Hello there<\/p>/);
   assert.equal(d.records.docs.length, 1);
   assert.equal(d.records.docs[0].emailSubject, 'Hi');
 });

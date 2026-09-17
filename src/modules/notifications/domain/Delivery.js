@@ -3,6 +3,7 @@
  * The matrix is `{inApp, email, sms, push}` per category; `push` rides
  * with the N-series defaults (off until the user opts in).
  */
+import { paragraphs } from '../../../services/emailBrand.js';
 
 export const DELIVERY_CHANNELS = ['inApp', 'email', 'sms', 'push'];
 
@@ -18,11 +19,20 @@ export const normalizePhone = (raw) => {
   return intl.length >= 7 ? intl : null;
 };
 
+/** Unicode punctuation → GSM-7 lookalikes (each avoided char would force
+ * UCS-2 encoding and roughly double the segment cost). */
+const gsm7 = (s) => String(s ?? '')
+  .replace(/[—–]/g, '-')
+  .replace(/[‘’]/g, "'")
+  .replace(/[“”]/g, '"')
+  .replace(/…/g, '...');
+
 export const smsBody = (title, body) => {
-  // ASCII hyphen, not an em-dash: keeps the payload in the GSM-7 alphabet
-  // (one segment) instead of forcing UCS-2 encoding (cost ×~2, split risk).
-  const text = `${String(title ?? '').trim()} - ${String(body ?? '').trim()}`.trim();
-  return text.length > SMS_MAX ? `${text.slice(0, SMS_MAX - 1)}…` : text;
+  // Newline layout (title, blank line, body) reads as a real message on
+  // handsets. Plain ASCII only, keeping the payload in the GSM-7 alphabet
+  // (one segment) instead of forcing UCS-2 (cost ×~2, split risk).
+  const text = gsm7(`${String(title ?? '').trim()}\n\n${String(body ?? '').trim()}`.trim());
+  return text.length > SMS_MAX ? `${text.slice(0, SMS_MAX - 3)}...` : text;
 };
 
 export const pushPayload = ({ title, body, link }, appBaseUrl = '') => ({
@@ -59,9 +69,26 @@ const escapeHtml = (s) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-/** Plain escaped email body for generic sends (templates own the pretty ones). */
-export const plainEmailHtml = (title, body, link = '/dashboard/notifications/center') => `
-  <p><strong>${escapeHtml(title)}</strong></p>
-  <p>${escapeHtml(body)}</p>
-  <p><a href="${escapeHtml(link)}">Open in Diamond Project</a></p>
-`;
+/**
+ * Broadcast/generic email body — real paragraphs (blank lines split, single
+ * breaks become <br>), no duplicate title (the branded shell already renders
+ * the subject as its heading), and the link as an absolute-URL gold button
+ * with a plain-URL fallback. Relative app links would arrive broken, so a
+ * base URL is required — callers pass the public web origin.
+ */
+export const plainEmailHtml = (title, body, link = '/dashboard/notifications/center', baseUrl = 'https://c21fg.online') => {
+  const url = toAbsoluteUrl(link, baseUrl);
+  const action = url
+    ? `<p style="margin:1.4em 0 0.4em;"><a href="${escapeHtml(url)}" style="display:inline-block;padding:12px 28px;background-color:#a97f2c;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:bold;">${escapeHtml(title || 'Open Diamond Project')}</a></p>
+  <p style="font-size:12px;color:#6e6e6e;word-break:break-all;">${escapeHtml(url)}</p>`
+    : '';
+  return `${paragraphs(body)}${action}`;
+};
+
+const toAbsoluteUrl = (link, baseUrl) => {
+  const raw = String(link ?? '').trim();
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const base = String(baseUrl ?? '').replace(/\/+$/, '') || 'https://c21fg.online';
+  return `${base}${raw.startsWith('/') ? '' : '/'}${raw}`;
+};

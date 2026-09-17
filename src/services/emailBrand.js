@@ -14,6 +14,21 @@ const escapeHtml = (s) =>
     .replace(/"/g, '&quot;');
 
 /**
+ * Plain-text bodies (composer textarea, admin broadcast) → email HTML.
+ * Blank lines start new paragraphs, single breaks become <br> — without
+ * this, HTML collapses every line break and the mail arrives as one
+ * run-on block. Everything is escaped first (XSS-safe by construction).
+ */
+export const paragraphs = (text) => {
+  const safe = escapeHtml(text).trim();
+  if (!safe) return '';
+  return safe
+    .split(/\r?\n\s*\r?\n/)
+    .map((para) => `<p style="margin:0 0 1em;">${para.replace(/\r?\n/g, '<br>')}</p>`)
+    .join('');
+};
+
+/**
  * @param {{title: string, body: string, actionUrl?: string|null, actionLabel?: string}} input
  * (`body` is trusted inner HTML from our own templates; title/label are escaped.)
  */

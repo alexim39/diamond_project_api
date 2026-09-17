@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { brandEmail, BRAND_LOGO_URL } from './emailBrand.js';
+import { brandEmail, paragraphs, BRAND_LOGO_URL } from './emailBrand.js';
 
 describe('brandEmail', () => {
   it('wraps title, body, logo and footer', () => {
@@ -23,6 +23,21 @@ describe('brandEmail', () => {
       /https:\/\/c21fg\.online\/x/,
     );
     assert.doesNotMatch(brandEmail({ title: 'T', body: 'B' }), /Open Diamond Project<\/a>/);
+  });
+});
+
+describe('paragraphs', () => {
+  it('splits blank lines into paragraphs, single breaks into <br>', () => {
+    assert.equal(
+      paragraphs('Line one\nLine two\n\nLine three'),
+      '<p style="margin:0 0 1em;">Line one<br>Line two</p><p style="margin:0 0 1em;">Line three</p>',
+    );
+  });
+
+  it('escapes HTML and handles empty input', () => {
+    assert.match(paragraphs('<script>x</script>'), /&lt;script&gt;/);
+    assert.doesNotMatch(paragraphs('<script>x</script>'), /<script>/);
+    assert.equal(paragraphs('   '), '');
   });
 });
 

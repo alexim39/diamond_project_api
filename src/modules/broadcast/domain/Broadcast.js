@@ -77,7 +77,7 @@ export const createCampaignInput = (input = {}) => {
     ? base.title
     : text(input.subject, 'subject', { min: 3, max: 120 });
   const smsBody = input?.smsBody === undefined || input?.smsBody === null || String(input.smsBody).trim() === ''
-    ? `${base.title} — ${base.body}`.slice(0, BROADCAST_SMS_MAX)
+    ? `${base.title}\n${base.body}`.slice(0, BROADCAST_SMS_MAX)
     : text(input.smsBody, 'smsBody', { min: 3, max: BROADCAST_SMS_MAX });
   const sendAt = isoDate(input?.sendAt, 'sendAt');
   if (sendAt && sendAt.getTime() <= Date.now()) throw new ValidationException('Scheduled time must be in the future');

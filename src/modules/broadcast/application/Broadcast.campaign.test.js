@@ -92,8 +92,8 @@ const drivers = (over = {}) => ({
 });
 const wireDrivers = (d) => ({
   notify: d.notify,
-  mail: async (to, subject, html) => { d.mailed.push({ to, subject }); return { sent: true }; },
-  sms: { send: async ({ to }) => { d.sent.push(to); return { providerId: 'x' }; } },
+  mail: async (to, subject, html) => { d.mailed.push({ to, subject, html }); return { sent: true }; },
+  sms: { send: async ({ to, title, body }) => { d.sent.push({ to, title, body }); return { providerId: 'x' }; } },
 });
 
 // --- domain ---------------------------------------------------------------
@@ -217,7 +217,8 @@ test('run fans out email + sms with per-channel stats, skips members without con
   await new ScheduleCampaignUseCase({ broadcasts }).execute({
     createdBy: 'admin1',
     input: {
-      title: 'Big news here', body: 'Read all about it in the app today',
+      title: 'Big news here', body: 'Read all about it\nin the app today',
+      link: '/dashboard/community',
       subject: 'Big news', smsBody: 'Big news — open the app',
       channels: { inApp: false, email: true, sms: true }, kind: 'system',
     },
@@ -230,11 +231,23 @@ test('run fans out email + sms with per-channel stats, skips members without con
       m({ _id: 'u2', email: null, phone: null }),
     ]),
     prefs: fakePrefs([]),
+    appBaseUrl: 'https://c21fg.online',
     ...wireDrivers(d),
   });
   await run.execute({});
   assert.equal(d.mailed.length, 1);
   assert.equal(d.sent.length, 1);
+  // Email arrives as real paragraphs with an absolute-URL CTA button.
+  const html = d.mailed[0].html;
+  assert.match(html, /<p style="margin:0 0 1em;">Read all about it<br>in the app today<\/p>/);
+  assert.match(html, /href="https:\/\/c21fg\.online\/dashboard\/community"/);
+  assert.match(html, /background-color:#a97f2c/);
+  // SMS arrives multi-line, GSM-7 (no em-dash) — shaped by the shared
+  // smsBody() choke point inside the sender.
+  const { smsBody } = await import('../../notifications/domain/Delivery.js');
+  const shaped = smsBody(d.sent[0].title, d.sent[0].body);
+  assert.match(shaped, /\n/);
+  assert.ok(!/[—–‘’“”]/.test(shaped));
   const row = [...broadcasts.rows.values()][0];
   assert.equal(row.stats.email.sent, 1);
   assert.equal(row.stats.sms.sent, 1);

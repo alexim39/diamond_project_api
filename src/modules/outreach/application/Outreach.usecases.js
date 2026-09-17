@@ -6,6 +6,7 @@ import { ParterSMSModel } from '../../../apps/sms/models/sms.model.js';
 import { ParterEmailsModel } from '../../../apps/email/models/email.model.js';
 import { ScheduledSmsModel } from '../infrastructure/ScheduledSms.model.js';
 import { sendEmail } from '../../../services/emailService.js';
+import { paragraphs } from '../../../services/emailBrand.js';
 
 const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
 
@@ -128,7 +129,7 @@ export const deliverBulkEmail = async ({ partners, records, mail }, { partnerId,
   for (const recipient of entity.to) {
     try {
       // eslint-disable-next-line no-await-in-loop
-      const receipt = await mail(recipient, entity.subject, entity.body);
+      const receipt = await mail(recipient, entity.subject, paragraphs(entity.body));
       // sendEmail resolves {sent:false} instead of throwing — an explicit
       // false is a failed recipient, not a sent one (else partial-failure
       // reporting and the email log would lie).
