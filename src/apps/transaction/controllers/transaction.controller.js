@@ -7,6 +7,7 @@ import { userWithdrawalEmailTemplate } from '../services/email/withdrawal/userTe
 import { NotifyUseCase } from '../../../modules/notifications/application/NotificationsCenter.usecases.js';
 import { MongoStoredNotificationStore } from '../../../modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { recordAudit } from '../../../modules/audit/index.js';
+import { SMS_CHARGE_PER_PAGE as SMS_CHARGE } from '../../../modules/outreach/domain/Outreach.entity.js';
 
 const WITHDRAWAL_STATUSES = ['Pending', 'Paid', 'Rejected'];
 
@@ -55,7 +56,16 @@ export const confirmPayment = async (req, res) => {
     }
 
     // Step 2: Find the user and update their balance
-    const partner = await PartnersModel.findById(partnerId);
+    // Session-owned: a verified payment credits the payer's own wallet —
+    // a body partnerId pointing elsewhere is rejected (no credit gifting).
+    const sessionId = req.auth?.partnerId;
+    if (!sessionId || String(partnerId) !== String(sessionId)) {
+      return res.status(403).json({
+        message: 'Payment can only credit your own wallet',
+        success: false,
+      });
+    }
+    const partner = await PartnersModel.findById(sessionId);
     if (!partner) {
       return res.status(404).json({ 
             message: "Partner not found",
@@ -94,7 +104,8 @@ export const confirmPayment = async (req, res) => {
 
 export const getTransactions = async (req, res) => {
   try {
-    const { partnerId } = req.params; // Assuming createdBy is passed as a query parameter
+    // Session-owned: partners read their own history only.
+    const partnerId = req.auth?.partnerId;
 
     // Find transactions where partnerId matches the provided ID
     const transaction = await TransactionModel.find({ partnerId });
@@ -116,10 +127,12 @@ export const getTransactions = async (req, res) => {
 
 // Function to charge the partner for single sms
 export const singleSMSCharge = async (req, res) => {
-  const SMS_CHARGE = 4.56; //5; // Define the SMS charge amount
+  // Single send = 1 page at the canonical outreach rate (see Outreach.entity).
 
   try {
-    const { partnerId } = req.params;
+    // Session-owned: the charge always lands on the caller's own wallet —
+    // a path/body partnerId pointing elsewhere is ignored, never honored.
+    const partnerId = req.auth?.partnerId;
 
     // Find the partner by ID
     const partner = await PartnersModel.findById(partnerId);
@@ -175,10 +188,12 @@ export const singleSMSCharge = async (req, res) => {
 
 // Function to charge the partner for bulk sms
 export const bulkSMSCharge = async (req, res) => {
-  const SMS_CHARGE = 4.56; //5; // Define the SMS charge amount
+  // Canonical outreach rate (see Outreach.entity) — never a local literal.
 
   //console.log('body== ',req.body)
-  const { partnerId, numberOfContacts, pages } = req.body;
+  const { numberOfContacts, pages } = req.body;
+    // Session-owned charge (see singleSMSCharge) — body partnerId ignored.
+    const partnerId = req.auth?.partnerId;
 
   try {
     // Find the partner by ID
@@ -330,7 +345,9 @@ export const decideWithdrawal = async (req, res) => {
 };
 // Partner withdrawal request
 export const withdrawRequest = async (req, res) => {
-  const { bank, accountNumber, accountName, amount, partnerId } = req.body;
+  const { bank, accountNumber, accountName, amount } = req.body;
+  // Session-owned: withdrawals debit the caller's own wallet only.
+  const partnerId = req.auth?.partnerId;
 
   try {
     // Find the partner by ID

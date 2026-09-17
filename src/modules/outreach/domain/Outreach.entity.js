@@ -12,8 +12,16 @@ export const MAX_SMS_RECIPIENTS = 200;
 /** Max recipients per email send (provider + safety bound). */
 export const MAX_EMAIL_RECIPIENTS = 200;
 
-/** Wallet charge per recipient per page — MUST match billing bulkSMSCharge. */
-export const SMS_CHARGE_PER_PAGE = 4.56;
+/**
+ * Wallet charge per recipient per page (₦).
+ * Single source of truth — the legacy billing controller and the composer
+ * preview mirror this value (see SMS_PRICE_PER_PAGE). Must stay above the
+ * gateway unit cost (≈₦6.49, plus multi-segment Unicode pages): ₦10 leaves
+ * ≈35% gross margin for failure leakage, support and infra.
+ * Env-overridable without a code change: SMS_PRICE_PER_PAGE=10.
+ */
+export const SMS_CHARGE_PER_PAGE =
+  Number(process.env.SMS_PRICE_PER_PAGE ?? 10) > 0 ? Number(process.env.SMS_PRICE_PER_PAGE ?? 10) : 10;
 
 const NG_MOBILE_RE = /^(?:\+?234|0)([789]\d{9})$/;
 

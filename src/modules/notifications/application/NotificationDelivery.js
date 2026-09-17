@@ -46,9 +46,16 @@ export class NotificationDeliveryService {
     const stamp = {};
     if (channels.email && email && contact.email && this.mail) {
       try {
-        await this.mail(contact.email, email.subject, email.html);
-        report.email = true;
-        stamp['channels.email'] = new Date();
+        const receipt = await this.mail(contact.email, email.subject, email.html);
+        // sendEmail resolves {sent:false} instead of throwing — only an
+        // explicit false marks the channel failed (fake senders resolve
+        // undefined, which still counts as delivered).
+        if (receipt && receipt.sent === false) {
+          report.errors.push({ channel: 'email', error: receipt.error ?? 'Send failed' });
+        } else {
+          report.email = true;
+          stamp['channels.email'] = new Date();
+        }
       } catch (error) {
         report.errors.push({ channel: 'email', error: error?.message ?? String(error) });
       }

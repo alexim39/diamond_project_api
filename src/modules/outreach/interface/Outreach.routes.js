@@ -4,7 +4,7 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
-  CancelScheduledSmsUseCase, ListScheduledSmsUseCase, ScheduleBulkSmsUseCase, SendBulkSmsUseCase,
+  CancelScheduledSmsUseCase, ListScheduledSmsUseCase, ScheduleBulkSmsUseCase, SendBulkEmailUseCase, SendBulkSmsUseCase,
 } from '../application/Outreach.usecases.js';
 import { SmsDeliveryCallbackUseCase } from '../application/Outreach.delivery.js';
 import { outreachDeps, outreachSms } from '../infrastructure/Outreach.store.js';
@@ -41,6 +41,8 @@ export const buildOutreachRouter = (deps = {}) => {
   const link = outreachSms({ smsEnv: deps.smsEnv ?? env.sms });
   const sendBulk = deps.sendBulk
     ?? new SendBulkSmsUseCase({ ...stores, sms: link.sms, smsEnabled: link.smsEnabled });
+  const sendEmail = deps.sendEmail
+    ?? new SendBulkEmailUseCase({ partners: stores.partners, records: stores.emailRecords });
   const scheduleBulk = deps.scheduleBulk ?? new ScheduleBulkSmsUseCase(stores);
   const listScheduled = deps.listScheduled ?? new ListScheduledSmsUseCase(stores);
   const cancelScheduled = deps.cancelScheduled ?? new CancelScheduledSmsUseCase(stores);
@@ -86,6 +88,12 @@ export const buildOutreachRouter = (deps = {}) => {
     const params = req.validated?.params ?? req.params;
     const data = await cancelScheduled.execute({ partnerId: req.auth?.partnerId, scheduleId: params.scheduleId });
     res.status(200).json({ message: 'Scheduled send cancelled', data, success: true });
+  }));
+
+  router.post('/email', validate({ body: EmailSchema }), asyncHandler(async (req, res) => {
+    const body = req.validated?.body ?? req.body;
+    const data = await sendEmail.execute({ partnerId: req.auth?.partnerId, ...body });
+    res.status(200).json({ message: `Email sent to ${data.sent} of ${data.total} recipients`, data, success: true });
   }));
 
   router.post('/email/schedule', validate({ body: ScheduleEmailSchema }), asyncHandler(async (req, res) => {

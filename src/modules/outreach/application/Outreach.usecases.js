@@ -121,7 +121,13 @@ export const deliverBulkEmail = async ({ partners, records, mail }, { partnerId,
   for (const recipient of entity.to) {
     try {
       // eslint-disable-next-line no-await-in-loop
-      await mail(recipient, entity.subject, entity.body);
+      const receipt = await mail(recipient, entity.subject, entity.body);
+      // sendEmail resolves {sent:false} instead of throwing — an explicit
+      // false is a failed recipient, not a sent one (else partial-failure
+      // reporting and the email log would lie).
+      if (receipt && receipt.sent === false) {
+        throw new Error(receipt.error ?? 'Send failed');
+      }
       sent += 1;
     } catch (error) {
       failed.push({ to: recipient, error: error?.message ?? 'Send failed' });
@@ -137,9 +143,32 @@ export const deliverBulkEmail = async ({ partners, records, mail }, { partnerId,
   return { sent, failed, total: entity.to.length, status };
 };
 
+/**
+ * POST /v1/outreach/email — immediate bulk email through the same core the
+ * scheduled worker fires (validated, capped, recorded, per-recipient
+ * outcomes). Session-owned: no body partnerId to tamper with. Replaces the
+ * legacy `emails/send-email` (no auth, no caps, receipt ignored).
+ */
+export class SendBulkEmailUseCase {
+  /** @param {{partners, records, mail}} deps */
+  constructor({ partners, records, mail } = {}) {
+    Object.assign(this, {
+      partners: partners ?? PartnersModel,
+      records: records ?? ParterEmailsModel,
+      mail: mail ?? sendEmail,
+    });
+  }
+
+  async execute({ partnerId, to, subject, body }) {
+    return deliverBulkEmail(
+      { partners: this.partners, records: this.records, mail: this.mail },
+      { partnerId, to, subject, body },
+    );
+  }
+}
+
 /** Outbox write — validated now, charged at fire time by the worker. */
-export class ScheduleBulkSmsUseCase {
-  /** @param {{schedules, campaigns?}} deps */
+export class ScheduleBulkSmsUseCase {  /** @param {{schedules, campaigns?}} deps */
   constructor({ schedules, campaigns = null } = {}) {
     Object.assign(this, {
       schedules: schedules ?? ScheduledSmsModel,
