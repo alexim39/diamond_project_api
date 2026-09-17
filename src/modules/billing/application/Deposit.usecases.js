@@ -1,5 +1,8 @@
-import { AppError, ValidationException, NotFoundException } from '../../../shared/domain/AppError.js';
-import { assertDepositAmount, newDepositReference, toKobo } from '../domain/Deposit.js';
+import { AppError, ConflictException, ValidationException, NotFoundException } from '../../../shared/domain/AppError.js';
+import {
+  assertAdminCreditAmount, assertDepositAmount, assertManualClaim,
+  manualAccounts, newDepositReference, toKobo,
+} from '../domain/Deposit.js';
 import { verifyCallbackSignature } from '../infrastructure/OpayClient.js';
 import { DepositIntentModel } from '../infrastructure/Deposit.mongo.model.js';
 import { PartnersModel, TransactionModel, runInTransaction } from '../infrastructure/Billing.models.js';
@@ -183,3 +186,298 @@ export class DepositStatusUseCase {
     };
   }
 }
+
+/**
+ * Shared wallet-credit core — the ONE place money enters a wallet for
+ * deposits (gateway callback path keeps its own claim-flip; manual approve
+ * and admin credit both land here). $inc + Completed/Credit record travel
+ * together inside the caller's transaction.
+ */
+export const creditPartnerWallet = async ({ partners, transactions }, { partnerId, amountNgn, paymentMethod, reference }, opts = {}) => {
+  const updated = await partners.findByIdAndUpdate(
+    partnerId,
+    { $inc: { balance: amountNgn } },
+    { new: true, ...opts },
+  );
+  if (!updated) throw new NotFoundException('Partner not found');
+  const tx = await transactions.create({
+    partnerId,
+    amount: amountNgn,
+    status: 'Completed',
+    paymentMethod,
+    transactionType: 'Credit',
+    reference,
+  }, opts);
+  return { transactionId: String(tx._id ?? tx.id), balance: updated.balance ?? null };
+};
+
+/**
+ * POST /v1/billing/deposit/manual — file a manual-transfer claim.
+ * No money moves: the row waits in `awaiting-review` for an admin.
+ */
+export class SubmitManualDepositUseCase {
+  /** @param {{deposits, partners, accounts?}} deps */
+  constructor({ deposits, partners, accounts = null }) {
+    Object.assign(this, {
+      deposits: deposits ?? DepositIntentModel,
+      partners: partners ?? PartnersModel,
+      accounts: accounts ?? manualAccounts(),
+    });
+  }
+
+  async execute({ partnerId, claim }) {
+    const clean = assertManualClaim(claim ?? {}, this.accounts);
+    const member = await this.partners.findById(partnerId).select('_id').lean();
+    if (!member) throw new NotFoundException('Partner not found');
+    const reference = newDepositReference();
+    const intent = await this.deposits.create({
+      reference,
+      partnerId,
+      amountNgn: clean.amountNgn,
+      amountKobo: toKobo(clean.amountNgn),
+      method: 'manual',
+      status: 'awaiting-review',
+      claim: {
+        destinationAccount: clean.destinationAccount,
+        senderName: clean.senderName,
+        senderAccount: clean.senderAccount,
+        paidAt: clean.paidAt,
+        bankReference: clean.bankReference,
+        ...(clean.note ? { note: clean.note } : {}),
+      },
+    });
+    return { reference, amountNgn: clean.amountNgn, status: intent.status ?? 'awaiting-review' };
+  }
+}
+
+/** GET /v1/billing/deposit/manual/mine — own manual claims, newest first. */
+export class MyManualClaimsUseCase {
+  /** @param {{deposits}} deps */
+  constructor({ deposits }) {
+    this.deposits = deposits ?? DepositIntentModel;
+  }
+
+  async execute({ partnerId, limit = 50 }) {
+    const lim = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const rows = await this.deposits
+      .find({ partnerId, method: 'manual' })
+      .sort({ createdAt: -1 })
+      .limit(lim)
+      .lean();
+    return rows.map((d) => ({
+      reference: d.reference,
+      amountNgn: d.amountNgn,
+      status: d.status,
+      claim: d.claim ?? null,
+      decidedAt: d.decidedAt ?? null,
+      decisionNote: d.decisionNote ?? null,
+      creditedAt: d.creditedAt ?? null,
+      createdAt: d.createdAt,
+    }));
+  }
+}
+
+const claimShape = (d) => ({
+  reference: d.reference,
+  amountNgn: d.amountNgn,
+  status: d.status,
+  claim: d.claim ?? null,
+  decidedBy: d.decidedBy ? String(d.decidedBy) : null,
+  decidedAt: d.decidedAt ?? null,
+  decisionNote: d.decisionNote ?? null,
+  creditedAt: d.creditedAt ?? null,
+  createdAt: d.createdAt,
+});
+
+/** GET /v1/billing/deposit/manual/queue — admin review queue. */
+export class ListManualQueueUseCase {
+  /** @param {{deposits, partners}} deps */
+  constructor({ deposits, partners }) {
+    Object.assign(this, {
+      deposits: deposits ?? DepositIntentModel,
+      partners: partners ?? PartnersModel,
+    });
+  }
+
+  async execute({ status = 'awaiting-review', limit = 100 } = {}) {
+    const lim = Math.min(Math.max(Number(limit) || 100, 1), 200);
+    const filter = { method: 'manual' };
+    if (status && status !== 'all') filter.status = status;
+    const rows = await this.deposits.find(filter).sort({ createdAt: -1 }).limit(lim).lean();
+    const ids = [...new Set(rows.map((r) => String(r.partnerId)))];
+    const owners = await this.partners
+      .find({ _id: { $in: ids } })
+      .select('name surname email phone username')
+      .lean().catch(() => []);
+    const labels = Object.fromEntries((owners ?? []).map((o) => [String(o._id), {
+      name: [o.name, o.surname].filter(Boolean).join(' ') || o.username,
+      email: o.email ?? null,
+      phone: o.phone ?? null,
+      username: o.username ?? null,
+    }]));
+    return rows.map((d) => ({ ...claimShape(d), partner: labels[String(d.partnerId)] ?? null }));
+  }
+}
+
+/**
+ * POST /v1/billing/deposit/manual/:reference/decide — approve (credit once)
+ * or reject (reason required). The status flip filters on
+ * `awaiting-review`, so concurrent approves converge on one winner and the
+ * loser gets a clean 409 instead of a double credit.
+ */
+export class DecideManualDepositUseCase {
+  /** @param {{deposits, partners, transactions, notifier?, rejectNotifier?}} deps */
+  constructor({ deposits, partners, transactions, notifier = null, rejectNotifier = null }) {
+    Object.assign(this, {
+      deposits: deposits ?? DepositIntentModel,
+      partners: partners ?? PartnersModel,
+      transactions: transactions ?? TransactionModel,
+      notifier,
+      rejectNotifier,
+    });
+  }
+
+  async execute({ reference, adminId, decision, note = '' }) {
+    const ref = String(reference ?? '').trim();
+    if (!ref) throw new ValidationException('Deposit reference is required');
+    if (decision !== 'approve' && decision !== 'reject') {
+      throw new ValidationException('Decision must be approve or reject');
+    }
+    const cleanNote = String(note ?? '').trim().slice(0, 500);
+    if (decision === 'reject' && cleanNote.length < 3) {
+      throw new ValidationException('A reason is required to reject a claim');
+    }
+    const won = await runInTransaction(async (session) => {
+      const opt = session ? { session } : {};
+      const doc = await this.deposits.findOneAndUpdate(
+        { reference: ref, method: 'manual', status: 'awaiting-review' },
+        {
+          $set: {
+            status: decision === 'approve' ? 'approved' : 'rejected',
+            decidedBy: adminId,
+            decidedAt: new Date(),
+            ...(cleanNote ? { decisionNote: cleanNote } : {}),
+            ...(decision === 'approve' ? { creditedAt: new Date() } : {}),
+          },
+        },
+        { new: false, ...opt },
+      ).lean().catch(() => null);
+      if (!doc) return null;
+      let credit = null;
+      if (decision === 'approve') {
+        credit = await creditPartnerWallet(
+          { partners: this.partners, transactions: this.transactions },
+          {
+            partnerId: doc.partnerId,
+            amountNgn: doc.amountNgn,
+            paymentMethod: 'Manual Transfer',
+            reference: doc.reference,
+          },
+          opt,
+        );
+      }
+      return { doc, credit };
+    }).catch(() => null);
+    if (!won) throw new ConflictException('Claim was already decided or does not exist');
+    if (decision === 'approve' && this.notifier) {
+      await this.notifier(won.doc.partnerId, won.doc.amountNgn, ref).catch(() => null);
+    }
+    if (decision === 'reject' && this.rejectNotifier) {
+      await this.rejectNotifier(won.doc.partnerId, won.doc.amountNgn, ref, cleanNote).catch(() => null);
+    }
+    return {
+      reference: ref,
+      status: decision === 'approve' ? 'approved' : 'rejected',
+      amountNgn: won.doc.amountNgn,
+      transactionId: won.credit?.transactionId ?? null,
+      balance: won.credit?.balance ?? null,
+    };
+  }
+}
+
+/**
+ * POST /v1/admin/wallet/credit — direct admin top-up.
+ * Reason is mandatory and audited at the route; the credit itself writes
+ * an approved manual intent row so the ledger tells one story.
+ */
+export class AdminCreditWalletUseCase {
+  /** @param {{deposits, partners, transactions, notifier?}} deps */
+  constructor({ deposits, partners, transactions, notifier = null }) {
+    Object.assign(this, {
+      deposits: deposits ?? DepositIntentModel,
+      partners: partners ?? PartnersModel,
+      transactions: transactions ?? TransactionModel,
+      notifier,
+    });
+  }
+
+  async execute({ adminId, partnerId, amountNgn, reason }) {
+    const amount = assertAdminCreditAmount(amountNgn);
+    const cleanReason = String(reason ?? '').trim().slice(0, 500);
+    if (cleanReason.length < 5) throw new ValidationException('A reason (min 5 characters) is required');
+    const member = await this.partners.findById(partnerId).select('_id').lean();
+    if (!member) throw new NotFoundException('Partner not found');
+    const reference = newDepositReference();
+    const out = await runInTransaction(async (session) => {
+      const opt = session ? { session } : {};
+      await this.deposits.create([{
+        reference,
+        partnerId,
+        amountNgn: amount,
+        amountKobo: toKobo(amount),
+        method: 'manual',
+        status: 'approved',
+        creditedAt: new Date(),
+        decidedBy: adminId,
+        decidedAt: new Date(),
+        decisionNote: `Admin credit: ${cleanReason}`,
+      }], opt);
+      return creditPartnerWallet(
+        { partners: this.partners, transactions: this.transactions },
+        { partnerId, amountNgn: amount, paymentMethod: 'Admin Credit', reference },
+        opt,
+      );
+    });
+    if (this.notifier) {
+      await this.notifier(partnerId, amount, reference).catch(() => null);
+    }
+    return { reference, amountNgn: amount, ...out };
+  }
+}
+
+const escapeRegExp = (s) => String(s ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** GET /v1/admin/wallet/lookup — find a partner to credit (email/username). */
+export class LookupPartnerUseCase {
+  /** @param {{partners}} deps */
+  constructor({ partners }) {
+    this.partners = partners ?? PartnersModel;
+  }
+
+  async execute({ q }) {
+    const needle = String(q ?? '').trim();
+    if (needle.length < 2) throw new ValidationException('Enter at least 2 characters to search');
+    const fields = 'name surname email phone username balance';
+    const exact = await this.partners.findOne({
+      $or: [
+        { email: needle.toLowerCase() },
+        { username: new RegExp(`^${escapeRegExp(needle)}$`, 'i') },
+      ],
+    }).select(fields).lean().catch(() => null);
+    if (exact) return { exact: safePartner(exact), matches: [] };
+    const rx = new RegExp(escapeRegExp(needle), 'i');
+    const matches = await this.partners.find({
+      $or: [{ email: rx }, { username: rx }],
+    }).select(fields).limit(5).lean().catch(() => []);
+    return { exact: null, matches: (matches ?? []).map(safePartner) };
+  }
+}
+
+const safePartner = (p) => ({
+  id: String(p._id ?? p.id),
+  name: [p.name, p.surname].filter(Boolean).join(' ') || p.username,
+  email: p.email ?? null,
+  phone: p.phone ?? null,
+  username: p.username ?? null,
+  balance: Number(p.balance ?? 0),
+});
