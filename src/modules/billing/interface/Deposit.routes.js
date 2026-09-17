@@ -4,7 +4,7 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { InitDepositUseCase, HandleDepositCallbackUseCase, DepositStatusUseCase } from '../application/Deposit.usecases.js';
-import { OpayClient, OPAY_TEST_BASE } from '../infrastructure/OpayClient.js';
+import { OpayClient, OPAY_TEST_BASE, OPAY_LIVE_BASE } from '../infrastructure/OpayClient.js';
 import { NotifyUseCase } from '../../notifications/application/NotificationsCenter.usecases.js';
 import { MongoStoredNotificationStore } from '../../notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { DEPOSIT_MAX_NGN, DEPOSIT_MIN_NGN } from '../domain/Deposit.js';
@@ -20,14 +20,34 @@ const StatusQuery = z.object({
   reference: z.string().trim().min(1).max(64),
 });
 
+/** Mode-aware Opay config: OPAY_MODE=live selects LIVE_* keys, default test.
+ * Legacy single OPAY_PUBLIC_KEY / OPAY_PRIVATE_KEY / OPAY_BASE_URL kept as
+ * fallback so older envs keep working. Pure — unit-tested, no I/O. */
+export const resolveOpayConfig = (env = process.env) => {
+  const live = String(env.OPAY_MODE ?? 'test').toLowerCase() === 'live';
+  const conf = live
+    ? {
+        baseUrl: env.OPAY_LIVE_BASE || OPAY_LIVE_BASE,
+        publicKey: env.OPAY_LIVE_PUBLIC_KEY || '',
+        privateKey: env.OPAY_LIVE_PRIVATE_KEY || '',
+      }
+    : {
+        baseUrl: env.OPAY_TEST_BASE || OPAY_TEST_BASE,
+        publicKey: env.OPAY_TEST_PUBLIC_KEY || '',
+        privateKey: env.OPAY_TEST_PRIVATE_KEY || '',
+      };
+  if (!conf.publicKey) conf.publicKey = env.OPAY_PUBLIC_KEY || '';
+  if (!conf.privateKey) conf.privateKey = env.OPAY_PRIVATE_KEY || '';
+  if (env.OPAY_BASE_URL) conf.baseUrl = env.OPAY_BASE_URL;
+  conf.merchantId = env.OPAY_MERCHANT_ID || '';
+  conf.mode = live ? 'live' : 'test';
+  return conf;
+};
+
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
 export const buildDepositRouter = (deps = {}) => {
-  const opay = deps.opay ?? new OpayClient({
-    baseUrl: process.env.OPAY_BASE_URL || OPAY_TEST_BASE,
-    publicKey: process.env.OPAY_PUBLIC_KEY || '',
-    privateKey: process.env.OPAY_PRIVATE_KEY || '',
-    merchantId: process.env.OPAY_MERCHANT_ID || '',
-  });
+  const conf = resolveOpayConfig();
+  const opay = deps.opay ?? new OpayClient(conf);
   const frontendBase = (process.env.FRONTEND_URL || process.env.APP_BASE_URL || 'https://c21fg.online').replace(/\/+$/, '');
   const notifyStore = new MongoStoredNotificationStore();
   const notify = new NotifyUseCase({ stored: notifyStore });
@@ -42,7 +62,7 @@ export const buildDepositRouter = (deps = {}) => {
   });
   const callback = deps.callback ?? new HandleDepositCallbackUseCase({
     opay,
-    privateKey: process.env.OPAY_PRIVATE_KEY || '',
+    privateKey: conf.privateKey,
     notifier: async (partnerId, amountNgn, reference) => {
       await notify.execute({
         recipientId: String(partnerId),
