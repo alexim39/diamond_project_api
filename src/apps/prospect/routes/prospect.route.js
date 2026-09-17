@@ -1,9 +1,10 @@
 import express from 'express';
-import { 
+import {
     CreateContactList,  GetContactsCreatedBy,  importSurveyToContact,  getAllSurveyProspect, getAllMySurveyProspect, ImportSingleProspectFromSurveyToContact,
     getProspectById, UpdateProspectStatus, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
 } from '../controllers/prospect.controller.js'
 import { UpdateProspectCommunications, DeleteProspectCommunication} from '../controllers/communictions.controller.js'
+import { requireAuth } from '../../../shared/http/requireAuth.js';
 const ProspectRouter = express.Router();
 
 // create
@@ -20,8 +21,8 @@ ProspectRouter.get('/all', getAllSurveyProspect);
 ProspectRouter.get('/my/:username', getAllMySurveyProspect);
 // import prospect for user
 ProspectRouter.get('/import/:partnerId', importSurveyToContact );
-// import signle prospect for user
-ProspectRouter.get('/import-single/:partnerId/:prospectId/:source', ImportSingleProspectFromSurveyToContact );
+// import signle prospect for user — paid claim, session must own the partnerId
+ProspectRouter.get('/import-single/:partnerId/:prospectId/:source', requireAuth, ImportSingleProspectFromSurveyToContact );
 // delete signle prospect for user on survey model
 //ProspectRouter.get('/delete-single/:prospectId', deleteSingleFromSurvey );
 // get signle prospect byid

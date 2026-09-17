@@ -4,7 +4,7 @@ import { CONTACT_PRIORITIES, RELATIONSHIP_TAGS } from '../domain/Prospect.entity
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 const email = z.string().trim().toLowerCase().email().max(254);
 
-export const ProspectIdParam = z.object({ prospectId: objectId });
+  export const ProspectIdParam = z.object({ prospectId: objectId });
 export const PartnerIdParam = z.object({ partnerId: objectId });
 
 export const CreateProspectSchema = z.object({
@@ -103,4 +103,10 @@ export const ConvertProspectSchema = z.object({
   code: z.string().trim().min(3).max(64).regex(EnrollmentCodePattern, 'Reservation code format not recognised'),
   by: z.string().trim().max(40).optional(),
   byName: z.string().trim().max(120).optional(),
+});
+
+/** POST /v1/prospects/claim — paid Buy Prospect pickup (fee from wallet). */
+export const ClaimProspectSchema = z.object({
+  surveyId: objectId,
+  source: z.enum(['website', 'link']).optional().default('website'),
 });

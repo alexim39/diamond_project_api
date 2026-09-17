@@ -4,7 +4,7 @@ import { requireAuth } from '../../../shared/http/requireAuth.js';
 import {
   ProspectIdParam, PartnerIdParam, CreateProspectSchema, UpdateProspectSchema,
   UpdateStatusSchema, LogCommunicationSchema, PaginationQuery, CommIdsParam, StuckQuery,
-  ConvertProspectSchema,
+  ConvertProspectSchema, ClaimProspectSchema,
 } from './Prospect.validator.js';
 import { makeProspectController } from './Prospect.controller.js';
 import {
@@ -22,6 +22,7 @@ import { MongoProspectRepository, MongoPartnerLookup, MongoReservationCodes } fr
 import { MongoCampaignLookup } from '../../marketing/infrastructure/Marketing.mongo.repository.js';
 import { ConvertProspectToPartnerUseCase } from '../application/Prospect.convert.js';
 import { ReleaseProspectToPoolUseCase } from '../application/Prospect.release.js';
+import { ClaimPoolLeadUseCase } from '../application/Prospect.claim.js';
 import { domainEvents } from '../../../shared/events/DomainEvents.js';
 
 /**
@@ -55,6 +56,7 @@ export const buildProspectRouter = (deps = {}) => {
     stuck: new GetStuckProspectsUseCase({ prospects }),
     convert: new ConvertProspectToPartnerUseCase({ prospects, reservations }),
     release: new ReleaseProspectToPoolUseCase({ prospects }),
+    claim: new ClaimPoolLeadUseCase({}),
     contactListMine: new GetMyContactListUseCase({ prospects }),
     contactListSubmit: deps.contactListSubmit
       ?? new SubmitContactListUseCase({ prospects, network, events }),
@@ -95,6 +97,8 @@ export const buildProspectRouter = (deps = {}) => {
   router.post('/:prospectId/convert', validate({ params: ProspectIdParam, body: ConvertProspectSchema }), c.convert);
 
   router.post('/:prospectId/release', validate({ params: ProspectIdParam }), c.release);
+
+  router.post('/claim', validate({ body: ClaimProspectSchema }), c.claim);
 
   router.post('/:prospectId/communications', validate({ params: ProspectIdParam, body: LogCommunicationSchema }), c.logCommunication);
   router.post('/communications', validate({ body: LogCommunicationSchema }), c.logCommunication);

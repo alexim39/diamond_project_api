@@ -1,5 +1,8 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '../../../shared/domain/AppError.js';
+import { LEAD_RETURN_REFUND } from '../domain/LeadClaimFees.js';
 import { ProspectSurveyModel } from '../../../apps/survey/models/survey.model.js';
+import { PartnersModel } from '../../../apps/partner/models/partner.model.js';
+import { TransactionModel } from '../../../apps/transaction/models/transaction.model.js';
 
 /**
  * Buy Prospect return window — a partner may send a pool-claimed lead back
@@ -18,11 +21,14 @@ const required = (v, fallback = 'Not provided') => {
 };
 
 export class ReleaseProspectToPoolUseCase {
-  /** @param {{prospects, surveys}} deps */
-  constructor({ prospects, surveys } = {}) {
+  /** @param {{prospects, surveys, partners, transactions, refund?}} deps */
+  constructor({ prospects, surveys, partners, transactions, refund } = {}) {
     Object.assign(this, {
       prospects,
       surveys: surveys ?? ProspectSurveyModel,
+      partners: partners ?? PartnersModel,
+      transactions: transactions ?? TransactionModel,
+      refund: refund ?? LEAD_RETURN_REFUND,
     });
     if (!this.prospects) throw new Error('ReleaseProspectToPoolUseCase requires prospects');
   }
@@ -70,6 +76,31 @@ export class ReleaseProspectToPoolUseCase {
       prospectStatus: 'Not Moved',
     });
     await this.prospects.deleteById(prospectId);
-    return { released: true, surveyId: String(restored._id ?? restored.id) };
+    // Claim-fee refund (only when a fee was actually paid — legacy
+    // pre-fee claims restore the pool row but move no money).
+    let refunded = 0;
+    if (Number(p.claimFeePaid) > 0 && this.refund > 0) {
+      refunded = this.refund;
+      try {
+        await this.partners.findByIdAndUpdate(partnerId, { $inc: { balance: refunded } });
+        await this.transactions.create([{
+          partnerId,
+          amount: refunded,
+          status: 'Completed',
+          paymentMethod: 'Lead Return Refund',
+          transactionType: 'Credit',
+          reference: Math.floor(100000000 + Math.random() * 900000000).toString(),
+        }]);
+      } catch (err) {
+        // Lead is already returned at this point — never fail the request
+        // over the refund; log loudly so ops can reconcile from this line.
+        console.error(
+          `[leadpool] REFUND FAILED partner=${partnerId} amount=${refunded} survey=${restored._id ?? restored.id}:`,
+          err?.message ?? err,
+        );
+        refunded = 0;
+      }
+    }
+    return { released: true, surveyId: String(restored._id ?? restored.id), refunded };
   }
 }

@@ -94,6 +94,12 @@ const prospectSchema = mongoose.Schema(
             default: null,
             index: true,
         },
+        // Claim fee actually debited (₦). Null/0 = pre-fee claim → no
+        // refund moves on return. Set by the paid claim path only.
+        claimFeePaid: {
+            type: Number,
+            default: null,
+        },
         // Optional campaign attribution (R4): stamped when a prospect
         // arrives via a tracked campaign link. Sparse — absent historically.
         campaignId: {

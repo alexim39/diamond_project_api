@@ -38,7 +38,23 @@ export const makeProspectController = (uc) => ({
 
   release: asyncHandler(async (req, res) => {
     const data = await uc.release.execute({ partnerId: req.auth?.partnerId, prospectId: pid(req) });
-    res.status(200).json({ message: 'Lead returned to Buy Prospect — others can claim it now.', data, success: true });
+    res.status(200).json({
+      message: data.refunded > 0
+        ? `Lead returned to Buy Prospect — ₦${Number(data.refunded).toLocaleString()} refunded to your wallet.`
+        : 'Lead returned to Buy Prospect — others can claim it now.',
+      data,
+      success: true,
+    });
+  }),
+
+  claim: asyncHandler(async (req, res) => {
+    const body = req.validated?.body ?? req.body;
+    const data = await uc.claim.execute({
+      partnerId: req.auth?.partnerId,
+      surveyId: body.surveyId,
+      source: body.source ?? 'website',
+    });
+    res.status(200).json({ message: `Lead claimed — ₦${Number(data.fee).toLocaleString()} from your wallet.`, data, success: true });
   }),
 
   getById: asyncHandler(async (req, res) => {
@@ -84,8 +100,7 @@ export const makeProspectController = (uc) => ({
     res.status(200).json({ message: 'Stuck prospects retrieved successfully!', data, success: true });
   }),
 
-  convert: asyncHandler(async (req, res) => {
-    const body = req.validated?.body ?? req.body ?? {};
+  convert: asyncHandler(async (req, res) => {    const body = req.validated?.body ?? req.body ?? {};
     const data = await uc.convert.execute({
       prospectId: pid(req),
       code: typeof body.code === 'string' ? body.code : undefined,

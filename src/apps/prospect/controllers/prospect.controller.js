@@ -1,6 +1,10 @@
 import { ProspectModel } from "../models/prospect.model.js";
 import { ProspectSurveyModel } from "../../survey/models/survey.model.js";
 import { PartnersModel } from '../../partner/models/partner.model.js';
+import { ClaimPoolLeadUseCase } from '../../../modules/crm/application/Prospect.claim.js';
+
+// Shared paid-claim core (fee debit + atomic pool claim) — also serves v1.
+const claimPoolLead = new ClaimPoolLeadUseCase({});
 
 
 // Prospect contact contnroller
@@ -375,7 +379,10 @@ export const getAllMySurveyProspect = async (req, res) => {
   }
 }; */
 
-/* Import single prospect from survey to contact */
+/* Import single prospect from survey to contact — paid claim.
+ * Delegates to the shared ClaimPoolLeadUseCase (fee debit, atomic claim),
+ * so legacy pages and the Buy Prospect dialog run identical economics.
+ * Session-owned: a mismatched param partnerId is rejected. */
 export const ImportSingleProspectFromSurveyToContact = async (req, res) => {
   try {
     const { partnerId, prospectId, source } = req.params;
@@ -387,92 +394,29 @@ export const ImportSingleProspectFromSurveyToContact = async (req, res) => {
         success: false
       });
     }
-
-    // Get the user survey by prospectId
-    const survey = await ProspectSurveyModel.findById(prospectId);
-
-    if (!survey) {
-      return res.status(404).json({
-        message: "Survey not found.",
+    const sessionId = req.auth?.partnerId ? String(req.auth.partnerId) : null;
+    if (sessionId && String(partnerId) !== sessionId) {
+      return res.status(403).json({
+        message: "You can only claim leads for yourself.",
         success: false
       });
     }
 
-    // Check if this survey has already been moved
-    if (survey.prospectStatus === "Moved to Contact") {
-      return res.status(400).json({
-        message: "This survey has already been moved to contacts.",
-        success: false
-      });
-    }
-
-    // Check for duplicate prospect (by email or phone)
-    const existingProspect = await ProspectModel.findOne({
-      $or: [
-        { prospectEmail: survey.email },
-        { prospectPhone: survey.phoneNumber }
-      ],
-      partnerId: partnerId
+    const data = await claimPoolLead.execute({
+      partnerId: sessionId ?? String(partnerId),
+      surveyId: prospectId,
+      source,
     });
-
-    if (existingProspect) {
-      return res.status(409).json({
-        message: "Prospect with this email or phone already exists in your contacts.",
-        success: false
-      });
-    }
-
-    let prospectSource = 'Website';
-    if (source === 'website') {
-      prospectSource = "Website";
-    } else if (source === 'link') {
-      prospectSource = "Unique Link";
-    }
-
-    // Create a new prospect using the data from the survey
-    const newProspect = new ProspectModel({
-      prospectName: survey.name,
-      prospectSurname: survey.surname,
-      prospectEmail: survey.email,
-      prospectPhone: survey.phoneNumber,
-      prospectSource: prospectSource,
-      partnerId: partnerId,
-      claimedAt: new Date(), // Buy Prospect pickup — starts the 7-day return window
-      surverId: survey._id, // Typo kept for backward compatibility
-      survey: {
-        ageRange: survey.ageRange,
-        socialMedia: survey.socialMedia,
-        employedStatus: survey.employedStatus,
-        importanceOfPassiveIncome: survey.importanceOfPassiveIncome,
-        onlinePurchaseSchedule: survey.onlinePurchaseSchedule,
-        primaryOnlineBusinessMotivation: survey.primaryOnlineBusinessMotivation,
-        comfortWithTech: survey.comfortWithTech,
-        onlineBusinessTimeDedication: survey.onlineBusinessTimeDedication,
-        referralCode: survey.referralCode,
-        referral: survey.referral,
-        country: survey.country,
-        state: survey.state,
-      },
-    });
-
-    // Save the new prospect entry to the database
-    await newProspect.save();
-
-    // Update the prospectStatus to "Moved to Contact"
-    survey.prospectStatus = "Moved to Contact";
-    await survey.save();
-
-    // Delete the survey entry after moving to ProspectModel
-    await ProspectSurveyModel.findByIdAndDelete(survey._id);
-
-    res.status(200).json({
+    return res.status(200).json({
       message: "Prospect moved successfully to your contact list!",
+      data,
       success: true
     });
   } catch (error) {
-    res.status(500).json({
-      message: 'Prospect not moved, something went wrong',
-      error: error.message,
+    const status = error?.statusCode ?? 500;
+    return res.status(status).json({
+      message: status === 500 ? 'Prospect not moved, something went wrong' : error.message,
+      ...(status === 500 ? { error: error.message } : {}),
       success: false
     });
   }
