@@ -64,6 +64,37 @@ describe('RequestPasswordResetUseCase', () => {
     assert.equal(mailedTo, 'a@x.test');
     assert.match(mailedUrl, /^https:\/\/c21fg\.online\/partner\/reset-password\?token=/);
   });
+
+  it('known email + failed send fails honestly (503) instead of false success', async () => {
+    const partners = fakePartners({ 'a@x.test': user() });
+    const uc = new RequestPasswordResetUseCase({
+      partners,
+      mailer: { notifyPasswordReset: async () => ({ sent: false, error: 'Email is not configured' }) },
+      frontendUrl: 'https://c21fg.online',
+    });
+    try {
+      await uc.execute({ email: 'a@x.test' });
+      assert.fail('must throw');
+    } catch (err) {
+      assert.equal(err.statusCode, 503);
+      assert.match(err.message, /could not send the reset email/);
+    }
+  });
+
+  it('known email + throwing mailer fails honestly (503)', async () => {
+    const partners = fakePartners({ 'a@x.test': user() });
+    const uc = new RequestPasswordResetUseCase({
+      partners,
+      mailer: { notifyPasswordReset: async () => { throw new Error('socket hangup'); } },
+      frontendUrl: 'https://c21fg.online',
+    });
+    try {
+      await uc.execute({ email: 'a@x.test' });
+      assert.fail('must throw');
+    } catch (err) {
+      assert.equal(err.statusCode, 503);
+    }
+  });
 });
 
 describe('ResetPasswordUseCase', () => {

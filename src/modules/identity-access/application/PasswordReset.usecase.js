@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { ValidationException, UnauthorizedException } from '../../../shared/domain/AppError.js';
+import { ValidationException, UnauthorizedException, ServiceUnavailableException } from '../../../shared/domain/AppError.js';
 import { PlainPassword, toSafePartner } from '../domain/Partner.entity.js';
 
 const RESET_TTL_MS = 60 * 60 * 1000; // 1h
@@ -31,12 +31,24 @@ export class RequestPasswordResetUseCase {
       resetPasswordExpires: new Date(Date.now() + RESET_TTL_MS).toISOString(),
     });
     try {
-      await this.mailer.notifyPasswordReset(
+      const receipt = await this.mailer.notifyPasswordReset(
         normalized,
         `${this.frontendUrl}/partner/reset-password?token=${token}`,
       );
+      // Fake mailers resolve undefined — only an explicit `sent: false`
+      // means the mail run failed (e.g. SMTP unconfigured/down).
+      if (receipt && receipt.sent === false) {
+        console.error('[auth] reset email failed:', receipt.error, `(${normalized})`);
+        throw new ServiceUnavailableException(
+          'We could not send the reset email — please try again in a few minutes.',
+        );
+      }
     } catch (err) {
+      if (err instanceof ServiceUnavailableException) throw err;
       console.error('[auth] reset email failed:', err?.message || err);
+      throw new ServiceUnavailableException(
+        'We could not send the reset email — please try again in a few minutes.',
+      );
     }
     return { sent: true };
   }

@@ -50,3 +50,9 @@ export class ForbiddenException extends AppError {
     super(message, 403, 'FORBIDDEN', details);
   }
 }
+
+export class ServiceUnavailableException extends AppError {
+  constructor(message = 'Service temporarily unavailable', details) {
+    super(message, 503, 'SERVICE_UNAVAILABLE', details);
+  }
+}

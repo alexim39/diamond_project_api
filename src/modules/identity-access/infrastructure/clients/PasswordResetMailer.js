@@ -2,8 +2,9 @@ import { sendEmail } from '../../../../services/emailService.js';
 
 /** Infrastructure: password-reset mail adapter (injectable/fakeable in tests). */
 export class PasswordResetMailer {
+  /** Returns the `{ sent }` receipt so callers can fail honestly on mail outages. */
   async notifyPasswordReset(to, resetUrl) {
-    await sendEmail(
+    return sendEmail(
       to,
       'Password Reset Request',
       `<h2>Password Reset Request</h2>
