@@ -36,6 +36,11 @@ export const makeProspectController = (uc) => ({
     res.status(200).json({ message: 'Prospect deleted successfully!', success: true });
   }),
 
+  release: asyncHandler(async (req, res) => {
+    const data = await uc.release.execute({ partnerId: req.auth?.partnerId, prospectId: pid(req) });
+    res.status(200).json({ message: 'Lead returned to Buy Prospect — others can claim it now.', data, success: true });
+  }),
+
   getById: asyncHandler(async (req, res) => {
     const data = await uc.getById.execute({ prospectId: pid(req) });
     res.status(200).json({ message: 'Prospect retrieved successfully!', data, success: true });

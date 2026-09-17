@@ -86,6 +86,14 @@ const prospectSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Survey',
         },
+        // Buy Prospect pickup timestamp — starts the 7-day return window
+        // (partners may send a pool-claimed lead back within 7 days).
+        // Absent on manually added contacts and pre-tracking claims.
+        claimedAt: {
+            type: Date,
+            default: null,
+            index: true,
+        },
         // Optional campaign attribution (R4): stamped when a prospect
         // arrives via a tracked campaign link. Sparse — absent historically.
         campaignId: {

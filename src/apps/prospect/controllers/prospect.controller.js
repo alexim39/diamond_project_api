@@ -437,6 +437,7 @@ export const ImportSingleProspectFromSurveyToContact = async (req, res) => {
       prospectPhone: survey.phoneNumber,
       prospectSource: prospectSource,
       partnerId: partnerId,
+      claimedAt: new Date(), // Buy Prospect pickup — starts the 7-day return window
       surverId: survey._id, // Typo kept for backward compatibility
       survey: {
         ageRange: survey.ageRange,

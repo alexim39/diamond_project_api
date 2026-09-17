@@ -21,6 +21,7 @@ import {
 import { MongoProspectRepository, MongoPartnerLookup, MongoReservationCodes } from '../infrastructure/Prospect.mongo.repository.js';
 import { MongoCampaignLookup } from '../../marketing/infrastructure/Marketing.mongo.repository.js';
 import { ConvertProspectToPartnerUseCase } from '../application/Prospect.convert.js';
+import { ReleaseProspectToPoolUseCase } from '../application/Prospect.release.js';
 import { domainEvents } from '../../../shared/events/DomainEvents.js';
 
 /**
@@ -53,6 +54,7 @@ export const buildProspectRouter = (deps = {}) => {
     notifications: new GetProspectNotificationsUseCase({ prospects }),
     stuck: new GetStuckProspectsUseCase({ prospects }),
     convert: new ConvertProspectToPartnerUseCase({ prospects, reservations }),
+    release: new ReleaseProspectToPoolUseCase({ prospects }),
     contactListMine: new GetMyContactListUseCase({ prospects }),
     contactListSubmit: deps.contactListSubmit
       ?? new SubmitContactListUseCase({ prospects, network, events }),
@@ -91,6 +93,8 @@ export const buildProspectRouter = (deps = {}) => {
   router.post('/updateStatus', validate({ body: UpdateStatusSchema }), c.updateStatus);
 
   router.post('/:prospectId/convert', validate({ params: ProspectIdParam, body: ConvertProspectSchema }), c.convert);
+
+  router.post('/:prospectId/release', validate({ params: ProspectIdParam }), c.release);
 
   router.post('/:prospectId/communications', validate({ params: ProspectIdParam, body: LogCommunicationSchema }), c.logCommunication);
   router.post('/communications', validate({ body: LogCommunicationSchema }), c.logCommunication);
