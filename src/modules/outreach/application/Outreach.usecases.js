@@ -16,15 +16,22 @@ const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
  */
 export const deliverBulkSms = async ({ partners, transactions, records, sms }, { partnerId, to, body, campaignId = null, reference = null }) => {
   const entity = createBulkSmsEntity({ to, body });
-  const partner = await partners.findById(partnerId);
-  if (!partner) throw new NotFoundException('Partner not found');
-  if ((partner.balance ?? 0) < entity.cost) {
+  const exists = await partners.findById(partnerId).select('_id').lean().catch(() => null);
+  if (!exists) throw new NotFoundException('Partner not found');
+  // Atomic conditional debit — never load-modify-save the partner doc:
+  // full-document saves re-validate legacy fields (one bad legacy value
+  // once broke every SMS send), and concurrent sends could double-spend
+  // a stale balance read. Null = insufficient funds, not missing partner.
+  const charged = await partners.findOneAndUpdate(
+    { _id: partnerId, balance: { $gte: entity.cost } },
+    { $inc: { balance: -entity.cost } },
+    { new: true },
+  ).lean().catch(() => null);
+  if (!charged) {
     throw new AppError('Insufficient balance for transaction', 401, 'INSUFFICIENT_BALANCE');
   }
-  partner.balance -= entity.cost;
-  await partner.save();
   const transaction = await transactions.create({
-    partnerId: partner._id,
+    partnerId,
     amount: entity.cost,
     status: 'Completed',
     paymentMethod: 'SMS Charge',
@@ -49,7 +56,7 @@ export const deliverBulkSms = async ({ partners, transactions, records, sms }, {
   const status = failed.length === 0 ? 'success' : sent === 0 ? 'failed' : 'partial';
   await records.create({
     smsBody: entity.body,
-    partnerId: partner._id,
+    partnerId,
     prospect: entity.to,
     transactionId: transaction._id,
     status,
@@ -265,5 +272,39 @@ export class CancelScheduledSmsUseCase {
     ).lean();
     if (!doc) throw new NotFoundException('Scheduled send not found');
     return { cancelled: true };
+  }
+}
+
+/**
+ * Session-owned inbox reads — the owner comes from the session, never a
+ * URL param, so a stale/wrong client id can never render another (or an
+ * empty) inbox. Same row shapes as the legacy param-id endpoints.
+ */
+const newestFirst = async (store, partnerId, limit = 200) => {
+  const lim = Math.min(Math.max(Number(limit) || 200, 1), 500);
+  return store.find({ partnerId }).sort({ createdAt: -1 }).limit(lim).lean();
+};
+
+/** GET /v1/outreach/sms/mine — own SMS batches, newest first. */
+export class ListMySmsUseCase {
+  /** @param {{records}} deps */
+  constructor({ records } = {}) {
+    this.records = records ?? ParterSMSModel;
+  }
+
+  async execute({ partnerId, limit } = {}) {
+    return newestFirst(this.records, partnerId, limit);
+  }
+}
+
+/** GET /v1/outreach/email/mine — own email batches, newest first. */
+export class ListMyEmailsUseCase {
+  /** @param {{emailRecords}} deps */
+  constructor({ emailRecords } = {}) {
+    this.emailRecords = emailRecords ?? ParterEmailsModel;
+  }
+
+  async execute({ partnerId, limit } = {}) {
+    return newestFirst(this.emailRecords, partnerId, limit);
   }
 }

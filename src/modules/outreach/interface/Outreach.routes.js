@@ -4,7 +4,8 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
-  CancelScheduledSmsUseCase, ListScheduledSmsUseCase, ScheduleBulkSmsUseCase, SendBulkEmailUseCase, SendBulkSmsUseCase,
+  CancelScheduledSmsUseCase, ListMyEmailsUseCase, ListMySmsUseCase,
+  ListScheduledSmsUseCase, ScheduleBulkSmsUseCase, SendBulkEmailUseCase, SendBulkSmsUseCase,
 } from '../application/Outreach.usecases.js';
 import { SmsDeliveryCallbackUseCase } from '../application/Outreach.delivery.js';
 import { outreachDeps, outreachSms } from '../infrastructure/Outreach.store.js';
@@ -46,6 +47,8 @@ export const buildOutreachRouter = (deps = {}) => {
   const scheduleBulk = deps.scheduleBulk ?? new ScheduleBulkSmsUseCase(stores);
   const listScheduled = deps.listScheduled ?? new ListScheduledSmsUseCase(stores);
   const cancelScheduled = deps.cancelScheduled ?? new CancelScheduledSmsUseCase(stores);
+  const mySms = deps.mySms ?? new ListMySmsUseCase({ records: stores.records });
+  const myEmails = deps.myEmails ?? new ListMyEmailsUseCase({ emailRecords: stores.emailRecords });
   const deliveryCallback = deps.deliveryCallback ?? new SmsDeliveryCallbackUseCase({
     records: stores.records,
     callbackToken: deps.callbackToken ?? process.env.SMS_CALLBACK_TOKEN ?? '',
@@ -94,6 +97,17 @@ export const buildOutreachRouter = (deps = {}) => {
     const body = req.validated?.body ?? req.body;
     const data = await sendEmail.execute({ partnerId: req.auth?.partnerId, ...body });
     res.status(200).json({ message: `Email sent to ${data.sent} of ${data.total} recipients`, data, success: true });
+  }));
+
+  // Session-owned inboxes — owner from the session, never a URL param.
+  router.get('/sms/mine', requireAuth, asyncHandler(async (req, res) => {
+    const data = await mySms.execute({ partnerId: req.auth?.partnerId });
+    res.status(200).json({ message: 'SMS history retrieved successfully', data, success: true });
+  }));
+
+  router.get('/email/mine', requireAuth, asyncHandler(async (req, res) => {
+    const data = await myEmails.execute({ partnerId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Email history retrieved successfully', data, success: true });
   }));
 
   router.post('/email/schedule', validate({ body: ScheduleEmailSchema }), asyncHandler(async (req, res) => {

@@ -61,6 +61,9 @@ const partnersSchema = mongoose.Schema(
     partnerOf: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Partner',
+      // Legacy rows stored "" here, which fails ObjectId casting on every
+      // document save (broke wallet charges outright). Normalize to unset.
+      set: (v) => (v === '' || v === null ? undefined : v),
     },  
     visits: {
       type: Number,
