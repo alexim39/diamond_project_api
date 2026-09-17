@@ -5,8 +5,9 @@ import { normalizePhone, smsBody } from '../domain/Delivery.js';
  * SMS sender port: `send({to, title, body, extra?})` (`extra` merges over
  * configured static fields — e.g. per-send customer references).
  * Production shape is provider-agnostic on purpose — point
- * SMS_HTTP_URL at any JSON-accepting gateway (Termii-style bodies
- * map via SMS_HTTP_TO_FIELD/MESSAGE_FIELD/EXTRA, see .env.example).
+ * SMS_HTTP_URL at any JSON-accepting gateway. Wired + verified for
+ * BulkSMSNigeria api/v2 ({from, to, body} + Bearer header, see
+ * .env.example); other gateways map via SMS_HTTP_TO_FIELD/MESSAGE_FIELD/EXTRA.
  * `disabled` (default) logs so staging never spends credit.
  */
 export class SmsSender {
@@ -39,7 +40,10 @@ export class HttpSmsSender extends SmsSender {
       headers: { 'Content-Type': 'application/json', ...this.config.headers },
       timeout: this.config.timeoutMs,
     });
-    return { providerId: res?.data?.message_id ?? res?.data?.id ?? null };
+    // BulkSMSNigeria nests the id: {data:{message_id}} (prod) / {data:{id}} (sandbox).
+    const respBody = res?.data ?? {};
+    const nested = respBody?.data ?? {};
+    return { providerId: nested.message_id ?? nested.id ?? respBody.message_id ?? respBody.id ?? null };
   }
 }
 

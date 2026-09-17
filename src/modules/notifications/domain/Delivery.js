@@ -8,14 +8,20 @@ export const DELIVERY_CHANNELS = ['inApp', 'email', 'sms', 'push'];
 
 const SMS_MAX = 459; // 3 GSM segments — providers concatenate beyond this.
 
-/** Light E.164-ish normalization (providers reject spaces/dashes). */
+/** E.164-ish normalization (providers reject spaces/dashes/pluses).
+ * Nigerian local format 0803… → international 234803…; anything already
+ * international passes through untouched. */
 export const normalizePhone = (raw) => {
-  const digits = String(raw ?? '').replace(/[^\d+]/g, '');
-  return digits.length >= 7 ? digits : null;
+  const digits = String(raw ?? '').replace(/[^\d]/g, '');
+  if (!digits) return null;
+  const intl = /^0\d{9,10}$/.test(digits) ? `234${digits.slice(1)}` : digits;
+  return intl.length >= 7 ? intl : null;
 };
 
 export const smsBody = (title, body) => {
-  const text = `${String(title ?? '').trim()} — ${String(body ?? '').trim()}`.trim();
+  // ASCII hyphen, not an em-dash: keeps the payload in the GSM-7 alphabet
+  // (one segment) instead of forcing UCS-2 encoding (cost ×~2, split risk).
+  const text = `${String(title ?? '').trim()} - ${String(body ?? '').trim()}`.trim();
   return text.length > SMS_MAX ? `${text.slice(0, SMS_MAX - 1)}…` : text;
 };
 
