@@ -458,9 +458,26 @@ export class AdminCreditWalletUseCase {
 
 const escapeRegExp = (s) => String(s ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/** Admin alert recipients: role-admin emails + configured extras, deduped. */
+export const resolveAdminEmails = async ({ partners }, extra = []) => {
+  const docs = await partners
+    .find({ role: new RegExp('^admin$', 'i') })
+    .select('email')
+    .lean().catch(() => []);
+  const mails = new Set();
+  for (const d of docs ?? []) {
+    const email = String(d?.email ?? '').trim().toLowerCase();
+    if (email.includes('@')) mails.add(email);
+  }
+  for (const e of extra ?? []) {
+    const email = String(e ?? '').trim().toLowerCase();
+    if (email.includes('@')) mails.add(email);
+  }
+  return [...mails];
+};
+
 /** GET /v1/admin/wallet/lookup — find a partner to credit (email/username). */
-export class LookupPartnerUseCase {
-  /** @param {{partners}} deps */
+export class LookupPartnerUseCase {  /** @param {{partners}} deps */
   constructor({ partners }) {
     this.partners = partners ?? PartnersModel;
   }

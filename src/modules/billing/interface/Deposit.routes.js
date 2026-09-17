@@ -9,7 +9,10 @@ import {
   AdminCreditWalletUseCase, DecideManualDepositUseCase, ListManualQueueUseCase,
   LookupPartnerUseCase, MyManualClaimsUseCase, SubmitManualDepositUseCase,
   InitDepositUseCase, HandleDepositCallbackUseCase, DepositStatusUseCase,
+  resolveAdminEmails,
 } from '../application/Deposit.usecases.js';
+import { PartnersModel } from '../infrastructure/Billing.models.js';
+import { sendEmail } from '../../../services/emailService.js';
 import { OpayClient, OPAY_TEST_BASE, OPAY_LIVE_BASE } from '../infrastructure/OpayClient.js';
 import { NotifyUseCase } from '../../notifications/application/NotificationsCenter.usecases.js';
 import { MongoStoredNotificationStore } from '../../notifications/infrastructure/StoredNotifications.mongo.repository.js';
@@ -158,6 +161,36 @@ export const buildDepositRouter = (deps = {}) => {
   const credit = deps.credit ?? new AdminCreditWalletUseCase({ notifier: notifyCredit('Admin Credit') });
   const lookup = deps.lookup ?? new LookupPartnerUseCase({});
 
+  // Extra alert inboxes beyond role-admins (comma-separated env).
+  const alertExtras = String(process.env.DEPOSIT_ALERT_EMAILS ?? '')
+    .split(',')
+    .map((e) => e.trim())
+    .filter(Boolean);
+
+  /** Ping every admin about a fresh manual claim (email + in-app, best-effort). */
+  const alertAdminsOfClaim = async ({ reference, amountNgn }) => {
+    try {
+      const emails = await resolveAdminEmails({ partners: PartnersModel }, alertExtras);
+      if (emails.length === 0) return;
+      const subject = `Manual deposit claim ₦${Number(amountNgn).toLocaleString()} awaiting confirmation`;
+      const html = `<p>A member filed a bank-transfer deposit claim (<strong>${reference}</strong>, ₦${Number(amountNgn).toLocaleString()}). Confirm it against the statement so their wallet credits fast.</p>`;
+      await Promise.all(emails.map((to) => sendEmail(to, subject, html).catch(() => null)));
+      const admins = await PartnersModel.find({ email: { $in: emails } }).select('_id').lean().catch(() => []);
+      await Promise.all((admins ?? []).map((a) => notify.execute({
+        recipientId: String(a._id),
+        category: 'system',
+        priority: 'high',
+        title: subject,
+        body: `Claim ${reference} is waiting in Manual deposits.`,
+        icon: 'add_card',
+        link: '/dashboard/admin/deposits',
+        key: `deposit-claim:${reference}:${String(a._id)}`,
+      }).catch(() => null)));
+    } catch (err) {
+      console.error('[deposit] admin claim alert failed:', err?.message ?? err);
+    }
+  };
+
   const router = express.Router();
 
   router.post('/deposit/init', requireAuth, validate({ body: InitSchema }), asyncHandler(async (req, res) => {
@@ -198,9 +231,12 @@ export const buildDepositRouter = (deps = {}) => {
   }));
 
   // Manual-transfer claim (no money moves — waits for admin review).
+  // Admins get an email + in-app ping so approvals don't sit (best-effort,
+  // never fails the member's submit).
   router.post('/deposit/manual', requireAuth, validate({ body: ManualClaimSchema }), asyncHandler(async (req, res) => {
     const body = req.validated?.body ?? req.body;
     const data = await submitManual.execute({ partnerId: req.auth?.partnerId, claim: body });
+    void alertAdminsOfClaim({ reference: data.reference, amountNgn: data.amountNgn });
     res.status(200).json({ message: 'Transfer details received — your wallet will be credited after confirmation', data, success: true });
   }));
 

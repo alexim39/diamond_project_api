@@ -325,6 +325,24 @@ test('lookup finds exact emails and partial usernames, rejects short queries', a
   await assert.rejects(uc.execute({ q: 'x' }), /at least 2/);
 });
 
+test('resolveAdminEmails collects role-admins plus extras, deduped', async () => {
+  const { resolveAdminEmails } = await import('./Deposit.usecases.js');
+  const partners = {
+    find: () => ({
+      select: () => ({
+        lean: async () => [
+          { email: 'A@x.test' },
+          { email: 'a@x.test' },
+          { email: 'b@x.test' },
+          { email: 'not-an-email' },
+        ],
+      }),
+    }),
+  };
+  const out = await resolveAdminEmails({ partners }, ['b@x.test', 'ops@x.test']);
+  assert.deepEqual(out, ['a@x.test', 'b@x.test', 'ops@x.test']);
+});
+
 test('creditPartnerWallet increments and records in one core', async () => {
   const partners = fakePartners({ p1: member() });
   const transactions = fakeTransactions();
