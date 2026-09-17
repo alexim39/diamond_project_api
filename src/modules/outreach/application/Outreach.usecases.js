@@ -287,13 +287,24 @@ const newestFirst = async (store, partnerId, limit = 200) => {
 
 /** GET /v1/outreach/sms/mine — own SMS batches, newest first. */
 export class ListMySmsUseCase {
-  /** @param {{records}} deps */
-  constructor({ records } = {}) {
-    this.records = records ?? ParterSMSModel;
+  /** @param {{records, transactions}} deps */
+  constructor({ records, transactions } = {}) {
+    Object.assign(this, {
+      records: records ?? ParterSMSModel,
+      transactions: transactions ?? TransactionModel,
+    });
   }
 
   async execute({ partnerId, limit } = {}) {
-    return newestFirst(this.records, partnerId, limit);
+    const rows = await newestFirst(this.records, partnerId, limit);
+    // Attach each batch's charge record (same shape as the legacy inbox
+    // read — the history table renders transaction reference + amount).
+    const txs = await this.transactions.find({ partnerId }).lean().catch(() => []);
+    const byId = new Map((txs ?? []).map((t) => [String(t._id), t]));
+    return rows.map((r) => ({
+      ...r,
+      transaction: byId.get(String(r.transactionId)) ?? null,
+    }));
   }
 }
 

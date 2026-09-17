@@ -104,15 +104,19 @@ test('deliverBulkSms rejects unknown partners before any movement', async () => 
 
 test('mine endpoints are owner-scoped and newest-first', async () => {
   const smsRecords = fakeStore();
+  const transactions = fakeStore();
   const emailRecords = fakeStore();
   smsRecords.docs.push(
-    { _id: 'a', partnerId: 'p1', createdAt: new Date('2024-01-01') },
+    { _id: 'a', partnerId: 'p1', transactionId: 't1', createdAt: new Date('2024-01-01') },
     { _id: 'b', partnerId: 'p2', createdAt: new Date('2024-06-01') },
     { _id: 'c', partnerId: 'p1', createdAt: new Date('2024-03-01') },
   );
+  transactions.docs.push({ _id: 't1', partnerId: 'p1', amount: 10 });
   emailRecords.docs.push({ _id: 'e1', partnerId: 'p1' }, { _id: 'e2', partnerId: 'p2' });
-  const sms = await new ListMySmsUseCase({ records: smsRecords }).execute({ partnerId: 'p1' });
+  const sms = await new ListMySmsUseCase({ records: smsRecords, transactions }).execute({ partnerId: 'p1' });
   assert.deepEqual(sms.map((r) => r._id), ['c', 'a']);
+  assert.equal(sms.find((r) => r._id === 'a').transaction.amount, 10);
+  assert.equal(sms.find((r) => r._id === 'c').transaction, null);
   const emails = await new ListMyEmailsUseCase({ emailRecords }).execute({ partnerId: 'p1' });
   assert.deepEqual(emails.map((r) => r._id), ['e1']);
 });

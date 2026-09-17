@@ -47,7 +47,7 @@ export const buildOutreachRouter = (deps = {}) => {
   const scheduleBulk = deps.scheduleBulk ?? new ScheduleBulkSmsUseCase(stores);
   const listScheduled = deps.listScheduled ?? new ListScheduledSmsUseCase(stores);
   const cancelScheduled = deps.cancelScheduled ?? new CancelScheduledSmsUseCase(stores);
-  const mySms = deps.mySms ?? new ListMySmsUseCase({ records: stores.records });
+  const mySms = deps.mySms ?? new ListMySmsUseCase({ records: stores.records, transactions: stores.transactions });
   const myEmails = deps.myEmails ?? new ListMyEmailsUseCase({ emailRecords: stores.emailRecords });
   const deliveryCallback = deps.deliveryCallback ?? new SmsDeliveryCallbackUseCase({
     records: stores.records,
