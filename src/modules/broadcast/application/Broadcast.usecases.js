@@ -92,6 +92,13 @@ export class ListBroadcastsUseCase {
         recipientCount: d.recipientCount ?? 0,
         capped: !!d.capped,
         createdAt: d.createdAt ?? null,
+        // v2 campaign fields (absent on legacy in-app rows)
+        channels: d.channels ?? null,
+        kind: d.kind ?? null,
+        status: d.status ?? null,
+        stats: d.stats ?? null,
+        sendAt: d.sendAt ?? null,
+        estimatedSmsSpend: d.estimatedSmsSpend ?? null,
       })),
       total,
       limit: lim,

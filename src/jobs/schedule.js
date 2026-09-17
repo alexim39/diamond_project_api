@@ -11,6 +11,7 @@ import { runDailyBriefJob } from './daily-brief.js';
 import { runWeeklyReviewJob } from './weekly-review.js';
 import { runDigestJob } from './digest.js';
 import { runOutreachDueJob } from './outreach-due.js';
+import { runBroadcastDueJob } from './broadcast-due.js';
 
 /**
  * Background jobs — the single scheduling mechanism (the legacy birthday
@@ -21,10 +22,11 @@ import { runOutreachDueJob } from './outreach-due.js';
  * - birthday greetings (08:00): $expr-matched celebrants only.
  * - email digests (19:00 server-local): daily cadence + weekly on Mondays.
  * - scheduled outreach (every minute): fire due bulk-SMS outbox rows.
+ * - scheduled broadcasts (every minute): fire due multi-channel campaigns.
  * Jobs never throw into the scheduler — failures are logged, not fatal.
  * `runSnapshotJob` / `runBirthdayJob` / `runDailyBriefJob` /
- * `runWeeklyReviewJob` / `runDigestJob` / `runOutreachDueJob` are exported
- * for tests and triggers.
+ * `runWeeklyReviewJob` / `runDigestJob` / `runOutreachDueJob` /
+ * `runBroadcastDueJob` are exported for tests and triggers.
  */
 export const buildSnapshotJob = (deps = {}) => new BuildTeamSnapshotsUseCase({
   network: deps.network ?? new MongoNetworkRepository(),
@@ -52,7 +54,8 @@ export function scheduleJobs() {
   cron.schedule('0 8 * * *', () => runBirthdayJob());
   cron.schedule('0 19 * * *', () => runDigestJob());
   cron.schedule('* * * * *', () => runOutreachDueJob());
-  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00, digests at 19:00, outreach due every minute');
+  cron.schedule('* * * * *', () => runBroadcastDueJob());
+  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00, digests at 19:00, outreach + broadcasts due every minute');
 }
 
 export { runBirthdayJob } from './birthday.js';
@@ -60,3 +63,4 @@ export { runDailyBriefJob } from './daily-brief.js';
 export { runWeeklyReviewJob } from './weekly-review.js';
 export { runDigestJob } from './digest.js';
 export { runOutreachDueJob } from './outreach-due.js';
+export { runBroadcastDueJob } from './broadcast-due.js';
