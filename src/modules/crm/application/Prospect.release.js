@@ -36,6 +36,9 @@ export class ReleaseProspectToPoolUseCase {
     if (!p.surverId && !p.survey) {
       throw new ConflictException('Only Buy Prospect leads can be returned to the pool');
     }
+    if (p.status?.stage === 'Converted') {
+      throw new ConflictException('Converted leads belong to you permanently and cannot be returned');
+    }
     if (p.claimedAt) {
       const ageMs = Date.now() - new Date(p.claimedAt).getTime();
       if (ageMs > RELEASE_WINDOW_DAYS * 86400000) {

@@ -63,12 +63,14 @@ test('rejects foreign rows, personal contacts and stale claims', async () => {
     personal: prospect({ _id: 'personal', surverId: null, survey: null }),
     stale: prospect({ _id: 'stale', claimedAt: old }),
     untracked: prospect({ _id: 'untracked', claimedAt: null }),
+    converted: prospect({ _id: 'converted', status: { stage: 'Converted' } }),
   });
   const uc = new ReleaseProspectToPoolUseCase(f);
   await assert.rejects(uc.execute({ partnerId: 'p1', prospectId: 'ghost' }), /not found/i);
   await assert.rejects(uc.execute({ partnerId: 'p1', prospectId: 'theirs' }), /your own/i);
   await assert.rejects(uc.execute({ partnerId: 'p1', prospectId: 'personal' }), /Buy Prospect/i);
   await assert.rejects(uc.execute({ partnerId: 'p1', prospectId: 'stale' }), /window closed/i);
+  await assert.rejects(uc.execute({ partnerId: 'p1', prospectId: 'converted' }), /permanently/i);
   // Pre-tracking claims keep the grace path.
   const res = await uc.execute({ partnerId: 'p1', prospectId: 'untracked' });
   assert.equal(res.released, true);
