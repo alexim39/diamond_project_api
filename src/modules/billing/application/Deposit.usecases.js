@@ -200,14 +200,18 @@ export const creditPartnerWallet = async ({ partners, transactions }, { partnerI
     { new: true, ...opts },
   );
   if (!updated) throw new NotFoundException('Partner not found');
-  const tx = await transactions.create({
+  // NOTE: array form is mandatory — Mongoose ignores a `session` passed
+  // with a single doc (and misreads the args). Single-doc create here once
+  // masked every approval behind a false 409.
+  const made = await transactions.create([{
     partnerId,
     amount: amountNgn,
     status: 'Completed',
     paymentMethod,
     transactionType: 'Credit',
     reference,
-  }, opts);
+  }], opts);
+  const tx = Array.isArray(made) ? made[0] : made;
   return { transactionId: String(tx._id ?? tx.id), balance: updated.balance ?? null };
 };
 
@@ -347,6 +351,12 @@ export class DecideManualDepositUseCase {
     if (decision === 'reject' && cleanNote.length < 3) {
       throw new ValidationException('A reason is required to reject a claim');
     }
+    // Honest errors, never a masked 409: unknown reference → 404,
+    // already-decided → 409, anything unexpected propagates (logged by
+    // errorMiddleware) instead of being swallowed into a false 409.
+    const existing = await this.deposits.findOne({ reference: ref, method: 'manual' }).lean().catch(() => null);
+    if (!existing) throw new NotFoundException('Claim does not exist');
+    if (existing.status !== 'awaiting-review') throw new ConflictException('Claim was already decided');
     const won = await runInTransaction(async (session) => {
       const opt = session ? { session } : {};
       const doc = await this.deposits.findOneAndUpdate(
@@ -377,8 +387,9 @@ export class DecideManualDepositUseCase {
         );
       }
       return { doc, credit };
-    }).catch(() => null);
-    if (!won) throw new ConflictException('Claim was already decided or does not exist');
+    });
+    // Null = lost a concurrent-decide race after the pre-check above.
+    if (!won) throw new ConflictException('Claim was already decided');
     if (decision === 'approve' && this.notifier) {
       await this.notifier(won.doc.partnerId, won.doc.amountNgn, ref).catch(() => null);
     }

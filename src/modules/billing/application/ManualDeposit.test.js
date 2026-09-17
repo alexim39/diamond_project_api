@@ -56,6 +56,12 @@ const fakeDeposits = () => {
       };
       return chain;
     },
+    findOne: (filter) => ({
+      lean: async () => {
+        const row = [...rows.values()].find((r) => matches(r, filter));
+        return row ? { ...row } : null;
+      },
+    }),
     findOneAndUpdate: (filter, update) => {
       const row = [...rows.values()].find((r) => matches(r, filter));
       if (!row) return { lean: async () => null };
@@ -126,10 +132,13 @@ const fakeTransactions = () => {
   const docs = [];
   return {
     docs,
-    create: async (doc) => {
-      const made = { _id: `t${docs.length + 1}`, ...doc };
-      docs.push(made);
-      return { ...made };
+    create: async (doc, _opts) => {
+      // Array form (Mongoose requires it when a session is passed).
+      const list = Array.isArray(doc) ? doc : [doc];
+      const made = list.map((d) => ({ _id: `t${docs.length + 1}`, ...d }));
+      made.forEach((m) => docs.push(m));
+      const out = made.map((m) => ({ ...m }));
+      return Array.isArray(doc) ? out : out[0];
     },
   };
 };
@@ -238,6 +247,21 @@ test('approve credits exactly once across double decisions', async () => {
   assert.equal(partners.rows.get('p1').balance, 6000);
   assert.equal(transactions.docs.length, 1);
   assert.equal(transactions.docs[0].paymentMethod, 'Manual Transfer');
+});
+
+test('decide on an unknown reference is 404, not a masked 409', async () => {
+  const decide = new DecideManualDepositUseCase({
+    deposits: fakeDeposits(),
+    partners: fakePartners({ p1: member() }),
+    transactions: fakeTransactions(),
+  });
+  try {
+    await decide.execute({ reference: 'DPNOPE1234', adminId: 'a', decision: 'approve' });
+    assert.fail('must throw');
+  } catch (err) {
+    assert.equal(err.statusCode, 404);
+    assert.match(err.message, /does not exist/);
+  }
 });
 
 test('reject requires a reason and credits nothing', async () => {
