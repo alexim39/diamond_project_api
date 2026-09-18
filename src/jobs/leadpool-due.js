@@ -1,5 +1,6 @@
 import { ExpireStaleClaimsUseCase } from '../modules/crm/application/Prospect.expiry.js';
 import { ReleaseProspectToPoolUseCase } from '../modules/crm/application/Prospect.release.js';
+import { MongoProspectRepository } from '../modules/crm/infrastructure/Prospect.mongo.repository.js';
 import { NotifyUseCase } from '../modules/notifications/application/NotificationsCenter.usecases.js';
 import { MongoStoredNotificationStore } from '../modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { PartnersModel } from '../apps/partner/models/partner.model.js';
@@ -39,7 +40,8 @@ export const buildLeadPoolDueJob = (deps = {}) => {
     } catch { /* email is best-effort here */ }
   };
   return new ExpireStaleClaimsUseCase({
-    release: deps.release ?? new ReleaseProspectToPoolUseCase({}),
+    claims: deps.claims,
+    release: deps.release ?? new ReleaseProspectToPoolUseCase({ prospects: new MongoProspectRepository() }),
     notify: deps.notify ?? notifyHolder,
   });
 };
