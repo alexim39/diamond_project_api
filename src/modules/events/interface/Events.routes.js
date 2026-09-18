@@ -4,9 +4,10 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
-  CancelEventUseCase, CreateEventUseCase, GetEventUseCase, ListMyEventsUseCase,
+  CancelEventUseCase, CreateEventUseCase, FeatureEventUseCase, GetEventUseCase, ListMyEventsUseCase,
   ListUpcomingUseCase, RsvpUseCase, UpdateEventUseCase,
 } from '../application/Events.usecases.js';
+import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
 import { MongoEventStore } from '../infrastructure/Events.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
@@ -47,6 +48,15 @@ export const buildEventsRouter = (deps = {}) => {
   const rsvp = new RsvpUseCase({ events, network, progress });
   const cancel = new CancelEventUseCase({ events });
   const update = new UpdateEventUseCase({ events });
+  const feature = deps.feature ?? new FeatureEventUseCase({
+    events,
+    partners: deps.partners ?? new MongoPartnerRepository(),
+  });
+
+  const FeatureSchema = z.object({
+    featured: z.boolean(),
+    featuredUntil: z.coerce.date().optional(),
+  });
 
   const router = express.Router();
   router.use(requireAuth);
@@ -85,6 +95,18 @@ export const buildEventsRouter = (deps = {}) => {
     const params = req.validated?.params ?? req.params;
     const data = await cancel.execute({ partnerId: req.auth?.partnerId, eventId: params.eventId });
     res.status(200).json({ message: 'Event cancelled successfully', data, success: true });
+  }));
+
+  router.post('/:eventId/feature', validate({ params: EventIdParam, body: FeatureSchema }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const data = await feature.execute({
+      partnerId: req.auth?.partnerId,
+      eventId: params.eventId,
+      featured: body?.featured,
+      featuredUntil: body?.featuredUntil ?? null,
+    });
+    res.status(200).json({ message: body?.featured ? 'Event featured at top' : 'Event unfeatured', data, success: true });
   }));
 
   router.put('/:eventId', validate({ params: EventIdParam, body: EventSchema }), asyncHandler(async (req, res) => {

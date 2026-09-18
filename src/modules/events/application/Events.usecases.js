@@ -1,5 +1,6 @@
-import { ForbiddenException, NotFoundException } from '../../../shared/domain/AppError.js';
+import { ConflictException, ForbiddenException, NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 import { LEADERSHIP_LEVELS, assertRsvpStatus, createEventEntity } from '../domain/Event.entity.js';
+import { lenientRole } from '../../identity-access/domain/PartnerRole.js';
 import { isAncestor } from '../../network/infrastructure/Network.mongo.repository.js';
 import { TeamModel } from '../../../apps/teams/models/teams.model.js';
 
@@ -72,6 +73,12 @@ export class ListUpcomingUseCase {
     const viewerIsLeader = LEADERSHIP_LEVELS.includes(level);
     // Over-fetch, then visibility-filter (team checks walk the chain).
     const candidates = await this.events.upcomingCandidates(now, lim * 3 + 10);
+    const t = new Date(now).getTime();
+    // Expired featured flags drop back into date order (in-memory; the
+    // writer clears them on next feature/unfeature, no sweep job needed).
+    for (const e of candidates) {
+      if (e.featured && e.featuredUntil && new Date(e.featuredUntil).getTime() <= t) e.featured = false;
+    }
     const seen = [];
     for (const event of candidates) {
       if (seen.length >= lim) break;
@@ -165,5 +172,52 @@ export class CancelEventUseCase {  /** @param {{events}} deps */
       throw new ForbiddenException('Only the author can cancel');
     }
     return this.events.deleteEvent(eventId);
+  }
+}
+
+/**
+ * Featured slot — one highlighted event atop the page per scope.
+ * Author or admin; past events can't feature; expiry defaults to the
+ * event start (no stale highlights). Cancelling the event frees the slot
+ * (the row is gone).
+ */
+export class FeatureEventUseCase {
+  /** @param {{events, partners?}} deps (partners resolves admin override) */
+  constructor({ events, partners = null }) {
+    Object.assign(this, { events, partners });
+  }
+
+  async execute({ partnerId, eventId, featured, featuredUntil = null, now = new Date() }) {
+    const event = await this.events.findEventById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    const want = featured === true;
+    const mine = String(event.authorId) === String(partnerId);
+    if (!mine && !(await this.isAdmin(partnerId))) {
+      throw new ForbiddenException('Only the author or an admin can feature');
+    }
+    if (!want) return this.events.setFeatured(eventId, false);
+    if (new Date(event.startsAt).getTime() <= new Date(now).getTime()) {
+      throw new ValidationException('Only upcoming events can be featured');
+    }
+    let until = event.startsAt;
+    if (featuredUntil !== null && featuredUntil !== undefined && String(featuredUntil).trim() !== '') {
+      until = new Date(featuredUntil);
+      if (Number.isNaN(until.getTime())) throw new ValidationException('Invalid feature expiry');
+      if (until.getTime() <= new Date(now).getTime()) throw new ValidationException('Feature expiry must be in the future');
+    }
+    const taken = await this.events.countFeatured(event.scope, eventId, now).catch(() => 0);
+    if (taken >= 1) throw new ConflictException('A featured event already exists — unfeature it first');
+    return this.events.setFeatured(eventId, true, until);
+  }
+
+  async isAdmin(partnerId) {
+    if (!this.partners?.findById) return false;
+    try {
+      const me = await this.partners.findById(partnerId).catch(() => null);
+      const row = me && typeof me.lean === 'function' ? await me.lean().catch(() => me) : me;
+      return lenientRole(row?.role) === 'admin';
+    } catch {
+      return false;
+    }
   }
 }

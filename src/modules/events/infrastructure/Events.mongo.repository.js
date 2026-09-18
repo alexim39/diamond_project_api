@@ -12,6 +12,10 @@ const eventSchema = new mongoose.Schema(
     scope: { type: String, enum: ['global', 'team', 'leadership', 'members'], required: true, index: true },
     // Purpose-team channel only (other scopes stay null).
     teamId: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null, index: true },
+    // Featured slot — one highlighted event atop the page. Auto-drops at
+    // `featuredUntil` (defaults to the event start).
+    featured: { type: Boolean, default: false, index: true },
+    featuredUntil: { type: Date, default: null },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
@@ -59,7 +63,7 @@ export class MongoEventStore {
   /** Future-first candidates (visibility filtered in the use case). */
   async upcomingCandidates(now, limit = 60) {
     const docs = await EventModel.find({ startsAt: { $gte: now } })
-      .sort({ startsAt: 1 })
+      .sort({ featured: -1, startsAt: 1 })
       .limit(Math.min(Math.max(Number(limit) || 60, 1), 200))
       .lean();
     return docs.map(shaped);
@@ -84,6 +88,27 @@ export class MongoEventStore {
   async updateEvent(id, patch) {
     const doc = await EventModel.findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true }).lean();
     return shaped(doc);
+  }
+
+  async setFeatured(id, featured, featuredUntil = null) {
+    const doc = await EventModel.findByIdAndUpdate(
+      id,
+      { $set: { featured, featuredUntil: featured ? featuredUntil : null } },
+      { new: true },
+    ).lean();
+    return shaped(doc);
+  }
+
+  /** Active featured upcoming events in a scope — the 1-slot cap counts these. */
+  async countFeatured(scope, excludeId = null, now = new Date()) {
+    const filter = {
+      scope,
+      featured: true,
+      startsAt: { $gte: now },
+      $or: [{ featuredUntil: null }, { featuredUntil: { $gt: now } }],
+    };
+    if (excludeId) filter._id = { $ne: excludeId };
+    return EventModel.countDocuments(filter);
   }
 
   async upsertRsvp(eventId, partnerId, status) {
