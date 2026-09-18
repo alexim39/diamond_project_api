@@ -25,6 +25,7 @@ import { MentionMailer } from '../../notifications/infrastructure/MentionMailer.
 import { buildSmsSender } from '../../notifications/infrastructure/SmsSender.js';
 import { buildPushSender } from '../../notifications/infrastructure/PushSender.js';
 import { ATTACHMENT_MIMES, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, POST_KINDS, AUDIENCE_SCOPES } from '../domain/Post.entity.js';
+import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
 import { communityUpload } from './Community.upload.js';
 import { buildImageStore } from '../../settings/infrastructure/CloudinaryClient.js';
 
@@ -59,7 +60,10 @@ const FeedQuery = z.object({
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
 });
 
-const PinSchema = z.object({ pinned: z.boolean() });
+const PinSchema = z.object({
+  pinned: z.boolean(),
+  pinnedUntil: z.coerce.date().optional(),
+});
 const PostEditSchema = z.object({
   title: z.string().trim().max(120).optional(),
   body: z.string().trim().min(1).max(2000).optional(),
@@ -100,7 +104,10 @@ export const buildCommunityRouter = (deps = {}) => {
   const comment = new AddCommentUseCase({ community, network, progress, events });
   const save = new ToggleSaveUseCase({ community });
   const report = new ReportPostUseCase({ community });
-  const pin = new PinPostUseCase({ community });
+  const pin = deps.pin ?? new PinPostUseCase({
+    community,
+    partners: deps.partners ?? new MongoPartnerRepository(),
+  });
   const update = new UpdatePostUseCase({ community, events });
   const remove = new DeletePostUseCase({ community });
   // Community images live on Cloudinary (profile-photo pattern) under their
@@ -181,8 +188,13 @@ export const buildCommunityRouter = (deps = {}) => {
   router.post('/:postId/pin', validate({ params: z.object({ postId: objectId }), body: PinSchema }), asyncHandler(async (req, res) => {
     const params = req.validated?.params ?? req.params;
     const body = req.validated?.body ?? req.body;
-    const data = await pin.execute({ partnerId: req.auth?.partnerId, postId: params.postId, pinned: body?.pinned });
-    res.status(200).json({ message: 'Pin updated successfully', data, success: true });
+    const data = await pin.execute({
+      partnerId: req.auth?.partnerId,
+      postId: params.postId,
+      pinned: body?.pinned,
+      pinnedUntil: body?.pinnedUntil ?? null,
+    });
+    res.status(200).json({ message: body?.pinned ? 'Post pinned to top' : 'Post unpinned', data, success: true });
   }));
 
   router.put('/:postId', validate({ params: z.object({ postId: objectId }), body: PostEditSchema }), asyncHandler(async (req, res) => {

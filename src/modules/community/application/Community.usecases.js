@@ -1,7 +1,8 @@
 import {
-  ForbiddenException, NotFoundException, ValidationException,
+  ConflictException, ForbiddenException, NotFoundException, ValidationException,
 } from '../../../shared/domain/AppError.js';
 import { LEADERSHIP_LEVELS, createCommentEntity, createPostEntity, extractMentions } from '../domain/Post.entity.js';
+import { lenientRole } from '../../identity-access/domain/PartnerRole.js';
 import { isAncestor } from '../../network/infrastructure/Network.mongo.repository.js';
 import { NOTIFICATION_EVENTS, mentionCreated } from '../../notifications/domain/NotificationEvents.js';
 
@@ -38,6 +39,12 @@ export class GetFeedUseCase {
     const viewerIsLeader = LEADERSHIP_LEVELS.includes(level);
     // Over-fetch, then visibility-filter (team checks walk the chain).
     const candidates = await this.community.recentCandidates(cursor, lim * 3 + 10, [...reported]);
+    const t = new Date(now).getTime();
+    // Expired pins drop back into chronological order (in-memory; the
+    // writer clears them on next pin/unpin, no sweep job needed at this scale).
+    for (const c of candidates) {
+      if (c.pinned && c.pinnedUntil && new Date(c.pinnedUntil).getTime() <= t) c.pinned = false;
+    }
     const visiblePosts = [];
     for (const post of candidates) {
       if (visiblePosts.length >= lim) break;
@@ -281,17 +288,53 @@ export class DeletePostUseCase {
   }
 }
 export class PinPostUseCase {
-  /** @param {{community}} deps */
-  constructor({ community }) {
-    this.community = community;
+  /** Max pinned posts per scope — keeps the top calm. */
+  static MAX_PINS = 3;
+  /** Pin-eligible kinds — announcements plus key events. */
+  static PINNABLE = ['announcement', 'event'];
+  /** @param {{community, partners?}} deps (partners resolves admin override) */
+  constructor({ community, partners = null }) {
+    Object.assign(this, { community, partners });
   }
 
-  async execute({ partnerId, postId, pinned }) {
+  async execute({ partnerId, postId, pinned, pinnedUntil = null, now = new Date() }) {
     const post = await this.community.findPostById(postId);
     if (!post) throw new NotFoundException('Post not found');
-    if (String(post.authorId) !== String(partnerId)) throw new ForbiddenException('Only the author can pin');
-    if (post.kind !== 'announcement') throw new ForbiddenException('Only announcements can be pinned');
-    return this.community.setPinned(postId, pinned === true);
+    const want = pinned === true;
+    if (!want) {
+      // Unpin is the author's or an admin's call — same gate, no cap check.
+      if (!(await this.canPin(partnerId, post))) throw new ForbiddenException('Only the author or an admin can unpin');
+      return this.community.setPinned(postId, false);
+    }
+    if (!PinPostUseCase.PINNABLE.includes(post.kind)) {
+      throw new ForbiddenException('Only announcements and events can be pinned');
+    }
+    if (!(await this.canPin(partnerId, post))) {
+      throw new ForbiddenException('Only the author or an admin can pin');
+    }
+    let until = null;
+    if (pinnedUntil !== null && pinnedUntil !== undefined && String(pinnedUntil).trim() !== '') {
+      until = new Date(pinnedUntil);
+      if (Number.isNaN(until.getTime())) throw new ValidationException('Invalid pin expiry');
+      if (until.getTime() <= new Date(now).getTime()) throw new ValidationException('Pin expiry must be in the future');
+    }
+    const pinnedCount = await this.community.countPinned(post.scope, postId, now).catch(() => 0);
+    if (pinnedCount >= PinPostUseCase.MAX_PINS) {
+      throw new ConflictException('Pin limit reached (3) — unpin one first');
+    }
+    return this.community.setPinned(postId, true, until);
+  }
+
+  async canPin(partnerId, post) {
+    if (String(post.authorId) === String(partnerId)) return true;
+    if (!this.partners?.findById) return false;
+    try {
+      const me = await this.partners.findById(partnerId).catch(() => null);
+      const row = me && typeof me.lean === 'function' ? await me.lean().catch(() => me) : me;
+      return lenientRole(row?.role) === 'admin';
+    } catch {
+      return false;
+    }
   }
 }
 

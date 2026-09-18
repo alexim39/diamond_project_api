@@ -10,6 +10,7 @@ const postSchema = new mongoose.Schema(
     link: { type: String, default: '', maxlength: 500 },
     scope: { type: String, enum: ['global', 'team', 'leadership'], required: true, index: true },
     pinned: { type: Boolean, default: false },
+    pinnedUntil: { type: Date, default: null, index: true },
     auto: { type: Boolean, default: false, index: true },
     refType: { type: String, default: '' },
     refId: { type: String, default: '' },
@@ -127,9 +128,24 @@ export class MongoCommunityStore {
     return docs.map(shaped);
   }
 
-  async setPinned(id, pinned) {
-    const doc = await PostModel.findByIdAndUpdate(id, { $set: { pinned } }, { new: true }).lean();
+  async setPinned(id, pinned, pinnedUntil = null) {
+    const doc = await PostModel.findByIdAndUpdate(
+      id,
+      { $set: { pinned, pinnedUntil: pinned ? pinnedUntil : null } },
+      { new: true },
+    ).lean();
     return shaped(doc);
+  }
+
+  /** Active pins in a scope (unexpired) — the 3-pin cap counts these. */
+  async countPinned(scope, excludeId = null, now = new Date()) {
+    const filter = {
+      scope,
+      pinned: true,
+      $or: [{ pinnedUntil: null }, { pinnedUntil: { $gt: now } }],
+    };
+    if (excludeId) filter._id = { $ne: excludeId };
+    return PostModel.countDocuments(filter);
   }
 
   async updatePost(id, patch) {
