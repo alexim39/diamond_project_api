@@ -94,7 +94,23 @@ describe('suspension enforcement', () => {
     );
   });
 
-  it('v1 signin still passes clean accounts', async () => {
+  it('v1 signin still passes clean accounts and stamps login telemetry', async () => {
+    let tracked = null;
+    const trackedPartners = fakePartners([partner()]);
+    trackedPartners.trackLogin = async (id, stamp) => { tracked = { id, stamp }; return null; };
+    const uc = new SigninUseCase({
+      partners: trackedPartners,
+      hasher: { compare: async () => true },
+      sessions: { sign: () => 'tok' },
+    });
+    const res = await uc.execute({ email: 'a@x.test', password: 'x', ip: '1.2.3.4', agent: 'TestAgent/1.0' });
+    assert.equal(res.token, 'tok');
+    assert.equal(tracked.id, 'p1');
+    assert.ok(tracked.stamp.at instanceof Date);
+    assert.equal(tracked.stamp.ip, '1.2.3.4');
+  });
+
+  it('v1 signin succeeds even when telemetry is absent (legacy fakes)', async () => {
     const uc = new SigninUseCase({
       partners: fakePartners([partner()]),
       hasher: { compare: async () => true },
@@ -156,14 +172,21 @@ describe('ListPartnersUseCase', () => {
     const uc = new ListPartnersUseCase({ partners: repo });
     const res = await uc.execute({ role: 'admin', suspended: 'yes', limit: 25, skip: 0 });
     assert.equal(res.total, 1);
-    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: 'admin', suspended: 'yes' });
+    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: 'admin', suspended: 'yes', login: 'all' });
   });
 
   it('normalizes role casing and unknown suspended values', async () => {
     const repo = dirPartners([]);
     const uc = new ListPartnersUseCase({ partners: repo });
     await uc.execute({ role: 'Admin', suspended: 'maybe' });
-    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: 'admin', suspended: 'all' });
+    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: 'admin', suspended: 'all', login: 'all' });
+  });
+
+  it('passes the login window through', async () => {
+    const repo = dirPartners([]);
+    const uc = new ListPartnersUseCase({ partners: repo });
+    await uc.execute({ login: 'dormant30' });
+    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: null, suspended: 'all', login: 'dormant30' });
   });
 
   it('clamps paging bounds', async () => {

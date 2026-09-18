@@ -33,6 +33,13 @@ export class MongoPartnerRepository {
     if (Object.keys(unset).length) update.$unset = unset;
     return PartnersModel.findByIdAndUpdate(id, update, { new: true, ...opts(session) }).lean();
   }
+  /** Login telemetry (Member 360) — stamp only, never fails signin. */
+  async trackLogin(id, { at, ip = null, agent = null } = {}) {
+    return PartnersModel.findByIdAndUpdate(id, {
+      $set: { lastLoginAt: at ?? new Date(), ...(ip ? { lastLoginIp: ip } : {}), ...(agent ? { lastLoginAgent: agent } : {}) },
+      $inc: { loginCount: 1 },
+    }).lean().catch(() => null);
+  }
   /** Signup cohort for activation analytics (bounded, recent first). */
   async activationCohort(ids, since) {
     if (ids.length === 0) return { total: 0, rows: [] };
@@ -71,12 +78,17 @@ export class MongoPartnerRepository {
   }
 
   /** Admin directory listing — lean, paginated, safe fields projected upstream. */
-  async listPartners({ limit = 25, skip = 0, q = '', role = null, suspended = 'all' }) {
+  async listPartners({ limit = 25, skip = 0, q = '', role = null, suspended = 'all', login = 'all' }) {
     const filter = {};
     if (q) {
       const escaped = String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const re = new RegExp(escaped, 'i');
-      filter.$or = [{ name: re }, { surname: re }, { username: re }, { email: re }];
+      const or = [{ name: re }, { surname: re }, { username: re }, { email: re }];
+      // Phone numbers are digit strings users type bare — fold the needle
+      // to digits so `0803 123` still matches `0803123…` rows.
+      const digits = String(q).replace(/\D/g, '');
+      if (digits.length >= 4) or.push({ phone: new RegExp(digits.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) });
+      filter.$or = or;
     }
     if (role) {
       // Legacy rows store 'User'/'admin' free-text — match all casings.
@@ -85,6 +97,19 @@ export class MongoPartnerRepository {
     }
     if (suspended === 'yes') filter.suspendedAt = { $exists: true, $ne: null };
     else if (suspended === 'no') filter.suspendedAt = null;
+    // Login-window filter for the directory's Active/Dormant tabs.
+    const days = login === 'dormant30' ? 30 : login === 'new7' ? 7 : null;
+    if (days !== null) {
+      const cutoff = new Date(Date.now() - days * 86400000);
+      if (login === 'dormant30') {
+        filter.$and = [
+          ...(filter.$and ?? []),
+          { $or: [{ lastLoginAt: { $lt: cutoff } }, { lastLoginAt: null }] },
+        ];
+      } else {
+        filter.createdAt = { $gte: cutoff };
+      }
+    }
     const [items, total] = await Promise.all([
       PartnersModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       PartnersModel.countDocuments(filter),

@@ -6,12 +6,15 @@ import { z } from 'zod';
 import { ROLES } from '../domain/PartnerRole.js';
 import { makeAdminController } from './Admin.controller.js';
 import { ListPartnersUseCase, SetPartnerRoleUseCase, SetSuspendUseCase, PlatformStatsUseCase, ResetOnBehalfUseCase, ErasePartnerUseCase } from '../application/Admin.usecase.js';
+import { GetMember360UseCase } from '../application/Member360.usecase.js';
 import { RequestPasswordResetUseCase } from '../application/PasswordReset.usecase.js';
 import { PasswordResetMailer } from '../infrastructure/clients/PasswordResetMailer.js';
 import { MongoPartnerRepository } from '../infrastructure/Auth.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
 import { MongoProspectRepository, MongoReservationCodes } from '../../crm/infrastructure/Prospect.mongo.repository.js';
 import { MongoTicketRepository } from '../../support-ticketing/infrastructure/Ticket.mongo.repository.js';
+import { TransactionModel } from '../../../apps/transaction/models/transaction.model.js';
+import { DepositIntentModel } from '../../billing/infrastructure/Deposit.mongo.model.js';
 import { revokeSessions, clearRevocations } from '../infrastructure/SessionRevocation.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
@@ -30,6 +33,9 @@ const AdminListQuery = z.object({
   // `all` | `yes` | `no` — plain enum avoids z.coerce.boolean's
   // non-empty-string-is-true trap ('false' would coerce to true).
   suspended: z.enum(['all', 'yes', 'no']).optional().default('all'),
+  // Engagement window: `dormant30` (no login in 30d incl. never-seen),
+  // `new7` (joined in the last 7 days).
+  login: z.enum(['all', 'dormant30', 'new7']).optional().default('all'),
 });
 const SetSuspendSchema = z.object({
   suspended: z.boolean(),
@@ -70,6 +76,13 @@ export const buildAdminRouter = (deps = {}) => {
       codes: deps.codes ?? new MongoReservationCodes(),
       sessions,
     }),
+    member360: deps.member360 ?? new GetMember360UseCase({
+      partners,
+      transactions: deps.transactions ?? TransactionModel,
+      deposits: deps.deposits ?? DepositIntentModel,
+      prospects: deps.prospects ?? new MongoProspectRepository(),
+      progress: deps.progress ?? new MongoProgressionStore(),
+    }),
   });
 
   const router = express.Router();
@@ -80,6 +93,8 @@ export const buildAdminRouter = (deps = {}) => {
   router.get('/stats', controller.stats);
   // Force sign-out: revokes live JWTs (sessions die on next call). Self allowed.
   router.post('/partners/:partnerId/signout', validate({ params: PartnerIdParam }), controller.signOut);
+  // Member 360 — the admin's single read for "who is this member".
+  router.get('/members/:partnerId/360', validate({ params: PartnerIdParam }), controller.member360);
   // Reset on behalf: the reset link goes to the MEMBER's email — admins never see passwords.
   router.post('/partners/:partnerId/reset-password', validate({ params: PartnerIdParam }), controller.resetOnBehalf);
   // GDPR erasure: anonymize + delete owned working data. Refuses with

@@ -29,6 +29,14 @@ export class SigninUseCase {
     const id = String(user._id ?? user.id);
     // Fresh login lifts any prior revocation (force-sign-out / unsuspend path).
     if (this.revocations?.clear) await this.revocations.clear(id).catch(() => null);
+    // Login telemetry (Member 360) — best-effort, never fails the signin.
+    if (this.partners?.trackLogin) {
+      await this.partners.trackLogin(id, {
+        at: new Date(),
+        ...(input.ip ? { ip: String(input.ip).slice(0, 64) } : {}),
+        ...(input.agent ? { agent: String(input.agent).slice(0, 300) } : {}),
+      }).catch(() => null);
+    }
     return { token: this.sessions.sign(id), user: toSafePartner(user) };
   }
 }

@@ -151,6 +151,25 @@ const partnersSchema = mongoose.Schema(
     resetPasswordExpires: {
       type: String,
     },
+    // Login telemetry (admin Member 360) — stamped on signin, cleared on
+    // signout. Absent on pre-tracking rows: the UI says "never seen".
+    lastLoginAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    lastLoginIp: {
+      type: String,
+      default: null,
+    },
+    lastLoginAgent: {
+      type: String,
+      default: null,
+    },
+    loginCount: {
+      type: Number,
+      default: 0,
+    },
     subscription: {
       status: { 
         type: String, 

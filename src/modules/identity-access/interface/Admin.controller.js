@@ -2,7 +2,7 @@ import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { recordAudit } from '../../audit/index.js';
 
 /** Admin console adapters — all routes behind requireAuth + requireRole('admin'). */
-export const makeAdminController = ({ setRole, listPartners, setSuspend, platformStats, signOut, resetOnBehalf, erase }) => ({
+export const makeAdminController = ({ setRole, listPartners, setSuspend, platformStats, signOut, resetOnBehalf, erase, member360 }) => ({
   setRole: asyncHandler(async (req, res) => {
     const params = req.validated?.params ?? req.params;
     const body = req.validated?.body ?? req.body;
@@ -27,6 +27,7 @@ export const makeAdminController = ({ setRole, listPartners, setSuspend, platfor
       q: q?.q,
       role: q?.role && q.role !== 'all' ? q.role : null,
       suspended: q?.suspended ?? 'all',
+      login: q?.login ?? 'all',
     });
     res.status(200).json({ message: 'Partners retrieved successfully', data, success: true });
   }),
@@ -88,5 +89,11 @@ export const makeAdminController = ({ setRole, listPartners, setSuspend, platfor
       detail: { removed: data?.removed ?? null },
     });
     res.status(200).json({ message: 'Account erased — profile anonymized, owned prospects/tickets/codes removed', data, success: true });
+  }),
+
+  member360: asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await member360.execute({ requesterId: req.auth?.partnerId, partnerId: params.partnerId });
+    res.status(200).json({ message: 'Member profile retrieved successfully', data, success: true });
   }),
 });

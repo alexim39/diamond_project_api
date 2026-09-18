@@ -28,7 +28,11 @@ export const makeAuthController = ({
   }),
 
   signin: asyncHandler(async (req, res) => {
-    const { token, user } = await signin.execute(req.validated?.body ?? req.body);
+    const { token, user } = await signin.execute({
+      ...(req.validated?.body ?? req.body),
+      ip: req.ip ?? req.headers?.['x-forwarded-for'] ?? null,
+      agent: req.headers?.['user-agent'] ?? null,
+    });
     res.cookie('jwt', token, sessionCookieFlags());
     // Legacy shape preserved; `data` is additive for new clients.
     // `token` ships in the body as a fallback transport: cross-site
