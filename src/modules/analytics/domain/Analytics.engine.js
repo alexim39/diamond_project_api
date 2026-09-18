@@ -84,3 +84,14 @@ export const deltaPct = (current, previous) => {
   if (previous > 0) return Math.round(((current - previous) / previous) * 1000) / 10;
   return current > 0 ? 100 : 0;
 };
+
+/**
+ * Linear team forecast — next window projected from current vs previous.
+ * Simple and honest: `projected = current + (current - previous)`, floored
+ * at zero. No seasonality model; the copy must say "at current pace".
+ */
+export const forecastNext = (current, previous) => {
+  const c = Number(current) || 0;
+  const p = Number(previous) || 0;
+  return Math.max(0, Math.round((c + (c - p)) * 100) / 100);
+};

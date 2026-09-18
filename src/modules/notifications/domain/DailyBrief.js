@@ -15,16 +15,16 @@ export const dayKey = (now = new Date()) => {
 };
 
 /**
- * @param {{followups, goalNudges, momentum, focus, day}} input
+ * @param {{followups, goalNudges, trainingDue, momentum, focus, day}} input
  *   candidates are {category,priority,title,body,icon,link} (producer input shape).
  * @returns producer inputs with stable slot keys.
  */
 export const pickDailyBrief = ({
-  followups = [], goalNudges = [], momentum = null, focus = 'growth', day = dayKey(),
+  followups = [], goalNudges = [], trainingDue = [], momentum = null, focus = 'growth', day = dayKey(),
 } = {}) => {
   const ordered = focus === 'leadership'
-    ? [...goalNudges, ...followups]
-    : [...followups, ...goalNudges];
+    ? [...goalNudges, ...trainingDue, ...followups]
+    : [...followups, ...trainingDue, ...goalNudges];
   const items = ordered.slice(0, MAX_PRIORITIES).map((c, i) => ({ ...c, key: `daily:${day}:p${i + 1}` }));
   if (momentum) items.push({ ...momentum, key: `daily:${day}:momentum` });
   return items;

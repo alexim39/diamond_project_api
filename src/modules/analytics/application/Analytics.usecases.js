@@ -1,4 +1,4 @@
-import { buildFunnel, deltaPct, scoreHealth, windows } from '../domain/Analytics.engine.js';
+import { buildFunnel, deltaPct, forecastNext, scoreHealth, windows } from '../domain/Analytics.engine.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
 
 const clampDays = (days) => Math.min(Math.max(Number(days) || 30, 7), 365);
@@ -93,6 +93,11 @@ export class GetTeamUseCase {
       conversions: m.conversions,
       goals: { total: goals.length, complete, rate: goalRate },
       health,
+      forecast: {
+        basis: `at current pace (last ${d}d vs prior ${d}d)`,
+        recruitsNext: forecastNext(m.recruits, m.prevRecruits),
+        teamVolumeNext: forecastNext(m.teamVolume, m.prevTeamVolume),
+      },
     };
   }
 }
@@ -105,19 +110,20 @@ const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
  * upcoming gatherings, journey milestones, then the rest.
  */
 export class GetActionsUseCase {
-  /** @param {{feed, goals, prospects, stuck, progression, events}} deps (stuck/progression/events optional) */
-  constructor({ feed, goals, prospects, stuck, progression, events }) {
-    Object.assign(this, { feed, goals, prospects, stuck, progression, events });
+  /** @param {{feed, goals, prospects, stuck, progression, events, poolCount}} deps (stuck/progression/events/poolCount optional) */
+  constructor({ feed, goals, prospects, stuck, progression, events, poolCount = null }) {
+    Object.assign(this, { feed, goals, prospects, stuck, progression, events, poolCount });
   }
 
   async execute({ partnerId, now = new Date(), limit = 15 }) {
-    const [feed, goals, hot, stuck, journey, gatherings] = await Promise.all([
+    const [feed, goals, hot, stuck, journey, gatherings, poolAvailable] = await Promise.all([
       this.feed.execute({ partnerId, now, limit: 50 }),
       this.goals.execute({ partnerId, now }),
       this.prospects.findReadyToConvert(partnerId, 5),
       this.stuck ? this.stuck.execute({ partnerId, now }) : [],
       this.progression ? this.progression.summarize({ partnerId, now }) : null,
       this.events ? this.events.upcomingRsvps(partnerId, now) : [],
+      this.poolCount ? this.poolCount(partnerId).catch(() => null) : null,
     ]);
 
     const actions = [];
@@ -194,13 +200,24 @@ export class GetActionsUseCase {
       });
     }
     for (const m of (journey?.missing ?? []).slice(0, 2)) {
+      const isTraining = ['ipo', 'qsg', 'smo'].includes(m.key);
       actions.push({
         id: `action:journey:${m.key}`,
+        priority: isTraining ? 'high' : 'medium',
+        category: isTraining ? 'training-due' : 'growth',
+        title: isTraining ? `${m.label} overdue` : m.label,
+        detail: isTraining ? `${m.action} — upline confirms` : m.action,
+        link: isTraining ? '/dashboard/training' : '/dashboard/progress',
+      });
+    }
+    if (poolAvailable !== null && poolAvailable !== undefined && Number(poolAvailable) > 0) {
+      actions.push({
+        id: `action:pool:${poolAvailable}`,
         priority: 'medium',
-        category: 'growth',
-        title: m.label,
-        detail: m.action,
-        link: '/dashboard/progress',
+        category: 'recruitment-opportunity',
+        title: `${poolAvailable} fresh leads near you`,
+        detail: 'Buy Prospect pool has new leads in your state — claim first',
+        link: '/dashboard/prospects/general-list',
       });
     }
 
@@ -212,7 +229,6 @@ export class GetActionsUseCase {
 
 const ACTIVATION_WINDOW_DAYS = 7;
 const filled = (v) => String(v ?? '').trim().length > 0;
-
 /**
  * Onboarding activation: share of the trailing signup cohort that completed
  * profile + first prospect + IPO within 7 days. Distinct from the team-health
@@ -273,6 +289,43 @@ export class GetActivationUseCase {
       rate: cohort.total > 0 ? Math.round((activated / cohort.total) * 1000) / 10 : null,
       legs,
       perMember,
+    };
+  }
+}
+
+/**
+ * Leadership bench — who is ready for the next rank?
+ * Distribution from stored levels + pending confirmation/nomination
+ * backlogs as bench pressure. Per-member promotion readiness stays in
+ * My Journey (single-member signals); this is the org-wide bench view.
+ */
+export class GetBenchUseCase {
+  /** @param {{progress, network}} deps */
+  constructor({ progress, network }) {
+    Object.assign(this, { progress, network });
+  }
+
+  async execute({ partnerId }) {
+    const { ids } = await collectDownlineIds(this.network, partnerId);
+    const bounded = ids.slice(0, 2000);
+    const [levels, pendingConfirmations, pendingNominations] = await Promise.all([
+      this.progress.levelsFor ? this.progress.levelsFor(bounded).catch(() => ({})) : {},
+      this.progress.listPendingConfirmations
+        ? this.progress.listPendingConfirmations(bounded, ['ipo', 'qsg', 'smo'], 200).catch(() => [])
+        : [],
+      this.progress.listPendingNominations
+        ? this.progress.listPendingNominations(bounded, 100).catch(() => [])
+        : [],
+    ]);
+    const dist = {};
+    for (const lvl of Object.values(levels ?? {})) dist[lvl] = (dist[lvl] ?? 0) + 1;
+    return {
+      total: bounded.length,
+      capped: ids.length > bounded.length,
+      distribution: dist,
+      pendingConfirmations: (pendingConfirmations ?? []).length,
+      pendingNominations: (pendingNominations ?? []).length,
+      leaders: (dist.ecl ?? 0) + (dist.cell_leader ?? 0) + (dist.g_leader ?? 0) + (dist.g8 ?? 0),
     };
   }
 }

@@ -63,6 +63,21 @@ export const TRAINING_CONFIRM_KEYS = ['ipo', 'qsg', 'smo'];
 export const TRAINING_KEY_LABELS = { ipo: 'IPO', qsg: 'QSG', smo: 'SMO' };
 
 /**
+ * All upline-confirmed milestones — training plus the trust legs that were
+ * self-attested before (office / full-time / onboarding). Gates use
+ * `confirmed()` for every key here, never bare `done`.
+ */
+export const CONFIRMABLE_KEYS = ['ipo', 'qsg', 'smo', 'fullTime', 'office', 'onboardingSession'];
+export const CONFIRM_KEY_LABELS = {
+  ipo: 'IPO',
+  qsg: 'QSG',
+  smo: 'SMO',
+  fullTime: 'Full-time',
+  office: 'Office',
+  onboardingSession: 'Onboarding session',
+};
+
+/**
  * Leadership-skills thresholds (trailing windows, tunable in one place):
  * personal volume flowing, real prospect touches, a live downline, and a
  * visible community footprint (posts, event RSVPs or team reports).
@@ -138,9 +153,11 @@ export const gate = (level, signals = {}, m = {}) => {
     case 'active':
       // The letter is the member's action: `submitted` passes. An `approved`
       // value is inert here on purpose — only an elevated path may grant it.
+      // Onboarding needs upline eyes, same as training — self-tap alone
+      // must not open the gate.
       return [
         req('g8Request', 'Submit request letter to G8 Leader', 'Send your qualification request letter', m.g8Request?.status === 'submitted'),
-        req('onboardingSession', 'Attend onboarding session', 'Schedule your onboarding session', done(m.onboardingSession)),
+        req('onboardingSession', 'Attend onboarding session', 'Schedule your onboarding session and get it confirmed', confirmed(m.onboardingSession)),
       ];
     case 'kingsman':
       return [
@@ -152,14 +169,14 @@ export const gate = (level, signals = {}, m = {}) => {
     case 'ecl':
       return [
         req('kingsmen', 'Raise 5 Kingsmen', 'Develop 5 downline Kingsmen', (signals.kingsmen ?? 0) >= 5),
-        req('fullTime', 'Full-time participation', 'Commit to full-time business participation', done(m.fullTime)),
-        req('office', 'Office ownership', 'Register your office', done(m.office)),
+        req('fullTime', 'Full-time participation', 'Commit to full-time and get it confirmed', confirmed(m.fullTime)),
+        req('office', 'Office ownership', 'Register your office and get it confirmed', confirmed(m.office)),
       ];
     case 'cell_leader': {
       const skills = leadershipSkills(signals);
       return [
         req('kingsmenTeam', 'Manage 5 downline Kingsmen', 'Develop 5 downline members to Kingsman', (signals.kingsmenExact ?? 0) >= 5),
-        req('office', 'Office ownership', 'Register your office (1 or more)', done(m.office)),
+        req('office', 'Office ownership', 'Register your office (1 or more) and get it confirmed', confirmed(m.office)),
         req('leadership', 'Demonstrated leadership', skills.missing.length > 0 ? `To demonstrate: ${skills.missing.join('; ')}` : 'Keep leading visibly', skills.met),
       ];
     }
@@ -167,7 +184,7 @@ export const gate = (level, signals = {}, m = {}) => {
       const skills = leadershipSkills(signals);
       return [
         req('eclTeam', 'Manage 5 Emerging Cell Leaders', 'Develop 5 downline members to ECL', (signals.eclsExact ?? 0) >= 5),
-        req('office', 'Office ownership', 'Register your office (1 or more)', done(m.office)),
+        req('office', 'Office ownership', 'Register your office (1 or more) and get it confirmed', confirmed(m.office)),
         req('leadership', 'Demonstrated leadership', skills.missing.length > 0 ? `To demonstrate: ${skills.missing.join('; ')}` : 'Keep leading visibly', skills.met),
         req('nomination', 'Nominated by your G8 Leader', 'Request nomination from a G8 Leader', (m.nomination?.approvals?.length ?? 0) >= 1),
       ];

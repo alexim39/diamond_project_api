@@ -45,6 +45,17 @@ export class MongoNetworkRepository {  async findNode(id) {
   async countChildren(partnerId) {
     return PartnersModel.countDocuments({ partnerOf: String(partnerId) });
   }
+
+  /** Newest direct recruits for the referral card (bounded). */
+  async recentChildren(partnerId, limit = 5) {
+    const lim = Math.min(Math.max(Number(limit) || 5, 1), 25);
+    const docs = await PartnersModel.find({ partnerOf: String(partnerId) })
+      .select('name surname username createdAt')
+      .sort({ createdAt: -1 })
+      .limit(lim)
+      .lean();
+    return docs.map(project);
+  }
 }
 
 /**

@@ -1,7 +1,7 @@
 import {
   ConflictException, ForbiddenException, NotFoundException, ValidationException,
 } from '../../../shared/domain/AppError.js';
-import { LEVELS, LEVEL_LABELS, NOMINATION_APPROVALS_REQUIRED, RANK, STALE_CONFIRM_MS, TRAINING_CONFIRM_KEYS, TRAINING_KEY_LABELS, confirmed, formatLatency, medianOf, resolveProgression } from '../domain/Progression.levels.js';
+import { LEVELS, LEVEL_LABELS, NOMINATION_APPROVALS_REQUIRED, RANK, STALE_CONFIRM_MS, TRAINING_CONFIRM_KEYS, TRAINING_KEY_LABELS, CONFIRMABLE_KEYS, CONFIRM_KEY_LABELS, confirmed, formatLatency, medianOf, resolveProgression } from '../domain/Progression.levels.js';
 import { PROGRESSION_EVENTS, promotedPayload, trainingDecidedPayload, trainingRequestedPayload, trainingTrackCompletedPayload } from '../domain/ProgressionEvents.js';
 import { adminBootstrapEmails, lenientRole } from '../../identity-access/domain/PartnerRole.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
@@ -37,7 +37,7 @@ export async function assembleSignals(
     safe(eventStore?.countRsvpsSince?.(partnerId, start90), 0),
     safe(reports?.listByAuthor?.(partnerId, 50), []),
     safe(progress.decisionsByApprover?.(partnerId, start90), []),
-    safe(progress.listPendingConfirmations?.(downline.slice(0, 2000), TRAINING_CONFIRM_KEYS, 200), []),
+    safe(progress.listPendingConfirmations?.(downline.slice(0, 2000), CONFIRMABLE_KEYS, 200), []),
   ]);
   const counts = {};
   for (const lvl of Object.values(levels)) counts[lvl] = (counts[lvl] ?? 0) + 1;
@@ -57,7 +57,7 @@ export async function assembleSignals(
       const parents = Object.fromEntries(nodes.map((nd) => [String(nd.id), nd.parentId ? String(nd.parentId) : null]));
       for (const r of pendingRows) {
         if (parents[String(r.partnerId)] !== String(partnerId)) continue;
-        for (const k of TRAINING_CONFIRM_KEYS) {
+        for (const k of CONFIRMABLE_KEYS) {
           const s = r[k];
           if (s?.done === true && !s.confirmedAt && end.getTime() - new Date(s.at ?? end).getTime() > STALE_CONFIRM_MS) {
             directStale += 1;
@@ -112,7 +112,15 @@ export const buildMilestonePatch = (input = {}) => {
     patch['accounts.count'] = count;
   }
   if (input.officeAddress !== undefined) {
-    patch.officeAddress = String(input.officeAddress ?? '').slice(0, 200);
+    const addr = String(input.officeAddress ?? '').trim().slice(0, 200);
+    patch.officeAddress = addr;
+  }
+  // Office without an address is incomplete — the upline needs somewhere
+  // to verify. Enforced here so the gate never sees a bare self-tap.
+  if (patch.office?.done === true) {
+    const addr = String(input.officeAddress ?? input.office?.address ?? '').trim();
+    if (!addr) throw new ValidationException('Office address is required to register an office');
+    patch.officeAddress = addr.slice(0, 200);
   }
   if (input.g8Request !== undefined) {
     const status = input.g8Request?.status ?? input.g8Request;
@@ -212,7 +220,7 @@ export class UpdateMilestonesUseCase {
     // confirmation — otherwise the gate would sit unmet with no request
     // and no notification. Best-effort, never fails the write.
     if (this.events) {
-      for (const key of TRAINING_CONFIRM_KEYS) {
+      for (const key of CONFIRMABLE_KEYS) {
         const wasPending = before?.[key]?.done === true && !confirmed(before?.[key]);
         if (built[key]?.done === true && !wasPending) {
           try {
@@ -245,7 +253,7 @@ export class RequestTrainingConfirmUseCase {
   }
 
   async execute({ partnerId, key }) {
-    if (!TRAINING_CONFIRM_KEYS.includes(key)) throw new ValidationException('Invalid training key');
+    if (!CONFIRMABLE_KEYS.includes(key)) throw new ValidationException('Invalid confirmation key');
     const before = await this.progress.findByPartner(partnerId).catch(() => null);
     const wasPending = before?.[key]?.done === true && !confirmed(before?.[key]);
     const doc = await this.progress.requestTrainingConfirm(partnerId, key);
@@ -258,7 +266,7 @@ export class RequestTrainingConfirmUseCase {
           trainingRequestedPayload({
             partnerId,
             key,
-            keyLabel: TRAINING_KEY_LABELS[key] ?? key,
+            keyLabel: CONFIRM_KEY_LABELS[key] ?? key,
             memberName: node
               ? [node.name, node.surname].filter(Boolean).join(' ') || node.username
               : null,
@@ -280,7 +288,7 @@ export class DecideTrainingConfirmUseCase {
   }
 
   async execute({ approverId, partnerId, key, approved, note = '' }) {
-    if (!TRAINING_CONFIRM_KEYS.includes(key)) throw new ValidationException('Invalid training key');
+    if (!CONFIRMABLE_KEYS.includes(key)) throw new ValidationException('Invalid confirmation key');
     if (String(approverId) === String(partnerId)) throw new ForbiddenException('You cannot confirm your own training');
     const [memberNode, approverNode] = await Promise.all([
       this.network.findNode(partnerId),
@@ -309,7 +317,7 @@ export class DecideTrainingConfirmUseCase {
           trainingDecidedPayload({
             partnerId,
             key,
-            keyLabel: TRAINING_KEY_LABELS[key] ?? key,
+            keyLabel: CONFIRM_KEY_LABELS[key] ?? key,
             approved: approved === true,
             note: cleanNote,
             memberName: [memberNode.name, memberNode.surname].filter(Boolean).join(' ') || memberNode.username,
@@ -317,8 +325,7 @@ export class DecideTrainingConfirmUseCase {
           }),
         ).catch(() => null);
         // Full track now confirmed → celebrate once (member + upline).
-        if (approved === true && TRAINING_CONFIRM_KEYS.every((k) => confirmed(doc[k]))) {
-          await this.events.emit(
+        if (approved === true && TRAINING_CONFIRM_KEYS.every((k) => confirmed(doc[k]))) {          await this.events.emit(
             PROGRESSION_EVENTS.TRAINING_TRACK_COMPLETED,
             trainingTrackCompletedPayload({
               partnerId,
@@ -341,16 +348,16 @@ export class ListPendingConfirmationsUseCase {
 
   async execute({ requesterId, limit = 100 }) {
     const { ids } = await collectDownlineIds(this.network, requesterId);
-    const rows = await this.progress.listPendingConfirmations(ids.slice(0, 2000), TRAINING_CONFIRM_KEYS, limit);
+    const rows = await this.progress.listPendingConfirmations(ids.slice(0, 2000), CONFIRMABLE_KEYS, limit);
     if (rows.length === 0) return { items: [], total: 0 };
     const nodes = await this.network.findNodesByIds(rows.map((r) => r.partnerId));
     const labels = Object.fromEntries(nodes.map((nd) => [String(nd.id), {
       username: nd.username,
       name: [nd.name, nd.surname].filter(Boolean).join(' ') || nd.username,
     }]));
-    const pendingKeysOf = (r) => TRAINING_CONFIRM_KEYS
+    const pendingKeysOf = (r) => CONFIRMABLE_KEYS
       .filter((k) => r[k]?.done === true && !confirmed(r[k]))
-      .map((k) => ({ key: k, label: TRAINING_KEY_LABELS[k] ?? k, requestedAt: r[k]?.at ?? r.updatedAt ?? null }));
+      .map((k) => ({ key: k, label: CONFIRM_KEY_LABELS[k] ?? k, requestedAt: r[k]?.at ?? r.updatedAt ?? null }));
     return {
       items: rows.map((r) => ({
         partnerId: String(r.partnerId),
@@ -379,7 +386,7 @@ export class GetConfirmationStatsUseCase {
   async execute({ requesterId, now = new Date() }) {
     const t = new Date(now).getTime();
     const { ids } = await collectDownlineIds(this.network, requesterId);
-    const rows = await this.progress.listConfirmationStats(ids.slice(0, 2000), TRAINING_CONFIRM_KEYS);
+    const rows = await this.progress.listConfirmationStats(ids.slice(0, 2000), CONFIRMABLE_KEYS);
     const labelIds = new Set();
     for (const r of rows) {
       labelIds.add(String(r.partnerId));

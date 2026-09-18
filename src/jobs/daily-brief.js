@@ -64,6 +64,21 @@ const asGoalPraise = (g) => ({
   link: '/dashboard/goals',
 });
 
+const TRAINING_DUE_KEYS = [
+  ['ipo', 'IPO'],
+  ['qsg', 'QSG'],
+  ['smo', 'SMO'],
+];
+
+const asTrainingDue = (label) => ({
+  category: 'training',
+  priority: 'high',
+  title: `${label} needs confirmation`,
+  body: 'You marked it done — nudge your upline to confirm so your journey unblocks.',
+  icon: 'school',
+  link: '/dashboard/training',
+});
+
 const asConversionPraise = (c) => ({
   category: 'recognition',
   priority: 'low',
@@ -155,13 +170,17 @@ async function briefPartner(job, partnerId) {
     } catch { /* goal events never break the brief */ }
   }
   const goalNudges = atRiskGoals.slice(0, 3).map(asGoalRisk);
+  const trainingDue = TRAINING_DUE_KEYS.filter(([key]) => {
+    const s = progressDoc?.[key];
+    return s?.done === true && !s?.confirmedAt;
+  }).slice(0, 2).map(([, label]) => asTrainingDue(label));
   const praiseGoal = active
     .filter((g) => g.progress.percent >= PRAISE_MIN_PERCENT && g.progress.daysLeft <= PRAISE_DAYS)
     .sort((a, b) => b.progress.percent - a.progress.percent)[0];
   const conversions = buildConversionAlerts(list, { now: job.now });
   const momentum = praiseGoal ? asGoalPraise(praiseGoal) : conversions.length > 0 ? asConversionPraise(conversions[0]) : null;
 
-  const candidateCount = followups.length + goalNudges.length + (momentum ? 1 : 0);
+  const candidateCount = followups.length + goalNudges.length + trainingDue.length + (momentum ? 1 : 0);
   const { eligible, reason } = dailyEligibility({
     level: progressDoc?.level ?? 'partner',
     candidateCount,
@@ -171,6 +190,7 @@ async function briefPartner(job, partnerId) {
   const items = pickDailyBrief({
     followups,
     goalNudges,
+    trainingDue,
     momentum,
     focus: briefFocus(progressDoc?.level ?? 'partner'),
     day: job.day,

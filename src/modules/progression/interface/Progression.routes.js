@@ -37,10 +37,10 @@ const MilestonesSchema = z.object({
 
 const NominationSchema = z.object({ note: z.string().trim().max(500).optional().default('') });
 const DecisionSchema = z.object({ partnerId: objectId, approved: z.boolean() });
-const TrainingRequestSchema = z.object({ key: z.enum(['ipo', 'qsg', 'smo']) });
+const TrainingRequestSchema = z.object({ key: z.enum(['ipo', 'qsg', 'smo', 'fullTime', 'office', 'onboardingSession']) });
 const TrainingDecisionSchema = z.object({
   partnerId: objectId,
-  key: z.enum(['ipo', 'qsg', 'smo']),
+  key: z.enum(['ipo', 'qsg', 'smo', 'fullTime', 'office', 'onboardingSession']),
   approved: z.boolean(),
   note: z.string().trim().max(500).optional().default(''),
 }).refine((b) => b.approved === true || b.note.length > 0, {

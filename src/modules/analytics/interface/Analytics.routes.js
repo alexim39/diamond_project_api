@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
-import { GetActionsUseCase, GetActivationUseCase, GetFunnelUseCase, GetTeamUseCase } from '../application/Analytics.usecases.js';
+import { GetActionsUseCase, GetActivationUseCase, GetBenchUseCase, GetFunnelUseCase, GetTeamUseCase } from '../application/Analytics.usecases.js';
 import { GetStuckProspectsUseCase } from '../../crm/application/Prospect.queries.js';
 import { GetMyProgressionUseCase } from '../../progression/application/Progression.usecases.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
@@ -17,6 +17,8 @@ import { MongoPartnerRepository } from '../../identity-access/infrastructure/Aut
 import { MongoEventStore } from '../../events/infrastructure/Events.mongo.repository.js';
 import { GetNotificationFeedUseCase } from '../../notifications/application/Notifications.usecases.js';
 import { ListGoalsUseCase } from '../../goals/application/Goals.usecases.js';
+import { ProspectSurveyModel } from '../../../apps/survey/models/survey.model.js';
+import { normalizeState } from '../../../shared/geo/nigerianStates.js';
 
 const WindowQuery = z.object({
   days: z.coerce.number().int().min(7).max(365).optional().default(30),
@@ -45,9 +47,22 @@ export const buildAnalyticsRouter = (deps = {}) => {
   const snapshots = deps.snapshots ?? new MongoTeamSnapshotStore();
   const team = new GetTeamUseCase({ orders, network, prospects, snapshots, goalProgress: (pid) => goals.execute({ partnerId: pid }) });
   const eventStore = deps.eventStore ?? new MongoEventStore();
-  const actions = new GetActionsUseCase({ feed, goals, prospects, stuck, progression, events: eventStore });
   const partners = deps.partners ?? new MongoPartnerRepository();
+  // Recruitment-opportunity count: pool rows in the member's normalized
+  // state (bounded, cheap). Null-safe — actions skip the card when unknown.
+  const poolCount = deps.poolCount ?? (async (partnerId) => {
+    try {
+      const me = await partners.findById(partnerId).catch(() => null);
+      const want = normalizeState(me?.address?.state);
+      if (!want) return 0;
+      return ProspectSurveyModel.countDocuments({ username: 'business', stateNorm: want }).catch(() => 0);
+    } catch {
+      return 0;
+    }
+  });
+  const actions = new GetActionsUseCase({ feed, goals, prospects, stuck, progression, events: eventStore, poolCount });
   const activation = new GetActivationUseCase({ partners, prospects, progress: progressStore, network });
+  const bench = new GetBenchUseCase({ progress: progressStore, network });
 
   const router = express.Router();
   router.use(requireAuth);
@@ -74,6 +89,11 @@ export const buildAnalyticsRouter = (deps = {}) => {
     const q = req.validated?.query ?? req.query;
     const data = await activation.execute({ partnerId: req.auth?.partnerId, days: q?.days });
     res.status(200).json({ message: 'Activation analytics retrieved successfully', data, success: true });
+  }));
+
+  router.get('/bench', asyncHandler(async (req, res) => {
+    const data = await bench.execute({ partnerId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Leadership bench retrieved successfully', data, success: true });
   }));
 
   return router;
