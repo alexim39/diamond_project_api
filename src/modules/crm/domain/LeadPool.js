@@ -13,9 +13,9 @@ export const CLAIM_WORK_HOURS = Number(process.env.LEAD_CLAIM_HOURS ?? 48) > 0
   : 48;
 
 /** Max paid claims per partner per calendar day (anti-hoarding). */
-export const DAILY_CLAIM_LIMIT = Number(process.env.LEAD_DAILY_LIMIT ?? 3) > 0
-  ? Math.floor(Number(process.env.LEAD_DAILY_LIMIT ?? 3))
-  : 3;
+export const DAILY_CLAIM_LIMIT = Number(process.env.LEAD_DAILY_LIMIT ?? 5) > 0
+  ? Math.floor(Number(process.env.LEAD_DAILY_LIMIT ?? 5))
+  : 5;
 
 /** Warn the holder this long before the work window closes. */
 export const EXPIRY_WARNING_HOURS = 12;
@@ -30,7 +30,7 @@ const numEnv = (v, fallback) => {
 
 export const claimWindows = () => ({
   workHours: numEnv(process.env.LEAD_CLAIM_HOURS, 48),
-  dailyLimit: Math.floor(numEnv(process.env.LEAD_DAILY_LIMIT, 3)),
+  dailyLimit: Math.floor(numEnv(process.env.LEAD_DAILY_LIMIT, 5)),
   warningHours: numEnv(process.env.LEAD_WARNING_HOURS, EXPIRY_WARNING_HOURS),
 });
 

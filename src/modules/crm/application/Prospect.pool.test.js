@@ -68,7 +68,7 @@ test('pool enforces state fencing, scores and paginates', async () => {
   assert.ok(res.items[0].badges.includes('Hot'));
   assert.equal(res.partnerState, 'lagos');
   assert.ok(res.meta);
-  assert.equal(res.meta.dailyLimit, 3);
+  assert.equal(res.meta.dailyLimit, 5);
 });
 
 test('pool blocks members without a state, admins bypass with filter', async () => {

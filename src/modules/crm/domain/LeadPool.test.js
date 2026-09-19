@@ -77,5 +77,5 @@ test('prospectWorkedAfter counts comms, stage moves (bookings ride comms)', () =
 
 test('windows carry sane defaults', () => {
   assert.equal(CLAIM_WORK_HOURS, 48);
-  assert.equal(DAILY_CLAIM_LIMIT, 3);
+  assert.equal(DAILY_CLAIM_LIMIT, 5);
 });
