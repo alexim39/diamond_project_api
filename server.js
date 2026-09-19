@@ -77,6 +77,13 @@ app.use(express.json()); // Use json middleware
 app.use(express.urlencoded({extended: false})); // Use formdata middleware
 dotenv.config()
 app.use(cookieParser());
+// Extra web origins (comma-separated) for new subdomains without a code
+// change, e.g. EXTRA_CORS_ORIGINS=https://join.c21fg.online. Localhost
+// ports stay so dev builds just work.
+const extraOrigins = String(process.env.EXTRA_CORS_ORIGINS ?? '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
 app.use(cors({
     credentials: true,
     origin: [
@@ -85,7 +92,8 @@ app.use(cors({
         'https://c21fg.online',
         'https://www.c21fg.online',
         'https://survey.c21fg.online',
-        'https://shop.c21fg.online'
+        'https://shop.c21fg.online',
+        ...extraOrigins,
     ]
 }));
 
