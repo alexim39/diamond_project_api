@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GetPoolUseCase, RateLeadUseCase, ImportLeadsUseCase } from './Prospect.pool.js';
+import {
+  GetPoolUseCase, RateLeadUseCase, ImportLeadsUseCase,
+  ListAdminLeadsUseCase, DeleteAdminLeadUseCase, ResetAdminLeadUseCase,
+} from './Prospect.pool.js';
 
 const survey = (over = {}) => ({
   _id: `s${Math.random().toString(36).slice(2, 8)}`,
@@ -103,4 +106,65 @@ test('import validates rows, normalizes states, caps batches', async () => {
   assert.equal(surveys.rows[0].stateNorm, 'fct abuja');
   assert.equal(surveys.rows[0].username, 'business');
   await assert.rejects(uc.execute({ rows: [] }), /at least one/);
+});
+
+test('admin desk lists with filters, summary and rating averages', async () => {
+  const rows = [
+    survey({ _id: 's1', prospectStatus: 'Not Moved', ratings: [{ score: 5 }, { score: 3 }] }),
+    survey({ _id: 's2', state: 'Oyo', stateNorm: 'oyo', prospectStatus: 'Claimed' }),
+    survey({ _id: 's3', prospectStatus: 'Moved to Contact' }),
+  ];
+  const surveys = fakeSurveys(rows);
+  surveys.countDocuments = async (filter) => rows.filter((r) => Object.entries(filter ?? {}).every(([k, v]) => {
+    if (k === '$or') return true;
+    return String(r[k]) === String(v);
+  })).length;
+  surveys.aggregate = async () => [{ total: 3, notMoved: 1, claimed: 1, moved: 1, new7d: 3 }];
+  const uc = new ListAdminLeadsUseCase({ surveys });
+  const all = await uc.execute({});
+  assert.equal(all.total, 3);
+  assert.deepEqual(all.summary, { total: 3, notMoved: 1, claimed: 1, moved: 1, new7d: 3 });
+  assert.equal(all.items[0].ratingAvg, 4);
+  assert.equal(all.items[0].ratingCount, 2);
+  const lagos = await uc.execute({ state: 'Lagos' });
+  assert.equal(lagos.total, 2);
+  const claimed = await uc.execute({ status: 'Claimed' });
+  assert.equal(claimed.total, 1);
+  assert.equal(claimed.items[0].id, 's2');
+});
+
+test('admin delete removes pool rows only; reset reopens them', async () => {
+  const A = '0123456789abcdef01234567';
+  const B = '0123456789abcdef01234568';
+  const C = '0123456789abcdef01234569';
+  const store = new Map([
+    [A, survey({ _id: A })],
+    [B, survey({ _id: B, username: 'someone' })],
+  ]);
+  const surveys = {
+    findById: (id) => ({ lean: async () => (store.has(String(id)) ? { ...store.get(String(id)) } : null) }),
+    deleteOne: async (filter) => { store.delete(String(filter._id)); return { deletedCount: 1 }; },
+    findOneAndUpdate: (filter, update) => ({
+      lean: async () => {
+        const r = store.get(String(filter._id));
+        if (!r || r.username !== 'business') return null;
+        Object.assign(r, update.$set ?? {});
+        return { ...r };
+      },
+    }),
+  };
+  const out = await new DeleteAdminLeadUseCase({ surveys }).execute({ id: A });
+  assert.equal(out.id, A);
+  assert.equal(store.has(A), false);
+  await assert.rejects(new DeleteAdminLeadUseCase({ surveys }).execute({ id: A }), /not found/i);
+  await assert.rejects(new DeleteAdminLeadUseCase({ surveys }).execute({ id: B }), /not found/i);
+  await assert.rejects(new DeleteAdminLeadUseCase({ surveys }).execute({ id: 'nope' }), /Invalid lead id/);
+  const surveys2 = {
+    findOneAndUpdate: (filter, update) => ({
+      lean: async () => (String(filter._id) === C ? { _id: C, prospectStatus: 'Not Moved' } : null),
+    }),
+  };
+  const reset = await new ResetAdminLeadUseCase({ surveys: surveys2 }).execute({ id: C });
+  assert.equal(reset.status, 'Not Moved');
+  await assert.rejects(new ResetAdminLeadUseCase({ surveys: surveys2 }).execute({ id: A }), /not found/i);
 });

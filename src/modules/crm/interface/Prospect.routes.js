@@ -6,6 +6,7 @@ import {
   ProspectIdParam, PartnerIdParam, CreateProspectSchema, UpdateProspectSchema,
   UpdateStatusSchema, LogCommunicationSchema, PaginationQuery, CommIdsParam, StuckQuery,
   ConvertProspectSchema, ClaimProspectSchema, PoolQuery, RateLeadSchema, ImportLeadsSchema,
+  AdminLeadsQuery, LeadIdParam,
 } from './Prospect.validator.js';
 import { requireRole } from '../../identity-access/interface/RequireRole.js';
 import { makeProspectController } from './Prospect.controller.js';
@@ -26,6 +27,9 @@ import { ConvertProspectToPartnerUseCase } from '../application/Prospect.convert
 import { ReleaseProspectToPoolUseCase } from '../application/Prospect.release.js';
 import { ClaimPoolLeadUseCase } from '../application/Prospect.claim.js';
 import { GetPoolUseCase, RateLeadUseCase, ImportLeadsUseCase } from '../application/Prospect.pool.js';
+import {
+  ListAdminLeadsUseCase, DeleteAdminLeadUseCase, ResetAdminLeadUseCase,
+} from '../application/Prospect.pool.js';
 import { recordAudit } from '../../audit/index.js';import { domainEvents } from '../../../shared/events/DomainEvents.js';
 
 /**
@@ -63,6 +67,9 @@ export const buildProspectRouter = (deps = {}) => {
     pool: new GetPoolUseCase({}),
     rate: new RateLeadUseCase({}),
     importLeads: new ImportLeadsUseCase({}),
+    adminLeads: new ListAdminLeadsUseCase({}),
+    adminLeadDelete: new DeleteAdminLeadUseCase({}),
+    adminLeadReset: new ResetAdminLeadUseCase({}),
     contactListMine: new GetMyContactListUseCase({ prospects }),
     contactListSubmit: deps.contactListSubmit
       ?? new SubmitContactListUseCase({ prospects, network, events }),
@@ -125,6 +132,35 @@ export const buildProspectRouter = (deps = {}) => {
       detail: { inserted: data.inserted, failed: data.failed.length, total: data.total },
     });
     res.status(200).json({ message: `Imported ${data.inserted} of ${data.total} leads`, data, success: true });
+  }));
+
+  // Admin pool desk — full-platform view (members see only their state).
+  router.get('/admin/leads', requireRole('admin'), validate({ query: AdminLeadsQuery }), c.adminLeads);
+
+  router.delete('/admin/leads/:leadId', requireRole('admin'), validate({ params: LeadIdParam }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    // Route-scope usecase (c.* are req/res handlers, not usecases).
+    const remover = deps.adminLeadDelete ?? new DeleteAdminLeadUseCase({});
+    const data = await remover.execute({ id: params.leadId });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'lead.delete',
+      targetType: 'leadpool', targetId: data.id,
+      detail: { name: data.name },
+    });
+    res.status(200).json({ message: `Pool lead deleted${data.name ? ` (${data.name})` : ''}`, data, success: true });
+  }));
+
+  router.patch('/admin/leads/:leadId', requireRole('admin'), validate({ params: LeadIdParam }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    // Route-scope usecase (c.* are req/res handlers, not usecases).
+    const resetter = deps.adminLeadReset ?? new ResetAdminLeadUseCase({});
+    const data = await resetter.execute({ id: params.leadId });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'lead.status',
+      targetType: 'leadpool', targetId: data.id,
+      detail: { status: data.status },
+    });
+    res.status(200).json({ message: 'Pool lead reopened — it is claimable again', data, success: true });
   }));
 
   router.post('/:prospectId/communications', validate({ params: ProspectIdParam, body: LogCommunicationSchema }), c.logCommunication);

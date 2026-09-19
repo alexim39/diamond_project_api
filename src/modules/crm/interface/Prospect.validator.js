@@ -129,3 +129,15 @@ export const RateLeadSchema = z.object({
 export const ImportLeadsSchema = z.object({
   rows: z.array(z.object({}).passthrough()).min(1).max(500),
 });
+
+/** GET /v1/prospects/admin/leads — filterable pool desk (admin). */
+export const AdminLeadsQuery = z.object({
+  q: z.string().trim().max(60).optional(),
+  state: z.string().trim().max(80).optional(),
+  status: z.enum(['Not Moved', 'Claimed', 'Moved to Contact', 'all']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  skip: z.coerce.number().int().min(0).optional(),
+});
+
+/** :leadId for admin pool rows (survey ObjectIds). */
+export const LeadIdParam = z.object({ leadId: objectId });

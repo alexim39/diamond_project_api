@@ -31,6 +31,7 @@ describe('AUDIT_ACTIONS vocabulary', () => {
       'ticket.decide', 'moderation.remove', 'moderation.dismiss',
       'broadcast.send', 'broadcast.campaign.queue', 'broadcast.campaign.cancel',
       'broadcast.campaign.retry', 'broadcast.delete', 'lead.import',
+      'lead.delete', 'lead.status',
       'billing.plan.update', 'product.create', 'product.update',
     ]) {
       assert.ok(AUDIT_ACTIONS.includes(a), `missing ${a}`);

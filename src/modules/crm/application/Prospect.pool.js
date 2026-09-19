@@ -133,8 +133,7 @@ export class RateLeadUseCase {
 const csvText = (v, max) => String(v ?? '').trim().slice(0, max);
 
 /** POST /v1/admin/leads/import — bulk pool seeding (admin, validated, capped). */
-export class ImportLeadsUseCase {
-  /** @param {{surveys, maxBatch?}} deps */
+export class ImportLeadsUseCase {  /** @param {{surveys, maxBatch?}} deps */
   constructor({ surveys, maxBatch = 500 } = {}) {
     Object.assign(this, {
       surveys: surveys ?? ProspectSurveyModel,
@@ -183,5 +182,140 @@ export class ImportLeadsUseCase {
       inserted = Array.isArray(made) ? made.length : docs.length;
     }
     return { inserted, failed, total: rows.length };
+  }
+}
+
+const ADMIN_LEAD_STATUSES = ['Not Moved', 'Claimed', 'Moved to Contact'];
+
+const adminShape = (d) => {
+  const ratings = Array.isArray(d.ratings) ? d.ratings : [];
+  const scores = ratings.map((r) => Number(r?.score)).filter((n) => n >= 1 && n <= 5);
+  return {
+    id: String(d._id),
+    name: d.name ?? '',
+    surname: d.surname ?? '',
+    phoneNumber: d.phoneNumber ?? '',
+    email: d.email ?? '',
+    state: d.state ?? '',
+    status: d.prospectStatus ?? 'Not Moved',
+    source: 'Survey',
+    createdAt: d.createdAt ?? null,
+    claimCount: Number(d.claimCount) || 0,
+    ratingAvg: scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null,
+    ratingCount: scores.length,
+    answers: {
+      ageRange: d.ageRange ?? '',
+      socialMedia: d.socialMedia ?? [],
+      employedStatus: d.employedStatus ?? '',
+      importanceOfPassiveIncome: d.importanceOfPassiveIncome ?? '',
+      onlinePurchaseSchedule: d.onlinePurchaseSchedule ?? '',
+      primaryOnlineBusinessMotivation: d.primaryOnlineBusinessMotivation ?? '',
+      comfortWithTech: d.comfortWithTech ?? '',
+      onlineBusinessTimeDedication: d.onlineBusinessTimeDedication ?? '',
+      referral: d.referral ?? '',
+      referralCode: d.referralCode ?? '',
+      country: d.country ?? '',
+    },
+  };
+};
+
+/**
+ * GET /v1/prospects/admin/leads — admin pool desk (all states, filterable).
+ * Paginated + summary KPIs in one round trip so the table stays cheap as
+ * the pool grows into the thousands.
+ */
+export class ListAdminLeadsUseCase {
+  /** @param {{surveys}} deps */
+  constructor({ surveys } = {}) {
+    this.surveys = surveys ?? ProspectSurveyModel;
+  }
+
+  async execute({ q = null, state = null, status = null, limit = 25, skip = 0 } = {}) {
+    const lim = Math.min(Math.max(Number(limit) || 25, 1), 100);
+    const sk = Math.max(Number(skip) || 0, 0);
+    const filter = { username: 'business' };
+    const needle = String(q ?? '').trim().slice(0, 60);
+    if (needle) {
+      const rx = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [{ name: rx }, { surname: rx }, { phoneNumber: rx }, { email: rx }];
+    }
+    if (state) filter.stateNorm = normalizeState(state);
+    if (ADMIN_LEAD_STATUSES.includes(status)) filter.prospectStatus = status;
+    const [rows, total, summary] = await Promise.all([
+      this.surveys.find(filter).sort({ createdAt: -1 }).skip(sk).limit(lim).lean().catch(() => []),
+      this.surveys.countDocuments(filter).catch(() => 0),
+      this.surveys.aggregate([
+        { $match: { username: 'business' } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            notMoved: { $sum: { $cond: [{ $eq: ['$prospectStatus', 'Not Moved'] }, 1, 0] } },
+            claimed: { $sum: { $cond: [{ $eq: ['$prospectStatus', 'Claimed'] }, 1, 0] } },
+            moved: { $sum: { $cond: [{ $eq: ['$prospectStatus', 'Moved to Contact'] }, 1, 0] } },
+            new7d: {
+              $sum: {
+                $cond: [{ $gte: ['$createdAt', new Date(Date.now() - 7 * 86400000)] }, 1, 0],
+              },
+            },
+          },
+        },
+      ]).catch(() => []),
+    ]);
+    const s = summary?.[0] ?? {};
+    return {
+      items: (rows ?? []).map(adminShape),
+      total,
+      summary: {
+        total: s.total ?? 0,
+        notMoved: s.notMoved ?? 0,
+        claimed: s.claimed ?? 0,
+        moved: s.moved ?? 0,
+        new7d: s.new7d ?? 0,
+      },
+    };
+  }
+}
+
+/**
+ * DELETE /v1/prospects/admin/leads/:id — hard delete one pool row.
+ * Pool rows are pre-relationship data (no wallet, no pipeline copy while
+ * unclaimed); deleting removes the survey row only. Audited at the route.
+ */
+export class DeleteAdminLeadUseCase {
+  /** @param {{surveys}} deps */
+  constructor({ surveys } = {}) {
+    this.surveys = surveys ?? ProspectSurveyModel;
+  }
+
+  async execute({ id }) {
+    if (!/^[a-fA-F0-9]{24}$/.test(String(id ?? ''))) throw new ValidationException('Invalid lead id');
+    const doc = await this.surveys.findById(id).lean().catch(() => null);
+    if (!doc || doc.username !== 'business') throw new NotFoundException('Pool lead not found');
+    await this.surveys.deleteOne({ _id: id }).catch(() => null);
+    return { id: String(id), name: `${doc.name ?? ''} ${doc.surname ?? ''}`.trim() };
+  }
+}
+
+/**
+ * PATCH /v1/prospects/admin/leads/:id — reset a stuck row to Not Moved
+ * (e.g. a `Claimed` row whose claim crashed mid-flight, or a legacy
+ * `Moved to Contact` leftover with no pipeline copy). Audited at the route.
+ */
+export class ResetAdminLeadUseCase {
+  /** @param {{surveys}} deps */
+  constructor({ surveys } = {}) {
+    this.surveys = surveys ?? ProspectSurveyModel;
+  }
+
+  async execute({ id }) {
+    if (!/^[a-fA-F0-9]{24}$/.test(String(id ?? ''))) throw new ValidationException('Invalid lead id');
+    const doc = await this.surveys.findOneAndUpdate(
+      { _id: id, username: 'business' },
+      { $set: { prospectStatus: 'Not Moved' } },
+      { new: true },
+    ).lean().catch(() => null);
+    if (!doc) throw new NotFoundException('Pool lead not found');
+    return { id: String(doc._id), status: doc.prospectStatus };
   }
 }

@@ -100,6 +100,28 @@ export const makeProspectController = (uc) => ({
     const data = await uc.importLeads.execute({ rows: body.rows });
     res.status(200).json({ message: `Imported ${data.inserted} of ${data.total} leads`, data, success: true });
   }),
+
+  adminLeads: asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const data = await uc.adminLeads.execute({
+      q: q.q, state: q.state,
+      status: q.status && q.status !== 'all' ? q.status : null,
+      limit: q.limit, skip: q.skip,
+    });
+    res.status(200).json({ message: 'Pool leads retrieved successfully', data, success: true });
+  }),
+
+  adminLeadDelete: asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await uc.adminLeadDelete.execute({ id: params.leadId });
+    res.status(200).json({ message: `Pool lead deleted${data.name ? ` (${data.name})` : ''}`, data, success: true });
+  }),
+
+  adminLeadReset: asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await uc.adminLeadReset.execute({ id: params.leadId });
+    res.status(200).json({ message: 'Pool lead reopened — it is claimable again', data, success: true });
+  }),
   getById: asyncHandler(async (req, res) => {
     const data = await uc.getById.execute({ prospectId: pid(req) });
     res.status(200).json({ message: 'Prospect retrieved successfully!', data, success: true });
