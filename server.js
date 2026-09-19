@@ -93,6 +93,7 @@ app.use(cors({
         'https://www.c21fg.online',
         'https://survey.c21fg.online',
         'https://shop.c21fg.online',
+        'https://diamondproject.c21fg.online',
         ...extraOrigins,
     ]
 }));
