@@ -31,6 +31,10 @@ const LEGACY_DROP = [
   { collection: 'prospects', indexName: 'prospectPhone_1' },
   { collection: 'prospects', indexName: 'prospectEmail_1' },
   { collection: 'bookings', indexName: 'username_1' },
+  // Email-subscription username was unique: every footer subscribe
+  // defaulted to 'business', so subscriber #2 onward 500d. Uniqueness
+  // removed from the schema; drop the stale built index here.
+  { collection: 'email-subscriptions', indexName: 'username_1' },
 ];
 
 export const INDEXES = [
@@ -73,6 +77,8 @@ export const INDEXES = [
   { collection: 'events', keys: { startsAt: 1 }, options: {} },
   { collection: 'events', keys: { authorId: 1, startsAt: -1 }, options: {} },
   { collection: 'eventrsvps', keys: { eventId: 1 }, options: {} },
+  // Admin email-list desk: newest-first sort leg.
+  { collection: 'email-subscriptions', keys: { createdAt: -1 }, options: {} },
 ];
 
 /**

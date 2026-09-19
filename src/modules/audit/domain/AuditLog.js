@@ -29,6 +29,7 @@ export const AUDIT_ACTIONS = Object.freeze([
   'broadcast.campaign.retry',
   'broadcast.delete',
   'lead.import', 'lead.delete', 'lead.status',
+  'subscription.delete', 'subscription.status',
   'billing.plan.update',
   'product.create',
   'product.update',

@@ -2,14 +2,32 @@ import {EmailSubscriptionModel} from '../models/email-subscription.model.js';
 import { sendEmail } from "../../../services/emailService.js";
 
   
-// User email subscription
+// User email subscription — idempotent on email (case-insensitive), so
+// double submits and re-subscribes after a delete never create dupes or
+// re-mail the owner.
 export const emailSubscription = async (req, res) => {
     try {
 
      // console.log('sent==',req.body);
 
+        const email = String(req.body.email ?? '').trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({
+              success: false,
+              message: "Enter a valid email address.",
+            });
+        }
+        const existing = await EmailSubscriptionModel.findOne({ email }).collation({ locale: 'en', strength: 2 });
+        if (existing) {
+            return res.status(200).json({
+              success: true,
+              message: "You are already on the list. We will not spam your mailbox.",
+              emailSubscription: existing,
+            });
+        }
+
         const emailSubscription = await EmailSubscriptionModel.create({
-            email: req.body.email,
+            email,
             userDevice: req.body.userDevice,
             username: req.body.username,
         });

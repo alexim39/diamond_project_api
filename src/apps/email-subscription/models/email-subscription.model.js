@@ -23,7 +23,10 @@ const emailSubscriptionSchema = mongoose.Schema(
         username: {
             type: String,
             default: 'business',
-            unique: true,
+            // Never unique: every footer subscribe without a partner link
+            // stores 'business' — a unique leg 500s every subscriber after
+            // the first. (The stale username_1 index is dropped at boot;
+            // see LEGACY_DROP in shared/mongo/indexes.js.)
             //required: [true, "Please enter username"]
         },
         
