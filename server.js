@@ -89,9 +89,11 @@ app.use(cors({
     origin: [
         'http://localhost:4200', 
         'http://localhost:4201', 
+        'http://localhost:4202',
         'https://c21fg.online',
         'https://www.c21fg.online',
         'https://survey.c21fg.online',
+        'http://survey.c21fg.online',
         'https://shop.c21fg.online',
         'https://diamondproject.c21fg.online',
         ...extraOrigins,
