@@ -1,8 +1,8 @@
 import express from 'express';
 import { 
-    checkPartnerUsername, getAllUsers,
+    checkPartnerUsername, getAllUsers, searchPartnersPublic,
      getPartnerByNames, getPartnerByName,
-    tiktokPage, twitterPage, updateTestimonial,
+    tiktokPage, twitterPage, updateTestimonial, updateLandingPage,
     updateYoutubePage, updateInstagramPage,
     updateFacebookPage, updateLinkedinPage,
     updateProfile, updateWhatsappGroupLink, updateWhatsappChatLink,
@@ -12,6 +12,9 @@ import {
 const PartnerRouter = express.Router();
 
 
+
+// public referral picker (safe fields, no auth — used by Get Started)
+PartnerRouter.get('/public-search', searchPartnersPublic);
 
 // get a partner
 PartnerRouter.get('/check-username/:username', checkPartnerUsername);
@@ -57,6 +60,8 @@ PartnerRouter.put('/tiktokPage', tiktokPage);
 PartnerRouter.put('/twitterPage', twitterPage);
 // update testimonial
 PartnerRouter.put('/testimonial', updateTestimonial);
+// unified public one-pager save (/:partnerUsername content)
+PartnerRouter.put('/landing-page', updateLandingPage);
 
 // get all partnersOf
 PartnerRouter.get('/getPartnersOf/:partnerId', getPartnersOf);

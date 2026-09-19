@@ -141,6 +141,58 @@ const partnersSchema = mongoose.Schema(
     twitterPage: {
       type: String,
     },
+    // Public one-pager (/:partnerUsername) content — all optional, edited in
+    // Partner → Settings → Landing page. Flat + nullable so legacy rows
+    // without these fields keep working.
+    headline: {
+      type: String,
+      maxlength: 140,
+    },
+    subHeadline: {
+      type: String,
+      maxlength: 300,
+    },
+    heroBadge: {
+      type: String,
+      maxlength: 80,
+    },
+    businessTagline: {
+      type: String,
+      maxlength: 140,
+    },
+    aboutStory: {
+      type: String,
+      maxlength: 2000,
+    },
+    achievements: {
+      type: String,
+      maxlength: 1000,
+    },
+    inviteNote: {
+      type: String,
+      maxlength: 1000,
+    },
+    opportunityPoints: {
+      type: [String],
+      default: undefined,
+    },
+    videoTestimonialUrl: {
+      type: String,
+    },
+    displayPhone: {
+      type: String,
+    },
+    displayEmail: {
+      type: String,
+    },
+    locationDisplay: {
+      type: String,
+      maxlength: 120,
+    },
+    whatsappCtaText: {
+      type: String,
+      maxlength: 140,
+    },
     followers: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Partner'

@@ -68,6 +68,8 @@ import { MongoNetworkRepository } from './src/modules/network/infrastructure/Net
 import { buildSmsSender } from './src/modules/notifications/infrastructure/SmsSender.js';
 import { buildPushSender } from './src/modules/notifications/infrastructure/PushSender.js';
 import ProspectV1Router from './src/modules/crm/index.js';
+import PagesRouter from './src/modules/partner-pages/interface/Pages.routes.js';
+import PartnerSurveysRouter from './src/modules/partner-surveys/interface/Surveys.routes.js';
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 import { ensureIndexes } from './src/shared/mongo/indexes.js';
 import { scheduleJobs } from './src/jobs/schedule.js';
@@ -124,6 +126,8 @@ app.use('/settings', SettingsRouter);
 app.use('/v1/tickets', TicketV1Router);
 app.use('/v1/auth', AuthV1Router);
 app.use('/v1/prospects', ProspectV1Router);
+app.use('/v1/admin/pages', PagesRouter);
+app.use('/v1/admin/partner-surveys', PartnerSurveysRouter);
 app.use('/v1/admin', AdminRouter);
 app.use('/v1/network', NetworkRouter);
 app.use('/v1/billing', BillingRouter);

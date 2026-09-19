@@ -8,6 +8,36 @@ dotenv.config()
 import mongoose from 'mongoose';
 
 
+// Public referral picker — safe fields only (no email/phone/password).
+// GET /partners/public-search?q=ada — min 2 chars, max 8 rows.
+export const searchPartnersPublic = async (req, res) => {
+  try {
+    const q = String(req.query.q ?? '').trim().slice(0, 60);
+    if (q.length < 2) {
+      return res.status(200).json({ partners: [], success: true });
+    }
+    const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const rows = await PartnersModel.find({
+      $or: [{ username: rx }, { name: rx }, { surname: rx }],
+    })
+      .select('username name surname profileImage jobTitle address')
+      .limit(8)
+      .lean();
+    const partners = (rows ?? []).map((p) => ({
+      username: p.username ?? '',
+      name: p.name ?? '',
+      surname: p.surname ?? '',
+      profileImage: p.profileImage ?? '',
+      jobTitle: p.jobTitle ?? '',
+      state: p.address?.state ?? '',
+      city: p.address?.city ?? '',
+    })).filter((p) => p.username);
+    res.status(200).json({ partners, success: true });
+  } catch (error) {
+    res.status(500).json({ message: 'Search failed', success: false });
+  }
+};
+
 // Check if a partner exists
 export const checkPartnerUsername = async (req, res) => {
   const { username } = req.params;
@@ -530,6 +560,63 @@ export const updateTestimonial = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "An error occurred while updating the testimonial.",
+      error: error.message,
+      success: false
+    });
+  }
+};
+
+// Update public one-pager content (/:partnerUsername) — single allowlisted
+// write so the Landing page editor saves atomically. All fields optional
+// except partnerId; empty strings clear, undefined leaves untouched.
+export const updateLandingPage = async (req, res) => {
+  try {
+    const { partnerId, ...rest } = req.body || {};
+    if (!partnerId) {
+      return res.status(400).json({
+        message: "partnerId is required.",
+        success: false
+      });
+    }
+    const ALLOWED = [
+      'headline', 'subHeadline', 'heroBadge', 'businessTagline',
+      'aboutStory', 'achievements', 'inviteNote', 'opportunityPoints',
+      'videoTestimonialUrl', 'displayPhone', 'displayEmail',
+      'locationDisplay', 'whatsappCtaText', 'testimonial',
+      'jobTitle', 'bio',
+      'whatsappGroupLink', 'whatsappChatLink',
+      'facebookPage', 'linkedinPage', 'youtubePage',
+      'instagramPage', 'tiktokPage', 'twitterPage',
+    ];
+    const updateData = {};
+    for (const key of ALLOWED) {
+      if (rest[key] === undefined) continue;
+      if (key === 'opportunityPoints' && Array.isArray(rest[key])) {
+        updateData[key] = rest[key].map((s) => String(s).slice(0, 200)).filter((s) => s.trim()).slice(0, 8);
+      } else if (typeof rest[key] === 'string') {
+        updateData[key] = rest[key].trim() === '' ? '' : rest[key].trim();
+      } else {
+        updateData[key] = rest[key];
+      }
+    }
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        message: "Nothing to update.",
+        success: false
+      });
+    }
+    const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });
+    if (!partner) {
+      return res.status(404).json({ message: "Partner not found.", success: false });
+    }
+    res.status(200).json({
+      message: "Landing page updated successfully!",
+      data: partner,
+      success: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "An error occurred while updating the landing page.",
       error: error.message,
       success: false
     });

@@ -47,6 +47,22 @@ export const ProspectSurveyForm = async (req, res) => {
       } catch { /* arrival alerts never fail the submit */ }
     };
 
+    const notifyPageLead = async (partner) => {
+      try {
+        const stored = new MongoStoredNotificationStore();
+        await new NotifyUseCase({ stored }).execute({
+          recipientId: String(partner._id),
+          category: 'system',
+          priority: 'high',
+          title: `New page lead: ${surveyData.name ?? 'Someone'} via /${surveyData.username}`,
+          body: `${surveyData.name ?? 'Someone'} (${surveyData.phoneNumber ?? 'no phone'}) joined via your public page — open My Page Leads to accept.`,
+          icon: 'inbox',
+          link: '/dashboard/prospects/personal-list',
+          key: `page-lead:${String(survey._id)}:${String(partner._id)}`,
+        });
+      } catch { /* arrival alerts never fail the submit */ }
+    };
+
     // Prepare email templates
     const ownerSubject = 'New Prospect Notification - Diamond Project';
     const ownerMessage = ownerEmailTemplate(surveyData);
@@ -65,6 +81,7 @@ export const ProspectSurveyForm = async (req, res) => {
         referringPartner.settings.notification.receive !== 'off')
     ) {
       await sendEmail(referringPartner.email, ownerSubject, ownerMessage);
+      await notifyPageLead(referringPartner);
     } else {
       // Case 2: partners in the lead's (normalized) state. Normalization
       // matters: exact-match once spammed the whole platform over casing.

@@ -4,6 +4,8 @@ export const ownerEmailTemplate = (surveyData) => {
 
   const name = capitalize(surveyData.name);
   const surname = capitalize(surveyData.surname);
+  const socials = Array.isArray(surveyData.socialMedia) ? surveyData.socialMedia.join(', ') : (surveyData.socialMedia ?? '');
+  const pagePath = surveyData.username && surveyData.username !== 'business' ? `/${surveyData.username}` : '/';
 
   return `
   <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);">
@@ -33,6 +35,50 @@ export const ownerEmailTemplate = (surveyData) => {
           <td style="padding: 8px 0;">${surname}</td>
         </tr>
         <tr>
+          <td style="padding: 8px 0;"><strong>Phone:</strong></td>
+          <td style="padding: 8px 0;">${surveyData.phoneNumber ?? ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>Email:</strong></td>
+          <td style="padding: 8px 0;">${surveyData.email ?? ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>Age range:</strong></td>
+          <td style="padding: 8px 0;">${surveyData.ageRange ?? ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>Social media:</strong></td>
+          <td style="padding: 8px 0;">${socials}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>Employment:</strong></td>
+          <td style="padding: 8px 0;">${surveyData.employedStatus ?? ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>Passive income importance:</strong></td>
+          <td style="padding: 8px 0;">${surveyData.importanceOfPassiveIncome ?? ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>Online purchase habit:</strong></td>
+          <td style="padding: 8px 0;">${surveyData.onlinePurchaseSchedule ?? ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>Motivation:</strong></td>
+          <td style="padding: 8px 0;">${surveyData.primaryOnlineBusinessMotivation ?? ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>Tech comfort:</strong></td>
+          <td style="padding: 8px 0;">${surveyData.comfortWithTech ?? ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>Weekly hours:</strong></td>
+          <td style="padding: 8px 0;">${surveyData.onlineBusinessTimeDedication ?? ''}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>Heard via:</strong></td>
+          <td style="padding: 8px 0;">${surveyData.referral ?? ''}${surveyData.referralCode ? ` (${surveyData.referralCode})` : ''}</td>
+        </tr>
+        <tr>
           <td style="padding: 8px 0;"><strong>Country:</strong></td>
           <td style="padding: 8px 0;">${surveyData.country}</td>
         </tr>
@@ -40,7 +86,13 @@ export const ownerEmailTemplate = (surveyData) => {
           <td style="padding: 8px 0;"><strong>State:</strong></td>
           <td style="padding: 8px 0;">${surveyData.state}</td>
         </tr>
+        <tr>
+          <td style="padding: 8px 0;"><strong>Via page:</strong></td>
+          <td style="padding: 8px 0;">${pagePath}</td>
+        </tr>
       </table>
+
+      <p style="font-size: 14px; line-height: 1.6;">Full answers are also in your dashboard: Prospects → My Page Leads → click the name. Accept with “Move to Contact” to work the lead in your pipeline.</p>
 
       <div style="text-align: center; margin: 30px 0;">
         <a href="https://c21fg.online/" 

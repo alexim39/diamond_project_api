@@ -111,6 +111,11 @@ export const ClaimProspectSchema = z.object({
   source: z.enum(['website', 'link']).optional().default('website'),
 });
 
+/** POST /v1/prospects/accept-page-lead — free accept of your own page lead. */
+export const AcceptPageLeadSchema = z.object({
+  surveyId: objectId,
+});
+
 /** GET /v1/prospects/pool — geo-fenced scored shelf (admins may filter state). */
 export const PoolQuery = z.object({
   state: z.string().trim().max(80).optional(),
@@ -141,3 +146,21 @@ export const AdminLeadsQuery = z.object({
 
 /** :leadId for admin pool rows (survey ObjectIds). */
 export const LeadIdParam = z.object({ leadId: objectId });
+
+/** GET /v1/prospects/admin/page-leads — private page-lead desk (admin). */
+export const AdminPageLeadsQuery = z.object({
+  q: z.string().trim().max(60).optional(),
+  owner: z.string().trim().max(80).optional(),
+  state: z.string().trim().max(80).optional(),
+  status: z.enum(['Not Moved', 'Claimed', 'Moved to Contact', 'Returned from contact List', 'all']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  skip: z.coerce.number().int().min(0).optional(),
+});
+
+/** :pageLeadId for admin page-lead rows (survey ObjectIds). */
+export const PageLeadIdParam = z.object({ pageLeadId: objectId });
+
+/** PATCH /v1/prospects/admin/page-leads/:id — reassign owner. */
+export const ReassignPageLeadSchema = z.object({
+  owner: z.string().trim().min(2).max(80),
+});

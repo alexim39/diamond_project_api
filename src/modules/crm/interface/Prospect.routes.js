@@ -5,8 +5,8 @@ import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
   ProspectIdParam, PartnerIdParam, CreateProspectSchema, UpdateProspectSchema,
   UpdateStatusSchema, LogCommunicationSchema, PaginationQuery, CommIdsParam, StuckQuery,
-  ConvertProspectSchema, ClaimProspectSchema, PoolQuery, RateLeadSchema, ImportLeadsSchema,
-  AdminLeadsQuery, LeadIdParam,
+  ConvertProspectSchema, ClaimProspectSchema, AcceptPageLeadSchema, PoolQuery, RateLeadSchema, ImportLeadsSchema,
+  AdminLeadsQuery, LeadIdParam, AdminPageLeadsQuery, PageLeadIdParam, ReassignPageLeadSchema,
 } from './Prospect.validator.js';
 import { requireRole } from '../../identity-access/interface/RequireRole.js';
 import { makeProspectController } from './Prospect.controller.js';
@@ -26,10 +26,14 @@ import { MongoCampaignLookup } from '../../marketing/infrastructure/Marketing.mo
 import { ConvertProspectToPartnerUseCase } from '../application/Prospect.convert.js';
 import { ReleaseProspectToPoolUseCase } from '../application/Prospect.release.js';
 import { ClaimPoolLeadUseCase } from '../application/Prospect.claim.js';
+import { AcceptPageLeadUseCase } from '../application/Prospect.accept.js';
 import { GetPoolUseCase, RateLeadUseCase, ImportLeadsUseCase } from '../application/Prospect.pool.js';
 import {
   ListAdminLeadsUseCase, DeleteAdminLeadUseCase, ResetAdminLeadUseCase,
 } from '../application/Prospect.pool.js';
+import {
+  ListAdminPageLeadsUseCase, DeleteAdminPageLeadUseCase, ReassignAdminPageLeadUseCase,
+} from '../application/Prospect.pageLeads.js';
 import { recordAudit } from '../../audit/index.js';import { domainEvents } from '../../../shared/events/DomainEvents.js';
 
 /**
@@ -116,6 +120,13 @@ export const buildProspectRouter = (deps = {}) => {
 
   router.post('/claim', validate({ body: ClaimProspectSchema }), c.claim);
 
+  router.post('/accept-page-lead', validate({ body: AcceptPageLeadSchema }), asyncHandler(async (req, res) => {
+    const body = req.validated?.body ?? req.body;
+    const accepter = deps.acceptPageLead ?? new AcceptPageLeadUseCase({});
+    const data = await accepter.execute({ partnerId: req.auth?.partnerId, surveyId: body.surveyId });
+    res.status(200).json({ message: 'Lead accepted — find it in My follow-ups.', data, success: true });
+  }));
+
   router.get('/pool', validate({ query: PoolQuery }), c.pool);
 
   router.post('/:prospectId/rate', validate({ params: ProspectIdParam, body: RateLeadSchema }), c.rate);
@@ -161,6 +172,43 @@ export const buildProspectRouter = (deps = {}) => {
       detail: { status: data.status },
     });
     res.status(200).json({ message: 'Pool lead reopened — it is claimable again', data, success: true });
+  }));
+
+  // Admin page-lead desk — private /:username submissions (never pool rows).
+  router.get('/admin/page-leads', requireRole('admin'), validate({ query: AdminPageLeadsQuery }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const lister = deps.adminPageLeads ?? new ListAdminPageLeadsUseCase({});
+    const data = await lister.execute({
+      q: q.q, owner: q.owner, state: q.state,
+      status: q.status && q.status !== 'all' ? q.status : null,
+      limit: q.limit, skip: q.skip,
+    });
+    res.status(200).json({ message: 'Page leads retrieved successfully', data, success: true });
+  }));
+
+  router.delete('/admin/page-leads/:pageLeadId', requireRole('admin'), validate({ params: PageLeadIdParam }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const remover = deps.adminPageLeadDelete ?? new DeleteAdminPageLeadUseCase({});
+    const data = await remover.execute({ id: params.pageLeadId });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'pagelead.delete',
+      targetType: 'pagelead', targetId: data.id,
+      detail: { name: data.name, owner: data.owner },
+    });
+    res.status(200).json({ message: `Page lead deleted${data.name ? ` (${data.name})` : ''}`, data, success: true });
+  }));
+
+  router.patch('/admin/page-leads/:pageLeadId', requireRole('admin'), validate({ params: PageLeadIdParam, body: ReassignPageLeadSchema }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const reassigner = deps.adminPageLeadReassign ?? new ReassignAdminPageLeadUseCase({});
+    const data = await reassigner.execute({ id: params.pageLeadId, owner: body.owner });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'pagelead.reassign',
+      targetType: 'pagelead', targetId: data.id,
+      detail: { owner: data.owner },
+    });
+    res.status(200).json({ message: `Page lead moved to @${data.owner} — visible in their My Page Leads`, data, success: true });
   }));
 
   router.post('/:prospectId/communications', validate({ params: ProspectIdParam, body: LogCommunicationSchema }), c.logCommunication);
