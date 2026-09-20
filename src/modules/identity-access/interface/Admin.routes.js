@@ -5,7 +5,7 @@ import { requireRole } from './RequireRole.js';
 import { z } from 'zod';
 import { ROLES } from '../domain/PartnerRole.js';
 import { makeAdminController } from './Admin.controller.js';
-import { ListPartnersUseCase, SetPartnerRoleUseCase, SetSuspendUseCase, PlatformStatsUseCase, ResetOnBehalfUseCase, ErasePartnerUseCase } from '../application/Admin.usecase.js';
+import { ListPartnersUseCase, SetPartnerRoleUseCase, SetSuspendUseCase, PlatformStatsUseCase, ResetOnBehalfUseCase, ErasePartnerUseCase, ReassignUplineUseCase } from '../application/Admin.usecase.js';
 import { GetMember360UseCase } from '../application/Member360.usecase.js';
 import { RequestPasswordResetUseCase } from '../application/PasswordReset.usecase.js';
 import { PasswordResetMailer } from '../infrastructure/clients/PasswordResetMailer.js';
@@ -37,10 +37,14 @@ const AdminListQuery = z.object({
   // `new7` (joined in the last 7 days).
   login: z.enum(['all', 'dormant30', 'new7']).optional().default('all'),
 });
-const SetSuspendSchema = z.object({
+  const SetSuspendSchema = z.object({
   suspended: z.boolean(),
   reason: z.string().trim().max(500).optional(),
 });
+const ReassignUplineSchema = z.object({
+  newUplineId: z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id').optional(),
+  newUplineUsername: z.string().trim().min(2).max(80).optional(),
+}).refine((v) => !!v.newUplineId || !!v.newUplineUsername, { message: 'Provide newUplineId or newUplineUsername' });
 
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
 export const buildAdminRouter = (deps = {}) => {
@@ -76,6 +80,7 @@ export const buildAdminRouter = (deps = {}) => {
       codes: deps.codes ?? new MongoReservationCodes(),
       sessions,
     }),
+    reassignUpline: deps.reassignUpline ?? new ReassignUplineUseCase({ partners }),
     member360: deps.member360 ?? new GetMember360UseCase({
       partners,
       transactions: deps.transactions ?? TransactionModel,
@@ -90,6 +95,7 @@ export const buildAdminRouter = (deps = {}) => {
   router.get('/partners', validate({ query: AdminListQuery }), controller.list);
   router.patch('/partners/:partnerId/role', validate({ params: PartnerIdParam, body: SetRoleSchema }), controller.setRole);
   router.patch('/partners/:partnerId/suspend', validate({ params: PartnerIdParam, body: SetSuspendSchema }), controller.suspend);
+  router.patch('/partners/:partnerId/upline', validate({ params: PartnerIdParam, body: ReassignUplineSchema }), controller.reassignUpline);
   router.get('/stats', controller.stats);
   // Force sign-out: revokes live JWTs (sessions die on next call). Self allowed.
   router.post('/partners/:partnerId/signout', validate({ params: PartnerIdParam }), controller.signOut);

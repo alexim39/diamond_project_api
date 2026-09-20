@@ -2,7 +2,7 @@ import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { recordAudit } from '../../audit/index.js';
 
 /** Admin console adapters — all routes behind requireAuth + requireRole('admin'). */
-export const makeAdminController = ({ setRole, listPartners, setSuspend, platformStats, signOut, resetOnBehalf, erase, member360 }) => ({
+export const makeAdminController = ({ setRole, listPartners, setSuspend, platformStats, signOut, resetOnBehalf, erase, member360, reassignUpline }) => ({
   setRole: asyncHandler(async (req, res) => {
     const params = req.validated?.params ?? req.params;
     const body = req.validated?.body ?? req.body;
@@ -95,5 +95,22 @@ export const makeAdminController = ({ setRole, listPartners, setSuspend, platfor
     const params = req.validated?.params ?? req.params;
     const data = await member360.execute({ requesterId: req.auth?.partnerId, partnerId: params.partnerId });
     res.status(200).json({ message: 'Member profile retrieved successfully', data, success: true });
+  }),
+
+  reassignUpline: asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const data = await reassignUpline.execute({
+      requesterId: req.auth?.partnerId,
+      partnerId: params.partnerId,
+      newUplineId: body.newUplineId ?? null,
+      newUplineUsername: body.newUplineUsername ?? null,
+    });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'account.reassign-upline',
+      targetType: 'partner', targetId: params.partnerId,
+      detail: { from: data.prevUplineId, to: data.newUplineId, toUsername: data.newUplineUsername },
+    });
+    res.status(200).json({ message: `Upline moved to @${data.newUplineUsername ?? data.newUplineId}`, data: data.member, success: true });
   }),
 });

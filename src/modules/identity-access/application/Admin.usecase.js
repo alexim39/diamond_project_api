@@ -139,6 +139,82 @@ export class ResetOnBehalfUseCase {
 }
 
 /**
+ * Reassign a partner's direct upline (partnerOf). Admin-only.
+ * Guards: not yourself, target exists, no self-loop, no cycle
+ * (new upline cannot be the member's own descendant). Commission,
+ * tree and progression downstream recalc on next read — this only
+ * rewires the parent pointer and audits the move.
+ */
+export class ReassignUplineUseCase {
+  /** @param {{partners, network}} deps */
+  constructor({ partners, network }) {
+    Object.assign(this, { partners, network });
+  }
+
+  async execute({ requesterId, partnerId, newUplineId, newUplineUsername }) {
+    if (String(requesterId) === String(partnerId)) {
+      throw new ForbiddenException('You cannot change your own upline');
+    }
+    const member = await this.partners.findById(partnerId);
+    if (!member) throw new NotFoundException('Partner not found');
+
+    let targetId = newUplineId ? String(newUplineId).trim() : '';
+    const username = newUplineUsername ? String(newUplineUsername).trim() : '';
+
+    let target = null;
+    if (targetId) {
+      target = await this.partners.findById(targetId);
+      if (!target) throw new NotFoundException('New upline not found');
+    } else if (username) {
+      // Resolve by username for the admin UX (type @market).
+      const clean = username.replace(/^@/, '').trim();
+      if (!clean) throw new ValidationException('Provide a valid username');
+      const { PartnersModel } = await import('../../../apps/partner/models/partner.model.js');
+      target = await PartnersModel.findOne({ username: clean }).lean().catch(() => null);
+      if (!target) throw new NotFoundException(`Partner @${clean} not found`);
+      targetId = String(target._id ?? target.id);
+    } else {
+      throw new ValidationException('Provide new upline id or username');
+    }
+
+    if (String(partnerId) === String(targetId)) {
+      throw new ValidationException('A partner cannot be their own upline');
+    }
+
+    // Cycle guard: new upline must not sit under the member.
+    if (this.network?.isAncestor) {
+      const cycle = await this.network.isAncestor(partnerId, targetId).catch(() => false);
+      if (cycle) throw new ConflictException('Cannot move a partner under their own downline — would create a cycle');
+    } else {
+      // Fallback BFS via network repo (collect downline).
+      const downline = await this.partners.collectDownline?.(partnerId).catch(() => null);
+      if (downline) {
+        const ids = Array.isArray(downline) ? downline : downline.ids ?? [];
+        if (ids.map(String).includes(String(targetId))) {
+          throw new ConflictException('Cannot move a partner under their own downline — would create a cycle');
+        }
+      }
+      // Last resort: walk parent chain of target up to 20 hops.
+      if (!downline && this.partners.findById) {
+        let cur = await this.partners.findById(targetId).catch(() => null);
+        for (let d = 0; d < 20 && cur; d++) {
+          const pid = cur.partnerOf ? String(cur.partnerOf) : null;
+          if (!pid) break;
+          if (pid === String(partnerId)) {
+            throw new ConflictException('Cannot move a partner under their own downline — would create a cycle');
+          }
+          cur = await this.partners.findById(pid).catch(() => null);
+        }
+      }
+    }
+
+    const prevUplineId = member.partnerOf ? String(member.partnerOf) : null;
+    const updated = await this.partners.updateById(partnerId, { partnerOf: targetId });
+    return { member: toSafePartner(updated), prevUplineId, newUplineId: String(targetId), newUplineUsername: target?.username ?? username };
+  }
+}
+
+/**
  * GDPR erasure: anonymize PII + delete member-owned working data.
  * Guards: never yourself, never the last admin, and never a partner
  * with downline — reassign recruits first (dangling partnerOf links
