@@ -35,10 +35,25 @@ export class MongoPartnerRepository {
   }
   /** Login telemetry (Member 360) — stamp only, never fails signin. */
   async trackLogin(id, { at, ip = null, agent = null } = {}) {
+    const now = at ?? new Date();
     return PartnersModel.findByIdAndUpdate(id, {
-      $set: { lastLoginAt: at ?? new Date(), ...(ip ? { lastLoginIp: ip } : {}), ...(agent ? { lastLoginAgent: agent } : {}) },
+      $set: { lastLoginAt: now, lastSeenAt: now, ...(ip ? { lastLoginIp: ip } : {}), ...(agent ? { lastLoginAgent: agent } : {}) },
       $inc: { loginCount: 1 },
     }).lean().catch(() => null);
+  }
+
+  /**
+   * Presence heartbeat — stamps `lastSeenAt` at most once per `idleMs`
+   * (default 2 min) so a 4-min app ping costs ~1 write per cycle, not per
+   * request. Returns true when a write happened.
+   */
+  async touchPresence(id, { idleMs = 120000, now = new Date() } = {}) {
+    const cutoff = new Date(new Date(now).getTime() - Math.max(0, Number(idleMs) || 0));
+    const res = await PartnersModel.updateOne(
+      { _id: id, $or: [{ lastSeenAt: null }, { lastSeenAt: { $lt: cutoff } }] },
+      { $set: { lastSeenAt: now instanceof Date ? now : new Date() } },
+    ).catch(() => null);
+    return (res?.modifiedCount ?? 0) > 0;
   }
   /** Signup cohort for activation analytics (bounded, recent first). */
   async activationCohort(ids, since) {
@@ -99,6 +114,11 @@ export class MongoPartnerRepository {
     else if (suspended === 'no') filter.suspendedAt = null;
     // Login-window filter for the directory's Active/Dormant tabs.
     const days = login === 'dormant30' ? 30 : login === 'new7' ? 7 : null;
+    // Presence filters for the directory's Online tabs (lastSeenAt window).
+    const presenceMin = login === 'online' ? 5 : login === 'active1h' ? 60 : null;
+    if (presenceMin !== null) {
+      filter.lastSeenAt = { $gte: new Date(Date.now() - presenceMin * 60000) };
+    }
     if (days !== null) {
       const cutoff = new Date(Date.now() - days * 86400000);
       if (login === 'dormant30') {

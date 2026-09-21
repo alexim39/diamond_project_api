@@ -34,8 +34,9 @@ const AdminListQuery = z.object({
   // non-empty-string-is-true trap ('false' would coerce to true).
   suspended: z.enum(['all', 'yes', 'no']).optional().default('all'),
   // Engagement window: `dormant30` (no login in 30d incl. never-seen),
-  // `new7` (joined in the last 7 days).
-  login: z.enum(['all', 'dormant30', 'new7']).optional().default('all'),
+  // `new7` (joined in the last 7 days), `online` (seen in the last 5 min),
+  // `active1h` (seen in the last 60 min).
+  login: z.enum(['all', 'dormant30', 'new7', 'online', 'active1h']).optional().default('all'),
 });
   const SetSuspendSchema = z.object({
   suspended: z.boolean(),

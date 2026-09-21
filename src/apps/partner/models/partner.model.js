@@ -209,8 +209,7 @@ const partnersSchema = mongoose.Schema(
       type: Date,
       default: null,
       index: true,
-    },
-    lastLoginIp: {
+    },    lastLoginIp: {
       type: String,
       default: null,
     },
@@ -221,6 +220,13 @@ const partnersSchema = mongoose.Schema(
     loginCount: {
       type: Number,
       default: 0,
+    },
+    // Presence heartbeat — stamped on signin + throttled app ping while the
+    // dashboard is open. Powers the admin "Online now" pill. Null = offline.
+    lastSeenAt: {
+      type: Date,
+      default: null,
+      index: true,
     },
     subscription: {
       status: { 

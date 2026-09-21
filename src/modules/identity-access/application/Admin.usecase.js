@@ -48,7 +48,7 @@ export class ListPartnersUseCase {
       q: String(q ?? '').trim(),
       role: role && role !== 'all' ? String(role).toLowerCase() : null,
       suspended: ['yes', 'no'].includes(suspended) ? suspended : 'all',
-      login: ['dormant30', 'new7'].includes(login) ? login : 'all',
+      login: ['dormant30', 'new7', 'online', 'active1h'].includes(login) ? login : 'all',
     });
     return { items: items.map(toSafePartner), total, limit: lim, skip: sk };
   }

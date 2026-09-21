@@ -3,6 +3,7 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { SignupSchema, SigninSchema, ResetRequestSchema, ResetConfirmSchema } from './Auth.validator.js';
 import { makeAuthController } from './Auth.controller.js';
+import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { SignupUseCase } from '../application/Signup.usecase.js';
 import { SigninUseCase } from '../application/Signin.usecase.js';
 import { GetCurrentPartnerUseCase } from '../application/GetCurrentPartner.usecase.js';
@@ -40,6 +41,13 @@ export const buildAuthRouter = (deps = {}) => {
   router.post('/signout', controller.signout);
   router.get('/me', requireAuth, controller.me);
   router.get('/', requireAuth, controller.me); // legacy alias for GET /auth
+  // Presence heartbeat — the dashboard shell pings every few minutes while
+  // open; the write is throttled server-side (see touchPresence), and the
+  // admin directory reads it as "Online now" (5-min window).
+  router.post('/ping', requireAuth, asyncHandler(async (req, res) => {
+    await partners.touchPresence(req.auth?.partnerId).catch(() => false);
+    res.status(200).json({ message: 'Presence recorded', success: true });
+  }));
   router.post('/reset-password-request', validate({ body: ResetRequestSchema }), controller.requestPasswordReset);
   router.post('/reset-password', validate({ body: ResetConfirmSchema }), controller.resetPassword);
   return router;
