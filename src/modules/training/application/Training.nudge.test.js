@@ -56,7 +56,8 @@ describe('TeamMemberDetailUseCase', () => {
     assert.equal(ipo.lessons.find((l) => l.lessonId === 'ipo-1').done, true);
     assert.equal(ipo.lessons.find((l) => l.lessonId === 'ipo-2').done, false);
     assert.equal(ipo.lessons.find((l) => l.lessonId === 'ipo-1').hasVideo, true);
-    assert.equal(ipo.lessons.find((l) => l.lessonId === 'ipo-2').hasVideo, false);
+    assert.equal(ipo.lessons.find((l) => l.lessonId === 'ipo-2').hasVideo, true);
+    assert.equal(ipo.lessons.find((l) => l.lessonId === 'ipo-3').hasVideo, true);
     assert.equal(d.overallPercent, Math.round(100 / 3 / 4));
   });
 

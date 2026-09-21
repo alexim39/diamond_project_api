@@ -54,6 +54,25 @@ describe('courseProgress', () => {
     assert.equal(l1.durationSec, 2445);
   });
 
+  it('ipo-2 carries the commissions video + 15-question quiz', () => {
+    const course = getCourse('ipo');
+    const l2 = course.lessons.find((l) => l.id === 'ipo-2');
+    assert.equal(l2.videoUrl, '/courses/ipo/FINANCIAL-ARCHITECTURAL-BLUEPRINT-GODS-WAY.mp4');
+    assert.ok((l2.transcript ?? '').length > 50);
+    assert.equal(l2.quiz.length, 15);
+    assert.ok(l2.quiz.every((q) => q.options.length === 3 && Number.isInteger(q.answer)));
+  });
+
+  it('ipo-3 carries the first-30-days video + motivational lesson + 10-question quiz', () => {
+    const course = getCourse('ipo');
+    const l3 = course.lessons.find((l) => l.id === 'ipo-3');
+    assert.equal(l3.videoUrl, '/courses/ipo/The-First-Step-For-Network-Marketing-Success.mp4');
+    assert.ok((l3.body ?? '').length > 200);
+    assert.ok((l3.transcript ?? '').length > 50);
+    assert.equal(l3.quiz.length, 10);
+    assert.ok(l3.quiz.every((q) => q.options.length === 3 && Number.isInteger(q.answer)));
+  });
+
   it('catalog summaries stay counts (detail shape is separate)', () => {
     const summaries = catalogSummaries();
     assert.equal(summaries.find((c) => c.id === 'ipo').lessons, 3);

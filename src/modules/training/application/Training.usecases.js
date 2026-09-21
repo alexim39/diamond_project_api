@@ -4,6 +4,10 @@ import { ForbiddenException } from '../../../shared/domain/AppError.js';
 
 export const WATCH_REQUIRED_PERCENT = 90;
 
+/** Anti-spoof caps for watch heartbeats (see RecordWatchUseCase). */
+export const WATCH_MAX_JUMP_PCT = 35;
+export const WATCH_JUMP_GRACE_SEC = 30;
+
 /** Online IPO / QSG / SMO / Leadership — completion feeds the ladder. */
 export class ListCoursesUseCase {
   /** @param {{training}} deps */
@@ -61,7 +65,40 @@ export class RecordWatchUseCase {
     if (!lesson.videoUrl) {
       throw new (await import('../../../shared/domain/AppError.js')).ValidationException('Lesson has no video');
     }
-    return this.training.recordWatch(partnerId, courseId, lessonId, percent, seconds);
+    const pct = Math.min(100, Math.max(0, Math.round(Number(percent) || 0)));
+    const sec = Math.max(0, Math.round(Number(seconds) || 0));
+    // Anti-spoof: heartbeats must climb plausibly. A genuine client sends
+    // ~10% steps with seconds tracking playback, so cap per-request jumps
+    // and require seconds to move with percent. Direct API forgers must then
+    // drip-feed dozens of time-spaced requests — costlier than watching.
+    const current = typeof this.training.getWatch === 'function'
+      ? await this.training.getWatch(partnerId, courseId).catch(() => ({}))
+      : {};
+    const prev = current?.[lessonId] ?? null;
+    const prevPct = Number(prev?.percent) || 0;
+    const prevSec = Number(prev?.seconds) || 0;
+    if (pct > prevPct) {
+      if (pct - prevPct > WATCH_MAX_JUMP_PCT) {
+        throw new (await import('../../../shared/domain/AppError.js')).ValidationException(
+          'Watch progress jumped too fast — watch the video normally',
+        );
+      }
+      if (sec <= prevSec) {
+        throw new (await import('../../../shared/domain/AppError.js')).ValidationException(
+          'Watch progress inconsistent — reload the lesson and keep watching',
+        );
+      }
+      const prevAt = prev?.updatedAt ? new Date(prev.updatedAt).getTime() : NaN;
+      if (Number.isFinite(prevAt)) {
+        const elapsed = Math.max(0, (Date.now() - prevAt) / 1000);
+        if (sec - prevSec > elapsed + WATCH_JUMP_GRACE_SEC) {
+          throw new (await import('../../../shared/domain/AppError.js')).ValidationException(
+            'Watch progress jumped too fast — watch the video normally',
+          );
+        }
+      }
+    }
+    return this.training.recordWatch(partnerId, courseId, lessonId, pct, sec);
   }
 }
 
