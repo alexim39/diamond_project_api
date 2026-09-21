@@ -1,4 +1,14 @@
 import { ProspectModel } from "../models/prospect.model.js";
+import { PartnersModel } from '../../partner/models/partner.model.js';
+import { buildProspectAccess } from '../../../modules/crm/application/Prospect.access.js';
+
+// Same ownership guard as the v1 slice: touches need owner/upline/admin,
+// history deletes need owner/admin. These routes previously had no auth.
+const guard = buildProspectAccess({
+  findProspectById: (id) => ProspectModel.findById(id).select('partnerId').lean().catch(() => null),
+  findPartnerById: (id) => PartnersModel.findById(id).select('role email partnerOf').lean().catch(() => null),
+});
+const deny = (res, err) => res.status(err?.statusCode ?? 403).json({ message: err?.message ?? 'Forbidden', success: false });
 
 
 /**
@@ -9,6 +19,12 @@ import { ProspectModel } from "../models/prospect.model.js";
 export const UpdateProspectCommunications = async (req, res) => {
   try {
     const { prospectId, ...communicationData } = req.body;
+
+    try {
+      await guard.requireSupport(req.auth?.partnerId, prospectId);
+    } catch (err) {
+      return deny(res, err);
+    }
 
     const { interestLevel, date, type, duration, description, topicsDiscussed } = communicationData;
 
@@ -71,6 +87,12 @@ export const DeleteProspectCommunication = async (req, res) => {
         message: "Prospect ID and Communication ID are required",
         success: false,
       });
+    }
+
+    try {
+      await guard.requireOwner(req.auth?.partnerId, prospectId, 'delete communication history');
+    } catch (err) {
+      return deny(res, err);
     }
 
     const prospect = await ProspectModel.findByIdAndUpdate(

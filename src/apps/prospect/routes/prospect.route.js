@@ -1,42 +1,44 @@
 import express from 'express';
 import {
     CreateContactList,  GetContactsCreatedBy,  importSurveyToContact,  getAllSurveyProspect, getAllMySurveyProspect, ImportSingleProspectFromSurveyToContact,
-    getProspectById, UpdateProspectStatus, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
+    getProspectById, UpdateProspectStatus, UpdateProspectRemark, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
 } from '../controllers/prospect.controller.js'
 import { UpdateProspectCommunications, DeleteProspectCommunication} from '../controllers/communictions.controller.js'
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 const ProspectRouter = express.Router();
 
-// create
-ProspectRouter.post('/create', CreateContactList);
-// update
-ProspectRouter.put('/update', UpdateContactList);
-// Get all contacts createdBy
-ProspectRouter.get('/all-createdBy/:createdBy', GetContactsCreatedBy);
+// create — session-owned (server stamps the caller's partnerId)
+ProspectRouter.post('/create', requireAuth, CreateContactList);
+// update — owner or admin (upline coaches, never rewrites PII)
+ProspectRouter.put('/update', requireAuth, UpdateContactList);
+// Get all contacts createdBy — owner, upline or admin
+ProspectRouter.get('/all-createdBy/:createdBy', requireAuth, GetContactsCreatedBy);
 // Get all surver prospect for
 ProspectRouter.get('/for/:createdBy', getSurveyProspectFor);
 // Get all surver prospect gotton by the system (Username = business)
 ProspectRouter.get('/all', getAllSurveyProspect);
 // Get all surver prospect gotton by the system (Username !== business)
 ProspectRouter.get('/my/:username', getAllMySurveyProspect);
-// import prospect for user
-ProspectRouter.get('/import/:partnerId', importSurveyToContact );
+// import prospect for user — owner, upline or admin of the target
+ProspectRouter.get('/import/:partnerId', requireAuth, importSurveyToContact );
 // import signle prospect for user — paid claim, session must own the partnerId
 ProspectRouter.get('/import-single/:partnerId/:prospectId/:source', requireAuth, ImportSingleProspectFromSurveyToContact );
 // delete signle prospect for user on survey model
 //ProspectRouter.get('/delete-single/:prospectId', deleteSingleFromSurvey );
-// get signle prospect byid
-ProspectRouter.get('/getById/:prospectId', getProspectById );
-// update status
-ProspectRouter.post('/updateStatus', UpdateProspectStatus);
-// delete signle prospect for user on prospect model
-ProspectRouter.get('/delete/:prospectId', deleteSingleFromProspect );
-// update prospect communications
-ProspectRouter.post('/communications', UpdateProspectCommunications);
-// delete communication entry from array
-ProspectRouter.delete('/communications/:prospectId/:communicationId', DeleteProspectCommunication );
-// Move prospect back to survey list
-ProspectRouter.get('/move-back-to-survey/:prospectId', moveSingleProspectBackToSurvey );
+// get signle prospect byid — owner, upline or admin
+ProspectRouter.get('/getById/:prospectId', requireAuth, getProspectById );
+// update status — owner, upline (support) or admin
+ProspectRouter.post('/updateStatus', requireAuth, UpdateProspectStatus);
+// update coaching note — owner, upline (support) or admin
+ProspectRouter.post('/updateRemark', requireAuth, UpdateProspectRemark);
+// delete signle prospect for user on prospect model — owner or admin
+ProspectRouter.get('/delete/:prospectId', requireAuth, deleteSingleFromProspect );
+// update prospect communications — owner, upline (support) or admin
+ProspectRouter.post('/communications', requireAuth, UpdateProspectCommunications);
+// delete communication entry from array — owner or admin
+ProspectRouter.delete('/communications/:prospectId/:communicationId', requireAuth, DeleteProspectCommunication );
+// Move prospect back to survey list — owner or admin
+ProspectRouter.get('/move-back-to-survey/:prospectId', requireAuth, moveSingleProspectBackToSurvey );
 
 
 export default ProspectRouter;

@@ -24,6 +24,8 @@ import {
 import { MongoProspectRepository, MongoPartnerLookup, MongoReservationCodes } from '../infrastructure/Prospect.mongo.repository.js';
 import { MongoCampaignLookup } from '../../marketing/infrastructure/Marketing.mongo.repository.js';
 import { ConvertProspectToPartnerUseCase } from '../application/Prospect.convert.js';
+import { buildProspectAccess } from '../application/Prospect.access.js';
+import { PartnersModel } from '../infrastructure/Prospect.models.js';
 import { ReleaseProspectToPoolUseCase } from '../application/Prospect.release.js';
 import { ClaimPoolLeadUseCase } from '../application/Prospect.claim.js';
 import { AcceptPageLeadUseCase } from '../application/Prospect.accept.js';
@@ -54,6 +56,12 @@ export const buildProspectRouter = (deps = {}) => {
   const network = deps.network ?? new MongoNetworkRepository();
   const progress = deps.progress ?? new MongoProgressionStore();
   const events = deps.events ?? domainEvents;
+  // Ownership guard: owner/upline/admin for reads + support writes,
+  // owner/admin for PII, deletes and converts. Null-safe in tests via deps.
+  const guard = deps.guard ?? buildProspectAccess({
+    findProspectById: (id) => prospects.findById(id),
+    findPartnerById: (id) => PartnersModel.findById(id).select('role email partnerOf').lean(),
+  });
   const c = makeProspectController({
     create: new CreateProspectUseCase({ prospects, campaigns }),
     update: new UpdateProspectUseCase({ prospects }),
@@ -79,7 +87,7 @@ export const buildProspectRouter = (deps = {}) => {
       ?? new SubmitContactListUseCase({ prospects, network, events }),
     contactListDownline: new ListDownlineContactListsUseCase({ prospects, network }),
     contactListActivation: new ListActivationBoardUseCase({ prospects, network, progress }),
-  });
+  }, { guard });
 
   const router = express.Router();
   // Session identity for every route (matches all other v1 routers) —

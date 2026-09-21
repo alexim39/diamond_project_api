@@ -2,15 +2,28 @@ import { ProspectModel } from "../models/prospect.model.js";
 import { ProspectSurveyModel } from "../../survey/models/survey.model.js";
 import { PartnersModel } from '../../partner/models/partner.model.js';
 import { ClaimPoolLeadUseCase } from '../../../modules/crm/application/Prospect.claim.js';
+import { buildProspectAccess } from '../../../modules/crm/application/Prospect.access.js';
 
 // Shared paid-claim core (fee debit + atomic pool claim) — also serves v1.
 const claimPoolLead = new ClaimPoolLeadUseCase({});
+
+// Ownership guard: owner/upline/admin reads + support writes, owner/admin
+// for PII, deletes and converts. Legacy routes never had auth — every
+// prospect-model endpoint below is now session-checked.
+const guard = buildProspectAccess({
+  findProspectById: (id) => ProspectModel.findById(id).select('partnerId').lean().catch(() => null),
+  findPartnerById: (id) => PartnersModel.findById(id).select('role email partnerOf').lean().catch(() => null),
+});
+const deny = (res, err) => res.status(err?.statusCode ?? 403).json({ message: err?.message ?? 'Forbidden', success: false });
 
 
 // Prospect contact contnroller
 export const CreateContactList = async (req, res) => {
   try {
     const { body } = req;
+
+    // Session owns the prospect — a mismatched body partnerId is tampering.
+    body.partnerId = req.auth?.partnerId ?? body.partnerId;
 
     // Check if a prospect with the same phone or email already exists
     const existingProspect = await ProspectModel.findOne({
@@ -45,20 +58,32 @@ export const CreateContactList = async (req, res) => {
   }
 };
 
-// Prospect update
+// Prospect update — owner or admin only (upline coaches, never rewrites PII).
 export const UpdateContactList = async (req, res) => {
   try {
     const { body } = req;
+    try {
+      await guard.requireOwner(req.auth?.partnerId, body.prospectId, 'edit contact details');
+    } catch (err) {
+      return deny(res, err);
+    }
+    // Explicit field map (never whole-subdoc replace); undefined keys never
+    // touch the document. NOTE: legacy read `body._prospectSourceid`
+    // (always undefined and wiped the field) — correct key first.
+    const patch = {};
+    for (const [key, value] of Object.entries({
+      prospectName: body.prospectName,
+      prospectSurname: body.prospectSurname,
+      prospectPhone: body.prospectPhone,
+      prospectEmail: body.prospectEmail,
+      prospectSource: body.prospectSource ?? body._prospectSourceid,
+      prospectRemark: body.prospectRemark,
+    })) {
+      if (value !== undefined) patch[key] = value;
+    }
     const updatedProspect = await ProspectModel.findByIdAndUpdate(
       body.prospectId,
-      {
-        prospectName: body.prospectName,
-        prospectSurname: body.prospectSurname,
-        prospectPhone: body.prospectPhone,
-        prospectEmail: body.prospectEmail,
-        prospectSource: body._prospectSourceid,
-        prospectRemark: body.prospectRemark,
-      },
+      patch,
       { new: true, runValidators: true } // new: true returns the updated document
     );
 
@@ -83,10 +108,16 @@ export const UpdateContactList = async (req, res) => {
   }
 };
 
-// Route handler to fetch all contacts by createdBy
+// Route handler to fetch all contacts by createdBy — owner, upline or admin.
 export const GetContactsCreatedBy = async (req, res) => {
   try {
     const { createdBy } = req.params;
+
+    try {
+      await guard.requireListAccess(req.auth?.partnerId, createdBy);
+    } catch (err) {
+      return deny(res, err);
+    }
 
     // Step 1: Find the user and get username
     const partner = await PartnersModel.findById(createdBy);
@@ -124,11 +155,17 @@ export const GetContactsCreatedBy = async (req, res) => {
   }
 };
 
-// import survey list to contacts list
+// import survey list to contacts list — owner, upline or admin of the target.
 export const importSurveyToContact = async (req, res) => {
   //(surveyId) {
   try {
     const { partnerId } = req.params;
+
+    try {
+      await guard.requireListAccess(req.auth?.partnerId, partnerId);
+    } catch (err) {
+      return deny(res, err);
+    }
 
     // Step 1: Find the user and get username
     const partner = await PartnersModel.findById(partnerId);
@@ -422,10 +459,16 @@ export const ImportSingleProspectFromSurveyToContact = async (req, res) => {
   }
 };
 
-// get single prospect by id  
+// get single prospect by id — owner, upline or admin (outsiders get 404).
 export const getProspectById = async (req, res) => {  
   try {  
       const { prospectId } = req.params;  
+
+      try {
+        await guard.requireRead(req.auth?.partnerId, prospectId);
+      } catch (err) {
+        return deny(res, err);
+      }
 
       // Get the prospect based on the provided prospectId  
       const prospect = await ProspectModel.findById(prospectId);  
@@ -454,9 +497,14 @@ export const getProspectById = async (req, res) => {
 };  
 
 
-// get status
+// get status — owner, upline (support) or admin.
 export const UpdateProspectStatus = async (req, res) => {
   try {
+    try {
+      await guard.requireSupport(req.auth?.partnerId, req.body?.prospectId);
+    } catch (err) {
+      return deny(res, err);
+    }
     const {
       prospectId,
       status: {
@@ -507,13 +555,60 @@ export const UpdateProspectStatus = async (req, res) => {
   }
 };
 
+// update coaching note — owner, upline (support) or admin. Persists to the
+// canonical `notes` field (the legacy `prospectRemark` path never existed in
+// the schema, so remarks posted here previously vanished).
+export const UpdateProspectRemark = async (req, res) => {
+  try {
+    const { prospectId, remark } = req.body;
+    if (!remark || !String(remark).trim()) {
+      return res.status(400).json({
+        message: "Remark is required",
+        success: false
+      });
+    }
+    try {
+      await guard.requireSupport(req.auth?.partnerId, prospectId);
+    } catch (err) {
+      return deny(res, err);
+    }
+    const prospect = await ProspectModel.findByIdAndUpdate(
+      prospectId,
+      { notes: String(remark).slice(0, 2000) },
+      { new: true, runValidators: true }
+    );
+    if (!prospect) {
+      return res.status(404).json({
+        message: "Prospect not found",
+        success: false
+      });
+    }
+    res.status(200).json({
+      message: "Prospect note updated successfully!",
+      success: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error updating prospect note",
+      error: error.message,
+      success: false
+    });
+  }
+};
 
 
 
-// delete single prospect from prospect
+
+// delete single prospect from prospect — owner or admin only.
 export const deleteSingleFromProspect = async (req, res) => {
   try {
     const { prospectId } = req.params;
+
+    try {
+      await guard.requireOwner(req.auth?.partnerId, prospectId, 'delete this prospect');
+    } catch (err) {
+      return deny(res, err);
+    }
 
     // Get the prospect based on the provided prospectId
     const prospect = await ProspectModel.findById(prospectId);
@@ -543,10 +638,16 @@ export const deleteSingleFromProspect = async (req, res) => {
 };
 
 
-/* Move single prospect from contact back to survey */
+/* Move single prospect from contact back to survey — owner or admin only. */
 export const moveSingleProspectBackToSurvey = async (req, res) => {
   try {
     const { prospectId } = req.params;
+
+    try {
+      await guard.requireOwner(req.auth?.partnerId, prospectId, 'move this prospect back to survey');
+    } catch (err) {
+      return deny(res, err);
+    }
 
     // Get the prospect by prospectId
     const prospect = await ProspectModel.findById(prospectId);
