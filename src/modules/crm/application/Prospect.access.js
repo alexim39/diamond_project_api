@@ -108,5 +108,12 @@ export const buildProspectAccess = ({ findProspectById, findPartnerById }) => {
       if (sameId(requesterId, ownerId)) return { prospect: doc, ownerId, relation: 'owner' };
       throw new ForbiddenException(`Only the prospect owner can ${action}`);
     },
+
+    /** Admin-only desks (e.g. full pool dump). */
+    async requireAdmin(requesterId) {
+      const me = await requester(requesterId);
+      if (!isAdminDoc(me)) throw new ForbiddenException('Admin access required');
+      return me;
+    },
   };
 };

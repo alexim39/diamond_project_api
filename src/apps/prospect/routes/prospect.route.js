@@ -13,12 +13,12 @@ ProspectRouter.post('/create', requireAuth, CreateContactList);
 ProspectRouter.put('/update', requireAuth, UpdateContactList);
 // Get all contacts createdBy — owner, upline or admin
 ProspectRouter.get('/all-createdBy/:createdBy', requireAuth, GetContactsCreatedBy);
-// Get all surver prospect for
-ProspectRouter.get('/for/:createdBy', getSurveyProspectFor);
-// Get all surver prospect gotton by the system (Username = business)
-ProspectRouter.get('/all', getAllSurveyProspect);
-// Get all surver prospect gotton by the system (Username !== business)
-ProspectRouter.get('/my/:username', getAllMySurveyProspect);
+// Get all surver prospect for — owner, upline or admin
+ProspectRouter.get('/for/:createdBy', requireAuth, getSurveyProspectFor);
+// Get all surver prospect gotton by the system (Username = business) — admin only
+ProspectRouter.get('/all', requireAuth, getAllSurveyProspect);
+// Get all surver prospect gotton by the system (Username !== business) — owner or admin
+ProspectRouter.get('/my/:username', requireAuth, getAllMySurveyProspect);
 // import prospect for user — owner, upline or admin of the target
 ProspectRouter.get('/import/:partnerId', requireAuth, importSurveyToContact );
 // import signle prospect for user — paid claim, session must own the partnerId

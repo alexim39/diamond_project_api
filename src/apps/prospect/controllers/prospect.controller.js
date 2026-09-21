@@ -2,7 +2,7 @@ import { ProspectModel } from "../models/prospect.model.js";
 import { ProspectSurveyModel } from "../../survey/models/survey.model.js";
 import { PartnersModel } from '../../partner/models/partner.model.js';
 import { ClaimPoolLeadUseCase } from '../../../modules/crm/application/Prospect.claim.js';
-import { buildProspectAccess } from '../../../modules/crm/application/Prospect.access.js';
+import { buildProspectAccess, isAdminDoc } from '../../../modules/crm/application/Prospect.access.js';
 
 // Shared paid-claim core (fee debit + atomic pool claim) — also serves v1.
 const claimPoolLead = new ClaimPoolLeadUseCase({});
@@ -244,10 +244,16 @@ export const importSurveyToContact = async (req, res) => {
   }
 };
 
-// Get all survey prospect for
+// Get all survey prospect for — owner, upline or admin of that partner.
 export const getSurveyProspectFor = async (req, res) => {
   try {
     const { createdBy } = req.params;
+
+    try {
+      await guard.requireListAccess(req.auth?.partnerId, createdBy);
+    } catch (err) {
+      return deny(res, err);
+    }
 
     // Step 1: Find the user and get username
     const partner = await PartnersModel.findById(createdBy);
@@ -286,9 +292,15 @@ export const getSurveyProspectFor = async (req, res) => {
 };
 
 
-// Get all surver prospect gotton by the system (Username = business)
+// Get all surver prospect gotton by the system (Username = business) —
+// admin only: full unmasked pool PII. Members use the geo-fenced v1 pool.
 export const getAllSurveyProspect = async (req, res) => {
   try {
+    try {
+      await guard.requireAdmin(req.auth?.partnerId);
+    } catch (err) {
+      return deny(res, err);
+    }
 
     /// Step 1: user found username to get user from survey collection
     const prospectObject = await ProspectSurveyModel.find({ username: 'business' });
@@ -315,11 +327,25 @@ export const getAllSurveyProspect = async (req, res) => {
   }
 };
 
-// Get all surver prospect gotton by the system (Username !== business)
+// Get all surver prospect gotton by the system (Username !== business) —
+// private page-lead inbox: the owning partner or admin only.
 export const getAllMySurveyProspect = async (req, res) => {
   try {
 
     const { username } = req.params;
+
+    try {
+      const me = await PartnersModel.findById(req.auth?.partnerId).select('username role email').lean();
+      if (!me) return deny(res, { statusCode: 401, message: 'User unauthenticated' });
+      if (String(me.username) !== String(username) && !isAdminDoc(me)) {
+        return res.status(404).json({
+          message: "Partner prospects not found",
+          success: false
+        });
+      }
+    } catch (err) {
+      return deny(res, err);
+    }
 
     /// Step 1: user found username to get user from survey collection
     const prospectObject = await ProspectSurveyModel.find({ username: username });
