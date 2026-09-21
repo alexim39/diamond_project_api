@@ -89,3 +89,57 @@ export class GetUplineChainUseCase {
     return { chain, depth: chain.length };
   }
 }
+
+/**
+ * Bulk presence — `lastSeenAt` per id for people the requester may see.
+ * Visible = self + downline + upline chain (+ everything for admins).
+ * Out-of-scope ids resolve null (no existence oracle); capped at 100 ids.
+ */
+export class GetPresenceUseCase {
+  /** @param {{network, partners, isAdmin, downlineIds}} deps
+   * (`partners.findPresence(ids) -> [{id, lastSeenAt}]`, `isAdmin(id)`,
+   * `downlineIds(id) -> {ids}`) */
+  constructor({ network, partners, isAdmin, downlineIds }) {
+    Object.assign(this, { network, partners, isAdmin, downlineIds });
+  }
+
+  async execute({ requesterId, ids }) {
+    const clean = [...new Set(
+      (Array.isArray(ids) ? ids : [])
+        .map((v) => String(v ?? '').trim())
+        .filter((v) => /^[a-fA-F0-9]{24}$/.test(v)),
+    )].slice(0, 100);
+    if (clean.length === 0) return { presence: {} };
+    const admin = this.isAdmin
+      ? await this.isAdmin(requesterId).catch(() => false)
+      : false;
+    let visible = null;
+    if (!admin) {
+      const [downline, requester] = await Promise.all([
+        this.downlineIds ? this.downlineIds(requesterId).catch(() => ({ ids: [] })) : { ids: [] },
+        this.network.findNode(requesterId).catch(() => null),
+      ]);
+      visible = new Set([String(requesterId)]);
+      for (const id of downline?.ids ?? []) visible.add(String(id));
+      let current = requester?.parentId ? String(requester.parentId) : null;
+      const seen = new Set([String(requesterId)]);
+      for (let d = 0; d < 12 && current && !seen.has(current); d++) {
+        seen.add(current);
+        visible.add(current);
+        const node = await this.network.findNode(current).catch(() => null);
+        current = node?.parentId ? String(node.parentId) : null;
+      }
+    }
+    const wanted = admin ? clean : clean.filter((id) => visible.has(id));
+    const rows = wanted.length > 0
+      ? await this.partners.findPresence(wanted).catch(() => [])
+      : [];
+    const byId = new Map((rows ?? []).map((r) => [String(r.id ?? r._id), r.lastSeenAt ?? null]));
+    return {
+      presence: Object.fromEntries(clean.map((id) => [
+        id,
+        byId.has(id) ? (byId.get(id) ? new Date(byId.get(id)).toISOString() : null) : null,
+      ])),
+    };
+  }
+}
