@@ -137,6 +137,9 @@ export class MongoTrainingStore {
       const s = v === undefined || v === null ? null : String(v).trim();
       return s === '' ? null : s;
     };
+    const takeaways = Array.isArray(media.takeaways)
+      ? media.takeaways.map((t) => String(t ?? '').trim()).filter(Boolean).slice(0, 10).map((t) => t.slice(0, 200))
+      : undefined;
     const doc = await TrainingMediaModel.findOneAndUpdate(
       { courseId, lessonId },
       {
@@ -148,6 +151,8 @@ export class MongoTrainingStore {
           durationSec: media.durationSec === undefined || media.durationSec === null || media.durationSec === ''
             ? null
             : Math.max(0, Math.min(86400, Math.round(Number(media.durationSec) || 0))),
+          body: clean(media.body),
+          ...(takeaways !== undefined ? { takeaways } : {}),
           updatedBy: updatedBy ? String(updatedBy) : null,
         },
       },
@@ -171,4 +176,6 @@ const shapedMedia = (d) => ({
   captionsUrl: d.captionsUrl ?? null,
   transcript: d.transcript ?? null,
   durationSec: d.durationSec ?? null,
+  body: d.body ?? null,
+  takeaways: Array.isArray(d.takeaways) ? d.takeaways : [],
 });

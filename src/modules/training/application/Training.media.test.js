@@ -46,6 +46,17 @@ describe('media overrides', () => {
     assert.equal(l2.transcript, 'Hello');
     assert.equal(l2.durationSec, 600);
   });
+
+  it('body/takeaways overrides win, empty falls back to catalog', async () => {
+    const course = await getCourseWithQuizFull('ipo', storeWithMedia({
+      'ipo:ipo-3': { body: 'Custom body\n\nSecond para.', takeaways: ['One', 'Two'] },
+    }));
+    const l3 = course.lessons.find((l) => l.id === 'ipo-3');
+    assert.equal(l3.body, 'Custom body\n\nSecond para.');
+    assert.deepEqual(l3.takeaways, ['One', 'Two']);
+    const l1 = course.lessons.find((l) => l.id === 'ipo-1');
+    assert.ok((l1.body ?? '').length > 50); // catalog fallback untouched
+  });
 });
 
 describe('MediaSchema', () => {
@@ -70,5 +81,13 @@ describe('MediaSchema', () => {
     assert.throws(() => MediaSchema.parse({ videoUrl: 'ftp://x/y.mp4' }));
     assert.throws(() => MediaSchema.parse({ durationSec: -1 }));
     assert.throws(() => MediaSchema.parse({ transcript: 'x'.repeat(8001) }));
+    assert.throws(() => MediaSchema.parse({ body: 'x'.repeat(20001) }));
+    assert.throws(() => MediaSchema.parse({ takeaways: Array(11).fill('ok') }));
+  });
+
+  it('accepts body + takeaways overrides', () => {
+    const ok = MediaSchema.parse({ body: 'Para one.\n\nPara two.', takeaways: ['First', 'Second'] });
+    assert.equal(ok.body, 'Para one.\n\nPara two.');
+    assert.deepEqual(ok.takeaways, ['First', 'Second']);
   });
 });

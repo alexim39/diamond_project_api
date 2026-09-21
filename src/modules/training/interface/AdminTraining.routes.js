@@ -32,6 +32,8 @@ export const MediaSchema = z.object({
   captionsUrl: MediaUrl.nullable().optional(),
   transcript: z.string().trim().max(8000).nullable().optional(),
   durationSec: z.number().int().min(0).max(86400).nullable().optional(),
+  body: z.string().trim().max(20000).nullable().optional(),
+  takeaways: z.array(z.string().trim().min(1).max(200)).max(10).nullable().optional(),
 });
 
 /** Manual wiring — explicit for onboarding; pass fakes in tests. */
@@ -65,6 +67,11 @@ export const buildAdminTrainingRouter = (deps = {}) => {
           captionsUrl: override?.captionsUrl || l.captionsUrl || null,
           hasTranscript: !!((override?.transcript || l.transcript) ?? null),
           durationSec: override?.durationSec ?? l.durationSec ?? null,
+          body: override?.body || l.body || '',
+          takeaways: (Array.isArray(override?.takeaways) && override.takeaways.length > 0)
+            ? override.takeaways
+            : (l.takeaways ?? []),
+          bodyOverridden: !!(override?.body),
         };
       }),
     }));

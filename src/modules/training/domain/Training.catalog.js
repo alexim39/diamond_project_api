@@ -246,6 +246,8 @@ export const getCourseWithQuizFull = async (id, training) => {
       ...(media.posterUrl ? { posterUrl: media.posterUrl } : {}),
       ...(media.captionsUrl ? { captionsUrl: media.captionsUrl } : {}),
       ...(media.transcript ? { transcript: media.transcript } : {}),
+      ...(media.body ? { body: media.body } : {}),
+      ...(Array.isArray(media.takeaways) && media.takeaways.length > 0 ? { takeaways: media.takeaways } : {}),
       ...(media.durationSec !== undefined && media.durationSec !== null ? { durationSec: media.durationSec } : {}),
     };
   }));
