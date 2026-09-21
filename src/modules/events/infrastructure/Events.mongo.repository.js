@@ -34,6 +34,20 @@ rsvpSchema.index({ eventId: 1, partnerId: 1 }, { unique: true });
 export const EventModel = mongoose.models.Event ?? mongoose.model('Event', eventSchema);
 export const EventRsvpModel = mongoose.models.EventRsvp ?? mongoose.model('EventRsvp', rsvpSchema);
 
+const eventCommentSchema = new mongoose.Schema(
+  {
+    eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event', required: true, index: true },
+    authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true, index: true },
+    body: { type: String, required: true, maxlength: 1000 },
+    // Threaded reply — null for top-level comments.
+    parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'EventComment', default: null, index: true },
+  },
+  { timestamps: { createdAt: true, updatedAt: false } },
+);
+eventCommentSchema.index({ eventId: 1, createdAt: 1 });
+
+export const EventCommentModel = mongoose.models.EventComment ?? mongoose.model('EventComment', eventCommentSchema);
+
 const oid = (v) => String(v);
 // Aggregate $match does not cast strings to ObjectId (see community
 // counts fix) — coerce explicitly for every $in over an ObjectId field.
@@ -183,5 +197,44 @@ export class MongoEventStore {
       name: [d.name, d.surname].filter(Boolean).join(' ') || d.username,
       profileImage: d.profileImage ?? null,
     }]));
+  }
+
+  /** Discussion thread for one event — oldest first, capped. */
+  async listComments(eventId, limit = 100) {
+    const docs = await EventCommentModel.find({ eventId })
+      .sort({ createdAt: 1 })
+      .limit(Math.min(Math.max(Number(limit) || 100, 1), 200))
+      .lean();
+    return docs.map(shaped);
+  }
+
+  async addComment({ eventId, authorId, body, parentId = null }) {
+    const doc = await EventCommentModel.create({ eventId, authorId, body, parentId: parentId ?? null });
+    return shaped(doc.toObject());
+  }
+
+  async findComment(eventId, commentId) {
+    return shaped(await EventCommentModel.findOne({ _id: commentId, eventId }).lean());
+  }
+
+  async deleteComment(eventId, commentId) {
+    const [comment, replies] = await Promise.all([
+      EventCommentModel.findOne({ _id: commentId, eventId }).lean(),
+      EventCommentModel.deleteMany({ parentId: commentId, eventId }),
+    ]);
+    if (!comment) return { deleted: false };
+    await EventCommentModel.deleteOne({ _id: commentId, eventId });
+    return { deleted: true, replies: replies.deletedCount ?? 0 };
+  }
+
+  async commentCounts(eventIds) {
+    const out = Object.fromEntries(eventIds.map((id) => [String(id), 0]));
+    if (eventIds.length === 0) return out;
+    const rows = await EventCommentModel.aggregate([
+      { $match: { eventId: { $in: oidList(eventIds) } } },
+      { $group: { _id: '$eventId', count: { $sum: 1 } } },
+    ]);
+    for (const r of rows) out[oid(r._id)] = r.count;
+    return out;
   }
 }

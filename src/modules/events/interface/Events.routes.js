@@ -4,7 +4,7 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
-  CancelEventUseCase, CreateEventUseCase, FeatureEventUseCase, GetEventUseCase, ListMyEventsUseCase,
+  AddEventCommentUseCase, CancelEventUseCase, CreateEventUseCase, DeleteEventCommentUseCase, FeatureEventUseCase, GetEventUseCase, ListEventCommentsUseCase, ListMyEventsUseCase,
   ListUpcomingUseCase, RsvpUseCase, UpdateEventUseCase,
 } from '../application/Events.usecases.js';
 import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
@@ -32,6 +32,10 @@ const EventSchema = z.object({
 );
 
 const RsvpSchema = z.object({ status: z.enum(RSVP_STATUSES) });
+const CommentSchema = z.object({
+  body: z.string().trim().min(1).max(1000),
+  parentId: objectId.optional(),
+});
 const LimitQuery = z.object({ limit: z.coerce.number().int().min(1).max(50).optional() });
 const EventIdParam = z.object({ eventId: objectId });
 
@@ -48,6 +52,9 @@ export const buildEventsRouter = (deps = {}) => {
   const rsvp = new RsvpUseCase({ events, network, progress });
   const cancel = new CancelEventUseCase({ events });
   const update = new UpdateEventUseCase({ events });
+  const listComments = new ListEventCommentsUseCase({ events, network, progress });
+  const addComment = new AddEventCommentUseCase({ events, network, progress });
+  const deleteComment = new DeleteEventCommentUseCase({ events });
   const feature = deps.feature ?? new FeatureEventUseCase({
     events,
     partners: deps.partners ?? new MongoPartnerRepository(),
@@ -89,6 +96,31 @@ export const buildEventsRouter = (deps = {}) => {
     const body = req.validated?.body ?? req.body;
     const data = await rsvp.execute({ partnerId: req.auth?.partnerId, eventId: params.eventId, status: body?.status });
     res.status(200).json({ message: 'RSVP saved successfully', data, success: true });
+  }));
+
+  // Discussion — comments + one-level replies (no likes; RSVP is the signal).
+  router.get('/:eventId/comments', validate({ params: EventIdParam }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await listComments.execute({ partnerId: req.auth?.partnerId, eventId: params.eventId });
+    res.status(200).json({ message: 'Event comments retrieved successfully', data, success: true });
+  }));
+
+  router.post('/:eventId/comments', validate({ params: EventIdParam, body: CommentSchema }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const data = await addComment.execute({
+      partnerId: req.auth?.partnerId, eventId: params.eventId,
+      body: body?.body, parentId: body?.parentId ?? null,
+    });
+    res.status(200).json({ message: 'Comment posted successfully', data, success: true });
+  }));
+
+  router.delete('/:eventId/comments/:commentId', validate({ params: z.object({ eventId: objectId, commentId: objectId }) }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await deleteComment.execute({
+      partnerId: req.auth?.partnerId, eventId: params.eventId, commentId: params.commentId,
+    });
+    res.status(200).json({ message: 'Comment deleted successfully', data, success: true });
   }));
 
   router.post('/:eventId/cancel', validate({ params: EventIdParam }), asyncHandler(async (req, res) => {

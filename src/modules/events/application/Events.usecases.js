@@ -32,16 +32,18 @@ async function isTeamMember(teamId, viewerId) {
 
 async function enrich(events, viewerId, store) {
   const ids = events.map((e) => e.id);
-  const [counts, mine, authors] = await Promise.all([
+  const [counts, mine, authors, commentCounts] = await Promise.all([
     store.rsvpCounts(ids),
     store.myRsvps(ids, viewerId),
     store.authorLabels(events.map((e) => e.authorId)),
+    typeof store.commentCounts === 'function' ? store.commentCounts(ids) : {},
   ]);
   return events.map((e) => ({
     ...e,
     author: authors[e.authorId] ?? null,
     rsvps: counts[e.id] ?? { going: 0, interested: 0, declined: 0, total: 0 },
     myRsvp: mine[e.id] ?? null,
+    commentCount: commentCounts[String(e.id)] ?? 0,
   }));
 }
 
@@ -160,8 +162,8 @@ export class UpdateEventUseCase {
 }
 
 /** Authors cancel their own events (RSVPs cascade in the store). */
-export class CancelEventUseCase {  /** @param {{events}} deps */
-  constructor({ events }) {
+export class CancelEventUseCase {
+  /** @param {{events}} deps */  constructor({ events }) {
     this.events = events;
   }
 
@@ -172,6 +174,79 @@ export class CancelEventUseCase {  /** @param {{events}} deps */
       throw new ForbiddenException('Only the author can cancel');
     }
     return this.events.deleteEvent(eventId);
+  }
+}
+
+/**
+ * Event discussion — comments + one-level replies. No likes by design:
+ * RSVP (going/interested/declined) is the engagement signal on events.
+ * Visibility matches the event itself; authors see directory-safe labels.
+ */
+export class ListEventCommentsUseCase {
+  /** @param {{events, network, progress}} deps (visibility-checked) */
+  constructor({ events, network, progress }) {
+    Object.assign(this, { events, network, progress });
+  }
+
+  async execute({ partnerId, eventId, limit = 100 }) {
+    const event = await this.events.findEventById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    const level = await viewerLevel(this.progress, partnerId);
+    if (!(await visible(event, partnerId, LEADERSHIP_LEVELS.includes(level), this))) {
+      throw new ForbiddenException('You cannot view this event');
+    }
+    const rows = await this.events.listComments(eventId, limit);
+    const authors = await this.events.authorLabels(rows.map((r) => r.authorId));
+    return rows.map((r) => ({ ...r, author: authors[r.authorId] ?? null }));
+  }
+}
+
+export class AddEventCommentUseCase {
+  /** @param {{events, network, progress}} deps (visibility-checked) */
+  constructor({ events, network, progress }) {
+    Object.assign(this, { events, network, progress });
+  }
+
+  async execute({ partnerId, eventId, body, parentId = null }) {
+    const text = String(body ?? '').trim();
+    if (!text) throw new ValidationException('Comment cannot be empty');
+    if (text.length > 1000) throw new ValidationException('Comment is too long (max 1000 characters)');
+    const event = await this.events.findEventById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    const level = await viewerLevel(this.progress, partnerId);
+    if (!(await visible(event, partnerId, LEADERSHIP_LEVELS.includes(level), this))) {
+      throw new ForbiddenException('You cannot comment on this event');
+    }
+    let parent = null;
+    if (parentId) {
+      parent = await this.events.findComment(eventId, parentId);
+      if (!parent) throw new NotFoundException('Reply target not found in this event');
+      if (parent.parentId) throw new ValidationException('Replies nest one level deep — reply to the top comment');
+    }
+    const row = await this.events.addComment({
+      eventId, authorId: partnerId, body: text, parentId: parent ? String(parent.id ?? parent._id) : null,
+    });
+    const authors = await this.events.authorLabels([String(partnerId)]);
+    return { ...row, author: authors[String(partnerId)] ?? null };
+  }
+}
+
+export class DeleteEventCommentUseCase {
+  /** @param {{events}} deps (comment author or event author may delete) */
+  constructor({ events }) {
+    this.events = events;
+  }
+
+  async execute({ partnerId, eventId, commentId }) {
+    const [comment, event] = await Promise.all([
+      this.events.findComment(eventId, commentId),
+      this.events.findEventById(eventId),
+    ]);
+    if (!comment) throw new NotFoundException('Comment not found');
+    const mine = String(comment.authorId) === String(partnerId);
+    const eventMine = event && String(event.authorId) === String(partnerId);
+    if (!mine && !eventMine) throw new ForbiddenException('Only the author or event host can delete');
+    return this.events.deleteComment(eventId, commentId);
   }
 }
 
