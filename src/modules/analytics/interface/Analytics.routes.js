@@ -4,6 +4,7 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { GetActionsUseCase, GetActivationUseCase, GetBenchUseCase, GetFunnelUseCase, GetTeamUseCase } from '../application/Analytics.usecases.js';
+import { resolveSubject } from '../../network/application/SubjectScope.js';
 import { GetStuckProspectsUseCase } from '../../crm/application/Prospect.queries.js';
 import { GetMyProgressionUseCase } from '../../progression/application/Progression.usecases.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
@@ -22,6 +23,9 @@ import { normalizeState } from '../../../shared/geo/nigerianStates.js';
 
 const WindowQuery = z.object({
   days: z.coerce.number().int().min(7).max(365).optional().default(30),
+  // Per-member coaching read: omitted (or self) → own data; otherwise the
+  // requester must be an admin or an upline of the subject (403 otherwise).
+  subjectId: z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id').optional(),
 });
 
 const ActionsQuery = z.object({
@@ -75,7 +79,10 @@ export const buildAnalyticsRouter = (deps = {}) => {
 
   router.get('/team', validate({ query: WindowQuery }), asyncHandler(async (req, res) => {
     const q = req.validated?.query ?? req.query;
-    const data = await team.execute({ partnerId: req.auth?.partnerId, days: q?.days });
+    const subject = await resolveSubject({
+      requesterId: req.auth?.partnerId, subjectId: q?.subjectId, network, partners,
+    });
+    const data = await team.execute({ partnerId: subject, days: q?.days });
     res.status(200).json({ message: 'Team analytics retrieved successfully', data, success: true });
   }));
 

@@ -11,6 +11,8 @@ import { MongoGoalStore } from '../infrastructure/Goals.mongo.repository.js';
 import { MongoOrderReader } from '../../billing/infrastructure/Billing.mongo.repository.js';
 import { MongoProspectRepository } from '../../crm/infrastructure/Prospect.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
+import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
+import { resolveSubject } from '../../network/application/SubjectScope.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 const GoalIdParam = z.object({ goalId: objectId });
@@ -61,6 +63,17 @@ export const buildGoalsRouter = (deps = {}) => {
 
   router.get('/mine', asyncHandler(async (req, res) => {
     const data = await list.execute({ partnerId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Goals retrieved successfully', data, success: true });
+  }));
+
+  // Per-member coaching read: own, upline or admin (outsiders get 403).
+  router.get('/by-partner/:partnerId', validate({ params: z.object({ partnerId: objectId }) }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const subject = await resolveSubject({
+      requesterId: req.auth?.partnerId, subjectId: params.partnerId,
+      network, partners: new MongoPartnerRepository(),
+    });
+    const data = await list.execute({ partnerId: subject });
     res.status(200).json({ message: 'Goals retrieved successfully', data, success: true });
   }));
 
