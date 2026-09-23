@@ -15,6 +15,19 @@ export const errorMiddleware = (err, _req, res, _next) => {
     });
   }
 
+  // Provider/infra clients (DeepSeek, Cloudinary) throw plain Errors with
+  // an intentional statusCode + code (they must stay framework-free).
+  // Honor them so the UI gets "Ora is not configured yet" (503) instead
+  // of a generic 500. Uncoded 5xx stay generic — never leak internals.
+  if (Number.isInteger(err?.statusCode) && err.statusCode >= 400 && err.statusCode < 600) {
+    const safe = err.statusCode < 500 || typeof err.code === 'string';
+    return res.status(err.statusCode).json({
+      message: safe ? (err.message || 'Request failed') : 'Internal server error',
+      success: false,
+      code: typeof err.code === 'string' ? err.code : 'INTERNAL_ERROR',
+    });
+  }
+
   // Multer upload errors (size caps, field limits) — client errors, not 500s.
   if (err?.name === 'MulterError') {
     return res.status(400).json({
