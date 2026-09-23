@@ -66,6 +66,7 @@ export const COURSES = [
         ],
         '/courses/ipo/FINANCIAL-ARCHITECTURAL-BLUEPRINT-GODS-WAY.mp4',
         {
+          durationSec: 2764,
           transcript: 'TRANSCRIPT — How commissions flow (Financial Architectural Blueprint, God’s Way). Every product order can accrue commissions up the referral chain: the seller earns, and the mentors above earn according to the compensation plan — no one’s effort goes unrewarded. When an order lands, its commission entry starts as Pending. When the order is approved, the entry becomes Released and payable. If an order is voided or reversed, the entry is clawed back. Your ledger inside the app is the single source of truth: review it weekly. Keep your account qualified with monthly maintenance, because one gap breaks compounding for your whole downline. Key points: Pending becomes Released on approval; voided entries are clawed back; the ledger is auditable; stay qualified every month.',
         },
       ),
@@ -88,6 +89,7 @@ export const COURSES = [
         ],
         '/courses/ipo/The-First-Step-For-Network-Marketing-Success.mp4',
         {
+          durationSec: 545,
           transcript: 'TRANSCRIPT — Your first 30 days (The First Step for Network Marketing Success). Welcome home, partner. You made the right decision, and you are not alone on this journey. Week one: complete your IPO and Quick Start orientation, list 50 prospects, and book your onboarding session with your upline. Weeks two to four: present daily, follow up with warmth, and record every touch in the CRM. Nervousness is normal. Rejection is redirection. Lean on your coach, attend every training, and keep the rhythm — present, follow up, log, repeat. Momentum now compounds into the ultimate version of yourself.',
         },
       ),
