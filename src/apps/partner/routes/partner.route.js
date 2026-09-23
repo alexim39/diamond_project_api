@@ -1,5 +1,6 @@
 import express from 'express';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
+import { rateLimit } from '../../../shared/http/rateLimit.js';
 import { 
     checkPartnerUsername, getAllUsers, searchPartnersPublic,
      getPartnerByNames, getPartnerByName,
@@ -14,11 +15,13 @@ const PartnerRouter = express.Router();
 
 
 
-// public referral picker (safe fields, no auth — used by Get Started)
-PartnerRouter.get('/public-search', searchPartnersPublic);
+// public referral picker (safe fields, no auth — used by Get Started).
+// Throttled: autocomplete types per keystroke.
+PartnerRouter.get('/public-search', rateLimit({ name: 'partner-search', windowMs: 60000, max: 60 }), searchPartnersPublic);
 
-// public page lookup (safe fields only — used by /:partnerUsername)
-PartnerRouter.get('/check-username/:username', checkPartnerUsername);
+// public page lookup (safe fields only — used by /:partnerUsername).
+// Throttled against username harvesting scripts.
+PartnerRouter.get('/check-username/:username', rateLimit({ name: 'username-check', windowMs: 60000, max: 60 }), checkPartnerUsername);
 
 // Everything below needs a partner session. Writes additionally enforce
 // session-ownership inside the controllers (self-only or scoped reads).

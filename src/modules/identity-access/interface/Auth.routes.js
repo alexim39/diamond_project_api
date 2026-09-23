@@ -1,6 +1,7 @@
 import express from 'express';
 import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
+import { rateLimit } from '../../../shared/http/rateLimit.js';
 import { SignupSchema, SigninSchema, ResetRequestSchema, ResetConfirmSchema } from './Auth.validator.js';
 import { makeAuthController } from './Auth.controller.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
@@ -36,8 +37,11 @@ export const buildAuthRouter = (deps = {}) => {
   });
 
   const router = express.Router();
-  router.post('/signup', validate({ body: SignupSchema }), controller.signup);
-  router.post('/signin', validate({ body: SigninSchema }), controller.signin);
+  // Brute-force guard on credential + reset endpoints (per-IP budgets).
+  const authLimit = rateLimit({ name: 'auth-attempt', windowMs: 60000, max: 10 });
+  const resetLimit = rateLimit({ name: 'auth-reset', windowMs: 60000, max: 5 });
+  router.post('/signup', authLimit, validate({ body: SignupSchema }), controller.signup);
+  router.post('/signin', authLimit, validate({ body: SigninSchema }), controller.signin);
   router.post('/signout', controller.signout);
   router.get('/me', requireAuth, controller.me);
   router.get('/', requireAuth, controller.me); // legacy alias for GET /auth
@@ -48,7 +52,7 @@ export const buildAuthRouter = (deps = {}) => {
     await partners.touchPresence(req.auth?.partnerId).catch(() => false);
     res.status(200).json({ message: 'Presence recorded', success: true });
   }));
-  router.post('/reset-password-request', validate({ body: ResetRequestSchema }), controller.requestPasswordReset);
+  router.post('/reset-password-request', resetLimit, validate({ body: ResetRequestSchema }), controller.requestPasswordReset);
   router.post('/reset-password', validate({ body: ResetConfirmSchema }), controller.resetPassword);
   return router;
 };

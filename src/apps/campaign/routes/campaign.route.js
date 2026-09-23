@@ -1,5 +1,6 @@
 import express from 'express';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
+import { rateLimit } from '../../../shared/http/rateLimit.js';
 import { requireRole } from '../../../modules/identity-access/interface/RequireRole.js';
 import { 
     createCampaign,
@@ -38,7 +39,8 @@ CampaignRouter.patch('/:id/status', requireAuth, requireRole('admin'), updateCam
 CampaignRouter.get('/:id', requireAuth, getCampaign);
 
 // record visit — PUBLIC (the :4201 site records anonymous page visits).
-CampaignRouter.post('/visits', recordVisits);
+// Generous per-IP budget: every genuine page view fires exactly one call.
+CampaignRouter.post('/visits', rateLimit({ name: 'campaign-visits', windowMs: 60000, max: 120 }), recordVisits);
 
 
 export default CampaignRouter;
