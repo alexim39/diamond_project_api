@@ -86,8 +86,9 @@ export const ProspectSurveyForm = async (req, res) => {
       // Case 2: partners in the lead's (normalized) state. Normalization
       // matters: exact-match once spammed the whole platform over casing.
       // Only partners with a state set are candidates (null can't match).
+      // Bounded: per-lead fan-out must not grow with the platform.
       const candidates = await PartnersModel.find({ 'address.state': { $ne: null } })
-        .select('email settings address').lean();
+        .select('email settings address').limit(500).lean();
       const eligibleStatePartners = candidates.filter(
         partner =>
           sameState(partner?.address?.state, surveyData.state) &&
@@ -102,15 +103,19 @@ export const ProspectSurveyForm = async (req, res) => {
           await notifyNewLead(partner);
         }
       } else {
-        // Case 3: Fallback – send to all partners, but only if receive notification is not 'off'
-        const allPartners = await PartnersModel.find({});
-        const eligiblePartners = allPartners.filter(
-          partner =>
+        // Case 3: no state match — notify platform admins only (capped),
+        // never the whole member base. Blasting every partner per lead
+        // is both spam and an unbounded read + mail fan-out.
+        // (Legacy rows store mixed-case roles — match all casings.)
+        const admins = await PartnersModel.find({ role: { $in: ['admin', 'Admin', 'ADMIN'] } })
+          .select('email settings').limit(50).lean();
+        const eligibleAdmins = (admins ?? []).filter(
+          (partner) =>
             !partner.settings ||
             !partner.settings.notification ||
             partner.settings.notification.receive !== 'off'
         );
-        for (const partner of eligiblePartners) {
+        for (const partner of eligibleAdmins) {
           await sendEmail(partner.email, ownerSubject, ownerMessage);
         }
       }

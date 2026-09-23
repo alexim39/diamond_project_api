@@ -1,6 +1,6 @@
 import express from 'express';
 import {
-    CreateContactList,  GetContactsCreatedBy,  importSurveyToContact,  getAllSurveyProspect, getAllMySurveyProspect, ImportSingleProspectFromSurveyToContact,
+    CreateContactList,  GetContactsCreatedBy,  importSurveyToContact, getAllMySurveyProspect, ImportSingleProspectFromSurveyToContact,
     getProspectById, UpdateProspectStatus, UpdateProspectRemark, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
 } from '../controllers/prospect.controller.js'
 import { UpdateProspectCommunications, DeleteProspectCommunication} from '../controllers/communictions.controller.js'
@@ -15,8 +15,8 @@ ProspectRouter.put('/update', requireAuth, UpdateContactList);
 ProspectRouter.get('/all-createdBy/:createdBy', requireAuth, GetContactsCreatedBy);
 // Get all surver prospect for — owner, upline or admin
 ProspectRouter.get('/for/:createdBy', requireAuth, getSurveyProspectFor);
-// Get all surver prospect gotton by the system (Username = business) — admin only
-ProspectRouter.get('/all', requireAuth, getAllSurveyProspect);
+// REMOVED: GET /all (unbounded unmasked pool dump, no callers) — admins use
+// the paginated, geo-fenced Buy Prospect pool and Admin → Lead pool desks.
 // Get all surver prospect gotton by the system (Username !== business) — owner or admin
 ProspectRouter.get('/my/:username', requireAuth, getAllMySurveyProspect);
 // import prospect for user — owner, upline or admin of the target

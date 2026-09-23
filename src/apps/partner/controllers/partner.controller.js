@@ -6,6 +6,57 @@ import { sendEmail } from "../../../services/emailService.js";
 import dotenv  from "dotenv"
 dotenv.config()
 import mongoose from 'mongoose';
+import { buildProspectAccess } from '../../../modules/crm/application/Prospect.access.js';
+
+// Session + ownership guard for this legacy router (no auth existed here).
+// Reads that must stay public (username check, referral picker) are
+// sanitized to public fields instead.
+const guard = buildProspectAccess({
+  findProspectById: async () => null,
+  findPartnerById: (id) => PartnersModel.findById(id).select('role email partnerOf').lean().catch(() => null),
+});
+const sessionId = (req) => (req.auth?.partnerId ? String(req.auth.partnerId) : null);
+const deny = (res, status, message) => res.status(status).json({ message, success: false });
+
+/** Reject when the body id is not the caller's own account. */
+const requireSelf = (req, res, id) => {
+  if (!sessionId(req)) {
+    deny(res, 401, 'User unauthenticated');
+    return false;
+  }
+  if (!id || String(id) !== sessionId(req)) {
+    deny(res, 403, 'You can only update your own profile');
+    return false;
+  }
+  return true;
+};
+
+/** Strip secrets + internal fields from any partner document sent out. */
+const safePartner = (doc) => {
+  if (!doc) return doc;
+  const o = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
+  delete o.password;
+  delete o.resetPasswordToken;
+  delete o.resetPasswordExpires;
+  return o;
+};
+
+// Public page fields (client PartnerInterface + landing content). Everything
+// else (password, reservationCode, settings, wallet, telemetry) stays hidden.
+// NOTE: phone/email stay visible — the public one-pager falls back to them
+// when displayPhone/displayEmail are unset (existing behavior, kept).
+const PUBLIC_PROFILE_SELECT = [
+  'username', 'name', 'surname', 'bio', 'jobTitle', 'profileImage',
+  'phone', 'email', 'testimonial',
+  'whatsappGroupLink', 'whatsappChatLink',
+  'facebookPage', 'linkedinPage', 'youtubePage', 'instagramPage', 'tiktokPage', 'twitterPage',
+  'headline', 'subHeadline', 'heroBadge', 'businessTagline', 'aboutStory', 'achievements',
+  'inviteNote', 'opportunityPoints', 'videoTestimonialUrl', 'displayPhone', 'displayEmail',
+  'locationDisplay', 'whatsappCtaText',
+].join(' ');
+
+// Directory-safe fields for member search (no contact PII, no secrets).
+const DIRECTORY_SELECT = 'username name surname profileImage jobTitle address';
 
 
 // Public referral picker — safe fields only (no email/phone/password).
@@ -38,13 +89,13 @@ export const searchPartnersPublic = async (req, res) => {
   }
 };
 
-// Check if a partner exists
+// Check if a partner exists — public, but safe fields only (never secrets).
 export const checkPartnerUsername = async (req, res) => {
   const { username } = req.params;
-  const partner = await PartnersModel.findOne({ username });
+  const partner = await PartnersModel.findOne({ username }).select(PUBLIC_PROFILE_SELECT).lean();
 
   if (partner) {
-    return res.status(200).json({partner, success: true});
+    return res.status(200).json({partner: safePartner(partner), success: true});
   }
 
   res.status(404).json({
@@ -55,11 +106,13 @@ export const checkPartnerUsername = async (req, res) => {
 };
 
 
-// Update a partner's profile
+// Update a partner's profile — own account only.
 export const updateProfile = async (req, res) => {
   try {
     const { id, name, surname, bio, email, phone, address, dobDatePicker } =
       req.body;
+
+    if (!requireSelf(req, res, id)) return;
 
     // Validate input
     if (!name || !surname || !email || !phone) {
@@ -104,10 +157,12 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-// Update a partner's profession
+// Update a partner's profession — own account only.
 export const updateProfession = async (req, res) => {
   try {
     const { id, jobTitle, educationBackground, hobby, skill } = req.body;
+
+    if (!requireSelf(req, res, id)) return;
 
     if (!jobTitle || !educationBackground) {
       return res.status(400).json({
@@ -147,7 +202,7 @@ export const updateProfession = async (req, res) => {
 
 
 
-// Update a partner's username
+// Update a partner's username — own account only.
 export const updateUsername = async (req, res) => {
   const session = await mongoose.startSession();
 
@@ -155,6 +210,12 @@ export const updateUsername = async (req, res) => {
     session.startTransaction();
 
     const { id, username } = req.body;
+
+    if (!requireSelf(req, res, id)) {
+      await session.abortTransaction();
+      session.endSession();
+      return;
+    }
 
     if (!id || !username) {
       await session.abortTransaction();
@@ -258,9 +319,11 @@ export const updateUsername = async (req, res) => {
 
 
 
-// Change a partner's password
+// Change a partner's password — own account only (current password verified).
 export const changePassword = async (req, res) => {
   const { id, currentPassword, newPassword } = req.body;
+
+  if (!requireSelf(req, res, id)) return;
 
   if (!id || !currentPassword || !newPassword) {
     return res.status(400).json({
@@ -340,12 +403,14 @@ export const changePassword = async (req, res) => {
 
 
 
-// Get all partners in the database
+// Member directory — authenticated members only, safe fields, capped.
 export const getAllUsers = async (req, res) => {
   try {
-    const partners = await PartnersModel.find();
-    const sanitizedResult = JSON.stringify(partners).replace(/\s+/g, ""); // Remove all whitespace
-    res.status(200).json(JSON.parse(sanitizedResult)); // Parse back to JSON
+    const partners = await PartnersModel.find()
+      .select(DIRECTORY_SELECT)
+      .limit(500)
+      .lean();
+    res.status(200).json(partners.map(safePartner));
   } catch (error) {
     res.status(500).json({ 
       message: "Internal server error",
@@ -354,7 +419,7 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-// Get partner by name and/or surname
+// Get partner by name and/or surname — authenticated, directory-safe fields.
 export const getPartnerByNames = async (req, res) => {
   const { name, surname } = req.params;
   try {
@@ -365,7 +430,7 @@ export const getPartnerByNames = async (req, res) => {
     if (trimmedName) query.name = trimmedName;
     if (trimmedSurname) query.surname = trimmedSurname;
 
-    const partners = await PartnersModel.find(query);
+    const partners = await PartnersModel.find(query).select(DIRECTORY_SELECT).limit(50).lean();
 
     if (!partners || partners.length === 0) {
       return res.status(404).json({ 
@@ -375,7 +440,7 @@ export const getPartnerByNames = async (req, res) => {
     }
     res.status(200).json({
       message: "Partner(s) found",
-      data: partners,
+      data: partners.map(safePartner),
       success: true
     });
   } catch (error) {
@@ -386,7 +451,7 @@ export const getPartnerByNames = async (req, res) => {
   }
 };
 
-// Get partner by name
+// Get partner by name — authenticated, directory-safe fields.
 export const getPartnerByName = async (req, res) => {
   const { name } = req.params;
   try {
@@ -401,14 +466,14 @@ export const getPartnerByName = async (req, res) => {
     }
 
     const query = { $or: [{ name: capitalizedTrimmedName }, { surname: capitalizedTrimmedName }] };
-    const partners = await PartnersModel.find(query);
+    const partners = await PartnersModel.find(query).select(DIRECTORY_SELECT).limit(50).lean();
 
     if (!partners || partners.length === 0) {
       return res.status(404).json({ message: "Partner not found", success: false });
     }
     res.status(200).json({
       message: "Partner(s) found",
-      data: partners,
+      data: partners.map(safePartner),
       success: true
     });
   } catch (error) {
@@ -416,7 +481,7 @@ export const getPartnerByName = async (req, res) => {
   }
 };
 
-// Follow a partner
+// Follow a partner — the follower must be the session owner.
 export const followPartner = async (req, res) => {
   try {
     const { searchPartnerId } = req.params;
@@ -424,6 +489,9 @@ export const followPartner = async (req, res) => {
 
     if (!searchPartnerId) {
       return res.status(400).json({ message: "Missing required parameter: searchPartnerId", success: false });
+    }
+    if (!partnerId || String(partnerId) !== sessionId(req)) {
+      return res.status(403).json({ message: "You can only follow as yourself", success: false });
     }
 
     const partnerToFollow = await PartnersModel.findById(searchPartnerId);
@@ -443,7 +511,7 @@ export const followPartner = async (req, res) => {
   }
 };
 
-// Unfollow a partner
+// Unfollow a partner — the follower must be the session owner.
 export const unfollowPartner = async (req, res) => {
   try {
     const { searchPartnerId } = req.params;
@@ -451,6 +519,9 @@ export const unfollowPartner = async (req, res) => {
 
     if (!searchPartnerId || !partnerId) {
       return res.status(400).json({ message: "Missing required parameters", success: false });
+    }
+    if (String(partnerId) !== sessionId(req)) {
+      return res.status(403).json({ message: "You can only unfollow as yourself", success: false });
     }
 
     const partnerToUnfollow = await PartnersModel.findById(searchPartnerId);
@@ -494,10 +565,11 @@ export const checkFollowStatus = async (req, res) => {
   }
 };
 
-// Update partner's social media links
+// Update partner's social media links — own account only.
 const updateSocialMediaLink = async (req, res, platform, field) => {
   try {
     const { url, partnerId } = req.body;
+    if (!requireSelf(req, res, partnerId)) return;
     const updateData = { [field]: url };
 
     const partner = await PartnersModel.findByIdAndUpdate(partnerId, updateData, { new: true });
@@ -505,7 +577,7 @@ const updateSocialMediaLink = async (req, res, platform, field) => {
       return res.status(404).json({ message: `Partner not found`, success: false });
     }
 
-    res.status(200).json({ message: "Partner updated successfully!", data: partner, success: true });
+    res.status(200).json({ message: "Partner updated successfully!", data: safePartner(partner), success: true });
   } catch (error) {
     res.status(500).json({ error: error.message, message: "Error updating social link", success: false });
   }
@@ -521,7 +593,7 @@ export const updateInstagramPage = (req, res) => updateSocialMediaLink(req, res,
 export const tiktokPage = (req, res) => updateSocialMediaLink(req, res, "tiktokPage", "tiktokPage");
 export const twitterPage = (req, res) => updateSocialMediaLink(req, res, "twitterPage", "twitterPage");
 
-// Update Testimonial
+// Update Testimonial — own account only.
 export const updateTestimonial = async (req, res) => {
   try {
     const { testimonial, partnerId } = req.body;
@@ -533,6 +605,7 @@ export const updateTestimonial = async (req, res) => {
         success: false
       });
     }
+    if (!requireSelf(req, res, partnerId)) return;
 
     // Create an object with the field you want to update
     const updateData = { testimonial };
@@ -554,7 +627,7 @@ export const updateTestimonial = async (req, res) => {
 
     res.status(200).json({
       message: "Partner updated successfully!",
-      data: partner,
+      data: safePartner(partner),
       success: true
     });
   } catch (error) {
@@ -578,6 +651,7 @@ export const updateLandingPage = async (req, res) => {
         success: false
       });
     }
+    if (!requireSelf(req, res, partnerId)) return;
     const ALLOWED = [
       'headline', 'subHeadline', 'heroBadge', 'businessTagline',
       'aboutStory', 'achievements', 'inviteNote', 'opportunityPoints',
@@ -611,7 +685,7 @@ export const updateLandingPage = async (req, res) => {
     }
     res.status(200).json({
       message: "Landing page updated successfully!",
-      data: partner,
+      data: safePartner(partner),
       success: true
     });
   } catch (error) {
@@ -623,7 +697,7 @@ export const updateLandingPage = async (req, res) => {
   }
 };
 
-// Get all partners of a given partner user
+// Get all partners of a given partner user — owner, upline or admin.
 export const getPartnersOf = async (req, res) => {
   try {
     const { partnerId } = req.params;
@@ -634,6 +708,11 @@ export const getPartnersOf = async (req, res) => {
         message: "partnerId is required.",
         success: false
       });
+    }
+    try {
+      await guard.requireListAccess(sessionId(req), partnerId);
+    } catch (err) {
+      return res.status(err.statusCode ?? 403).json({ message: err.message, success: false });
     }
 
     // Find all partners where partnerOf matches the provided partnerId
@@ -649,7 +728,7 @@ export const getPartnersOf = async (req, res) => {
 
     res.status(200).json({
       message: "Partners retrieved successfully!",
-      data: partners,
+      data: partners.map(safePartner),
       success: true
     });
   } catch (error) {
@@ -661,7 +740,7 @@ export const getPartnersOf = async (req, res) => {
   }
 };
 
-// Get a partner by ID
+// Get a partner by ID — owner, upline or admin; secrets stripped.
 export const getPartnerById = async (req, res) => {
   try {
     const { partnerId } = req.params;
@@ -672,6 +751,11 @@ export const getPartnerById = async (req, res) => {
         message: "partnerId is required.",
         success: false
       });
+    }
+    try {
+      await guard.requireListAccess(sessionId(req), partnerId);
+    } catch (err) {
+      return res.status(err.statusCode ?? 403).json({ message: err.message, success: false });
     }
 
     // Find the partner by ID
@@ -687,7 +771,7 @@ export const getPartnerById = async (req, res) => {
 
     res.status(200).json({
       message: "Partner retrieved successfully!",
-      data: partner,
+      data: safePartner(partner),
       success: true
     });
   } catch (error) {

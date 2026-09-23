@@ -1,16 +1,6 @@
 import { NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 import { PartnerSurveyModel } from '../../../apps/survey/models/survey.model.js';
 
-const top = (vals, n = 5) => {
-  const counts = new Map();
-  for (const v of vals) {
-    const k = String(v ?? '').trim();
-    if (!k) continue;
-    counts.set(k, (counts.get(k) ?? 0) + 1);
-  }
-  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([label, count]) => ({ label, count }));
-};
-
 const shape = (d) => ({
   id: String(d._id),
   name: d.name ?? '',
@@ -53,25 +43,59 @@ export class ListPartnerSurveysUseCase {
       const rx = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       filter.$or = [{ name: rx }, { phoneNumber: rx }, { reservationCode: rx }];
     }
-    const [rows, total, all] = await Promise.all([
+    // Summary runs as one $facet aggregation (constant memory) instead of
+    // loading every survey row into the process — the old find({}) grew
+    // with the platform.
+    const rank = (field, n = 5, unwind = false) => {
+      const path = `$${field}`;
+      const pipe = unwind ? [{ $unwind: path }] : [];
+      return [
+        ...pipe,
+        { $group: { _id: path, count: { $sum: 1 } } },
+        { $match: { _id: { $ne: null } } },
+        { $sort: { count: -1 } },
+        { $limit: n },
+        { $project: { _id: 0, label: '$_id', count: 1 } },
+      ];
+    };
+    const weekAgo = new Date(Date.now() - 7 * 86400000);
+    const [rows, total, agg] = await Promise.all([
       this.surveys.find(filter).sort({ createdAt: -1 }).skip(sk).limit(lim).lean().catch(() => []),
       this.surveys.countDocuments(filter).catch(() => 0),
-      this.surveys.find({}).select('difficulty challenges strategies targetAudience recruitmentTool trainingSupport interestedInTraining createdAt').lean().catch(() => []),
+      this.surveys.aggregate([
+        {
+          $facet: {
+            totals: [{ $count: 'total' }],
+            new7d: [{ $match: { createdAt: { $gte: weekAgo } } }, { $count: 'n' }],
+            topChallenges: rank('challenges', 5, true),
+            topStrategies: rank('strategies', 5, true),
+            topAudiences: rank('targetAudience', 5, true),
+            byDifficulty: rank('difficulty', 10),
+            byTool: rank('recruitmentTool', 10),
+            trainingDemand: rank('trainingSupport', 10),
+            wantsTraining: [
+              { $match: { interestedInTraining: /yes/i } },
+              { $count: 'n' },
+            ],
+          },
+        },
+      ]).catch(() => []),
     ]);
-    const list = all ?? [];
+    const f = agg?.[0] ?? {};
+    const one = (arr) => arr?.[0] ?? {};
     return {
       items: (rows ?? []).map(shape),
       total,
       summary: {
-        total: list.length,
-        new7d: list.filter((d) => d.createdAt && new Date(d.createdAt).getTime() > Date.now() - 7 * 86400000).length,
-        topChallenges: top(list.flatMap((d) => d.challenges ?? [])),
-        topStrategies: top(list.flatMap((d) => d.strategies ?? [])),
-        topAudiences: top(list.flatMap((d) => d.targetAudience ?? [])),
-        byDifficulty: top(list.map((d) => d.difficulty), 10),
-        byTool: top(list.map((d) => d.recruitmentTool), 10),
-        trainingDemand: top(list.map((d) => d.trainingSupport), 10),
-        wantsTraining: list.filter((d) => /yes/i.test(String(d.interestedInTraining ?? ''))).length,
+        total: one(f.totals).total ?? 0,
+        new7d: one(f.new7d).n ?? 0,
+        topChallenges: f.topChallenges ?? [],
+        topStrategies: f.topStrategies ?? [],
+        topAudiences: f.topAudiences ?? [],
+        byDifficulty: f.byDifficulty ?? [],
+        byTool: f.byTool ?? [],
+        trainingDemand: f.trainingDemand ?? [],
+        wantsTraining: one(f.wantsTraining).n ?? 0,
       },
     };
   }

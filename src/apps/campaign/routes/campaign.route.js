@@ -15,28 +15,29 @@ import {
 const CampaignRouter = express.Router();
 
 // unified creation (one wizard, per-channel minimums enforced inside)
-CampaignRouter.post('/', createCampaign);
+// — session-owned: wallet + record always hit the caller's account.
+CampaignRouter.post('/', requireAuth, createCampaign);
 
 // create facebook campaign
-CampaignRouter.post('/facebook', createFacebookCampaign);
+CampaignRouter.post('/facebook', requireAuth, createFacebookCampaign);
 
 // create youtbue campaign
-CampaignRouter.post('/youtube', createYoutubeCampaign);
+CampaignRouter.post('/youtube', requireAuth, createYoutubeCampaign);
 
 // create linkedin campaign
-CampaignRouter.post('/linkedin', createLinkedinCampaign);
+CampaignRouter.post('/linkedin', requireAuth, createLinkedinCampaign);
 
-// Get all campaigns createdBy
-CampaignRouter.get('/all-createdBy/:createdBy', getCampaignsCreatedBy);
+// Get all campaigns createdBy — owner, upline or admin.
+CampaignRouter.get('/all-createdBy/:createdBy', requireAuth, getCampaignsCreatedBy);
 
 // Admin queue (role-gated) — must precede /:id so 'queue' isn't read as an id.
 CampaignRouter.get('/queue', requireAuth, requireRole('admin'), listCampaignsForAdmin);
 CampaignRouter.patch('/:id/status', requireAuth, requireRole('admin'), updateCampaignStatus);
 
-// Get a camapaign
-CampaignRouter.get('/:id', getCampaign);
+// Get a camapaign — owner, upline or admin.
+CampaignRouter.get('/:id', requireAuth, getCampaign);
 
-// record visit
+// record visit — PUBLIC (the :4201 site records anonymous page visits).
 CampaignRouter.post('/visits', recordVisits);
 
 

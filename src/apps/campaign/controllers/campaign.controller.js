@@ -6,6 +6,22 @@ import { NotifyUseCase } from '../../../modules/notifications/application/Notifi
 import { MongoStoredNotificationStore } from '../../../modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { recordAudit } from '../../../modules/audit/index.js';
 import { sendEmail } from '../../../services/emailService.js';
+import { buildProspectAccess } from '../../../modules/crm/application/Prospect.access.js';
+
+// Session + ownership guard (campaigns hold wallet money — createdBy must be
+// the session; reads are owner/upline/admin). Visits stay public (the
+// :4201 site records them for anonymous visitors).
+const guard = buildProspectAccess({
+  findProspectById: async () => null,
+  findPartnerById: (id) => PartnersModel.findById(id).select('role email partnerOf').lean().catch(() => null),
+});
+const sessionId = (req) => (req.auth?.partnerId ? String(req.auth.partnerId) : null);
+const deny = (res, err) => res.status(err?.statusCode ?? 403).json({ message: err?.message ?? 'Forbidden', success: false });
+
+/** Force wallet + record ownership to the session (blocks draining others). */
+const ownBody = (req) => {
+  if (req.body && typeof req.body === 'object') req.body.createdBy = sessionId(req);
+};
 
 const ADMIN_STATUSES = ['Pending', 'Active', 'Rejected', 'Ended'];
 const ALLOWED_TRANSITIONS = {
@@ -57,6 +73,7 @@ const CHANNEL_LABEL = {
 export const createCampaign = async (req, res) => {
   try {
     const { body } = req;
+    ownBody(req);
     const channel = String(body.channel ?? '').toLowerCase();
 
     if (!CHANNEL_MINIMUM[channel]) {
@@ -163,6 +180,7 @@ export const createFacebookCampaign = async (req, res) => {
 
   try {
     const { body } = req;
+    ownBody(req);
 
     // Find the partner by ID  
     const partner = await PartnersModel.findById(body.createdBy);
@@ -235,9 +253,10 @@ export const createFacebookCampaign = async (req, res) => {
 export const createYoutubeCampaign = async (req, res) => {
   const MIN_CHARGE = 18000; // Define the Youtube minimum charge amount  
 
-    try {
+  try {
 
       const { body } = req; 
+      ownBody(req);
 
       // Find the partner by ID  
       const partner = await PartnersModel.findById(body.createdBy);
@@ -312,6 +331,7 @@ export const createLinkedinCampaign = async (req, res) => {
     try {
 
       const { body } = req; 
+      ownBody(req);
 
         // Find the partner by ID  
       const partner = await PartnersModel.findById(body.createdBy);
@@ -343,7 +363,7 @@ export const createLinkedinCampaign = async (req, res) => {
         partnerId: partner._id,
         amount: body.budget.budgetAmount,  // Use the budget amount as the charge
         status: 'Completed',
-        paymentMethod: 'Youtube Ads',
+        paymentMethod: 'LinkedIn Ads',
         transactionType: 'Debit',
         reference: Math.floor(100000000 + Math.random() * 900000000).toString() // Generate a random 9-digit number as a string
       });
@@ -379,10 +399,16 @@ export const createLinkedinCampaign = async (req, res) => {
     }
 }
 
-// Route handler to fetch all Ads by createdBy
+// Route handler to fetch all Ads by createdBy — owner, upline or admin.
 export const getCampaignsCreatedBy = async (req, res) => {
     try {
       const { createdBy } = req.params; // Assuming createdBy is passed as a query parameter
+
+      try {
+        await guard.requireListAccess(sessionId(req), createdBy);
+      } catch (err) {
+        return deny(res, err);
+      }
   
       // Find Ads where createdBy matches the provided ID
       const ads = await CampaignModel.find({ createdBy });
@@ -432,7 +458,7 @@ export const recordVisits = async (req, res) => {
         return res.status(200).json({
           message: 'Partner visit recorded successfully',
           success: true,
-          partner: updatedPartner,
+          data: { visits: updatedPartner.visits ?? null },
         });
       } else {
         // This should ideally not happen if the partner was found, but handle defensively
@@ -465,7 +491,7 @@ export const recordVisits = async (req, res) => {
         return res.status(200).json({
           message: 'Partner visit recorded successfully',
           success: true,
-          partner: updatedPartner,
+          data: { visits: updatedPartner.visits ?? null },
         });
       }
     }
@@ -585,7 +611,7 @@ export const updateCampaignStatus = async (req, res) => {
 // Get a single campaign  
 export const getCampaign = async (req, res) => {  
   try {  
-    const { id } = req.params; // Assuming id is passed as a route parameter  
+    const { id } = req.params; // Assuming id is passed as a route parameter 
 
     // Find the campaign where id matches the provided ID  
     const campaign = await CampaignModel.findById(id);  
@@ -595,8 +621,15 @@ export const getCampaign = async (req, res) => {
         message: 'Campaign not found',  
         success: false,
       });  
-    }  
+    }
 
+    // Campaigns hold wallet money — owner, upline or admin only.
+    try {
+      await guard.requireListAccess(sessionId(req), campaign.createdBy);
+    } catch (err) {
+      return deny(res, err);
+    }
+  
     res.status(200).json({  
       message: 'Campaign retrieved successfully!',  
       data: campaign,  

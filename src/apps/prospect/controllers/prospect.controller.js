@@ -292,40 +292,8 @@ export const getSurveyProspectFor = async (req, res) => {
 };
 
 
-// Get all surver prospect gotton by the system (Username = business) —
-// admin only: full unmasked pool PII. Members use the geo-fenced v1 pool.
-export const getAllSurveyProspect = async (req, res) => {
-  try {
-    try {
-      await guard.requireAdmin(req.auth?.partnerId);
-    } catch (err) {
-      return deny(res, err);
-    }
-
-    /// Step 1: user found username to get user from survey collection
-    const prospectObject = await ProspectSurveyModel.find({ username: 'business' });
-
-    if (!prospectObject) {
-      return res.status(400).json({ 
-        message: "Platform prospects not found",
-        success: false
-      });
-    }
-
-    res.status(200).json({
-      message: "Prospects retrieved successfully!",
-      data: prospectObject,
-      success: true
-    });
-  } catch (error) {
-    //console.error(error.message);
-    res.status(500).json({
-      message: "Error retrieving prospects",
-      error: error.message,
-      success: false
-    });
-  }
-};
+// REMOVED: getAllSurveyProspect (unbounded unmasked pool dump, no callers)
+// — admins use the paginated Admin → Lead pool desk instead.
 
 // Get all surver prospect gotton by the system (Username !== business) —
 // private page-lead inbox: the owning partner or admin only.

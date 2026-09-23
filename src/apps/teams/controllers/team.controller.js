@@ -6,6 +6,21 @@ import {PartnersModel} from '../../partner/models/partner.model.js';
  * id on every row; `owner` is purely additive so existing comparisons
  * and payloads keep working. Takes plain objects (lean/toObject).
  */
+const sessionId = (req) => (req.auth?.partnerId ? String(req.auth.partnerId) : null);
+const deny = (res, status, message) => res.status(status).json({ message, success: false });
+/** Team read scope: creator, listed member, or admin. */
+const canReadTeam = async (team, requester) => {
+  if (!requester) return false;
+  if (String(team.partnerId) === String(requester)) return true;
+  if ((team.members ?? []).map(String).includes(String(requester))) return true;
+  try {
+    const { PartnersModel: PM } = await import('../../partner/models/partner.model.js');
+    const me = await PM.findById(requester).select('role email').lean().catch(() => null);
+    const { lenientRole, adminBootstrapEmails } = await import('../../../modules/identity-access/domain/PartnerRole.js');
+    return lenientRole(me?.role) === 'admin' || adminBootstrapEmails().includes(String(me?.email ?? '').toLowerCase());
+  } catch { return false; }
+};
+const SAFE_MEMBER_SELECT = 'username name surname profileImage';
 const attachOwners = async (rows) => {
   const list = Array.isArray(rows) ? rows : (rows ? [rows] : []);
   if (list.length === 0) return rows;
@@ -25,8 +40,9 @@ const attachOwners = async (rows) => {
 
 
 // Save team details  
-export const saveTeam = async (req, res) => {  
-    const { teamName, description, teamPurpose, partnerId } = req.body;  
+export const saveTeam = async (req, res) => {
+    const { teamName, description, teamPurpose } = req.body;
+    const partnerId = sessionId(req); // creator is always the session owner  
 
     // Validate required fields  
     if (!teamName || !teamPurpose || !partnerId) {  
@@ -63,8 +79,11 @@ export const saveTeam = async (req, res) => {
 
 // get team created by partner
 export const getTeamsCreatedBy = async (req, res) => {
-    try {  
+    try {
         const { partnerId } = req.params;
+        if (String(partnerId) !== sessionId(req)) {
+          return deny(res, 403, 'You can only view your own teams');
+        }
 
         //console.log(partnerId)
       
@@ -102,7 +121,7 @@ const getTeamsByMember = async (req, res) => {
     try {
         const { partnerId } = req.params;
 
-        const memberTeams = await TeamModel.find({ members: partnerId }).populate('members'); // Find where partnerId is in members
+        const memberTeams = await TeamModel.find({ members: partnerId }).populate('members', SAFE_MEMBER_SELECT); // Find where partnerId is in members
 
         res.status(200).json({
             message: 'Teams where partner is a member retrieved successfully!',
@@ -122,13 +141,16 @@ const getTeamsByMember = async (req, res) => {
 export const getTeamsByCreatorOrPartner = async (req, res) => {
   try {
     const { partnerId } = req.params;
+    if (String(partnerId) !== sessionId(req)) {
+      return deny(res, 403, 'You can only view your own teams');
+    }
 
     // Single $or query — Mongoose casts both legs, so string/ObjectId
     // shape differences can't silently drop the member half. Dedupe
     // by id in case a creator is also listed as a member.
     const rows = await TeamModel.find({
       $or: [{ partnerId }, { members: partnerId }],
-    }).populate('members');
+    }).populate('members', SAFE_MEMBER_SELECT);
     const plain = rows.map((r) => r.toObject());
     const seen = new Set();
     const uniqueTeams = plain.filter((team) => {
@@ -159,7 +181,7 @@ export const getTeamBy = async (req, res) => {
     try {  
         const { id } = req.params;    
         // Find teams objects for the partner  
-        const team = await TeamModel.findById(id).populate('members'); // Populate members;  
+        const team = await TeamModel.findById(id).populate('members', SAFE_MEMBER_SELECT); // Populate members;  
 
         if (!team) {  
             return res.status(404).json({ 
@@ -190,7 +212,7 @@ export const getTeamBy = async (req, res) => {
 export const deleteTeamBy = async (req, res) => {
     try {  
         const { id } = req.params;
-        const requesterId = req.query.requesterId ?? req.body?.requesterId;
+        const requesterId = sessionId(req); // session-owned (query/body values ignored)
 
         if (!requesterId) {
             return res.status(400).json({
@@ -234,7 +256,7 @@ export const deleteTeamBy = async (req, res) => {
 export const deleteTeamMember = async (req, res) => {
     try {
         const { teamId, memberId } = req.params; // Get both teamId and memberId
-        const requesterId = req.query.requesterId ?? req.body?.requesterId;
+        const requesterId = sessionId(req); // session-owned (query/body values ignored)
 
         if (!requesterId) {
             return res.status(400).json({
@@ -265,7 +287,7 @@ export const deleteTeamMember = async (req, res) => {
             teamId,
             { $pull: { members: memberId } }, // $pull removes the specified memberId
             { new: true } // Return the updated document
-        ).populate('members'); // Populate members after deletion
+        ).populate('members', SAFE_MEMBER_SELECT); // Populate members after deletion
 
         if (!updatedTeam) {
             return res.status(404).json({ 
@@ -301,7 +323,8 @@ export const updateTeamBy = async (req, res) => {
     try {  
 
        // console.log(req.body)
-        const { temaId, partnerId, teamPurpose, description, teamName} = req.body;  
+        const { temaId, teamPurpose, description, teamName} = req.body;
+        const partnerId = sessionId(req); // session-owned (body value ignored)  
 
         // Owner-only: partnerId carries the editor's id — refuse anyone else.
         const existing = await TeamModel.findById(temaId).select('partnerId');
@@ -347,7 +370,8 @@ export const updateTeamBy = async (req, res) => {
 
 // add team member — owner only (requesterId required).
 export const addTeamMember = async (req, res) => {
-    const { teamMemberObject, teamId, requesterId } = req.body;
+    const { teamMemberObject, teamId } = req.body;
+    const requesterId = sessionId(req); // session-owned (body value ignored)
   
     //console.log(teamMemberObject);
     //console.log(teamId);

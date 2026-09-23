@@ -1,4 +1,5 @@
 import express from 'express';
+import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { 
     checkPartnerUsername, getAllUsers, searchPartnersPublic,
      getPartnerByNames, getPartnerByName,
@@ -16,59 +17,60 @@ const PartnerRouter = express.Router();
 // public referral picker (safe fields, no auth — used by Get Started)
 PartnerRouter.get('/public-search', searchPartnersPublic);
 
-// get a partner
+// public page lookup (safe fields only — used by /:partnerUsername)
 PartnerRouter.get('/check-username/:username', checkPartnerUsername);
 
+// Everything below needs a partner session. Writes additionally enforce
+// session-ownership inside the controllers (self-only or scoped reads).
 // Update partner
-PartnerRouter.put('/update-profile', updateProfile);
+PartnerRouter.put('/update-profile', requireAuth, updateProfile);
 
 // Update partner
-PartnerRouter.put('/update-profession', updateProfession);
+PartnerRouter.put('/update-profession', requireAuth, updateProfession);
 
 // Update username
-PartnerRouter.put('/update-username', updateUsername)
+PartnerRouter.put('/update-username', requireAuth, updateUsername)
 
 // Change password
-PartnerRouter.put('/change-password', changePassword)
+PartnerRouter.put('/change-password', requireAuth, changePassword)
+
+// member directory (safe fields, capped) — authenticated members only
+PartnerRouter.get('/getAllUsers', requireAuth, getAllUsers)
 
 // get all partners
-PartnerRouter.get('/getAllUsers', getAllUsers)
+PartnerRouter.get('/getPartnerByNames/:name/:surname', requireAuth, getPartnerByNames)
 
 // get all partners
-PartnerRouter.get('/getPartnerByNames/:name/:surname', getPartnerByNames)
-
-// get all partners
-PartnerRouter.get('/getPartnerByName/:name', getPartnerByName)
+PartnerRouter.get('/getPartnerByName/:name', requireAuth, getPartnerByName)
 
 // follow
-PartnerRouter.post('/follow/:searchPartnerId', followPartner);
+PartnerRouter.post('/follow/:searchPartnerId', requireAuth, followPartner);
 
 // unfollow
-PartnerRouter.post('/unfollow/:searchPartnerId', unfollowPartner);
+PartnerRouter.post('/unfollow/:searchPartnerId', requireAuth, unfollowPartner);
 
 // check follow
-PartnerRouter.get('/check-follow-status/:partnerId/:searchPartnerId', checkFollowStatus);
+PartnerRouter.get('/check-follow-status/:partnerId/:searchPartnerId', requireAuth, checkFollowStatus);
 
 // Update partner social media pages
-PartnerRouter.put('/whatsappgrouplink', updateWhatsappGroupLink);
-PartnerRouter.put('/whatsappchatlink', updateWhatsappChatLink);
-PartnerRouter.put('/facebookPage', updateFacebookPage);
-PartnerRouter.put('/linkedinPage', updateLinkedinPage);
-PartnerRouter.put('/youtubePage', updateYoutubePage);
-PartnerRouter.put('/instagramPage', updateInstagramPage);
-PartnerRouter.put('/tiktokPage', tiktokPage);
-PartnerRouter.put('/twitterPage', twitterPage);
+PartnerRouter.put('/whatsappgrouplink', requireAuth, updateWhatsappGroupLink);
+PartnerRouter.put('/whatsappchatlink', requireAuth, updateWhatsappChatLink);
+PartnerRouter.put('/facebookPage', requireAuth, updateFacebookPage);
+PartnerRouter.put('/linkedinPage', requireAuth, updateLinkedinPage);
+PartnerRouter.put('/youtubePage', requireAuth, updateYoutubePage);
+PartnerRouter.put('/instagramPage', requireAuth, updateInstagramPage);
+PartnerRouter.put('/tiktokPage', requireAuth, tiktokPage);
+PartnerRouter.put('/twitterPage', requireAuth, twitterPage);
 // update testimonial
-PartnerRouter.put('/testimonial', updateTestimonial);
+PartnerRouter.put('/testimonial', requireAuth, updateTestimonial);
 // unified public one-pager save (/:partnerUsername content)
-PartnerRouter.put('/landing-page', updateLandingPage);
+PartnerRouter.put('/landing-page', requireAuth, updateLandingPage);
 
 // get all partnersOf
-PartnerRouter.get('/getPartnersOf/:partnerId', getPartnersOf);
+PartnerRouter.get('/getPartnersOf/:partnerId', requireAuth, getPartnersOf);
 
 // get partner by id
-PartnerRouter.get('/getById/:partnerId', getPartnerById);
-
+PartnerRouter.get('/getById/:partnerId', requireAuth, getPartnerById);
 
 
 
