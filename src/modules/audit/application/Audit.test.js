@@ -25,13 +25,16 @@ describe('AUDIT_ACTIONS vocabulary', () => {
     for (const a of [
       'role.set', 'account.suspend', 'account.unsuspend',
       'account.signout', 'account.reset-password', 'account.erase',
-      'payout.release', 'payout.void', 'withdrawal.decide',
+      'account.reassign-upline',
+      'payout.release', 'payout.void', 'withdrawal.decide', 'wallet.credit',
       'campaign.decide', 'order.decide', 'reservation.decide', 'reservation.delete',
       'training.quiz.save', 'training.media.save', 'training.media.revert',
       'ticket.decide', 'moderation.remove', 'moderation.dismiss',
       'broadcast.send', 'broadcast.campaign.queue', 'broadcast.campaign.cancel',
       'broadcast.campaign.retry', 'broadcast.delete', 'lead.import',
-      'lead.delete', 'lead.status', 'subscription.delete', 'subscription.status',
+      'lead.delete', 'lead.status', 'pagelead.delete', 'pagelead.reassign',
+      'partnersurvey.delete', 'page.reset',
+      'subscription.delete', 'subscription.status',
       'billing.plan.update', 'product.create', 'product.update',
     ]) {
       assert.ok(AUDIT_ACTIONS.includes(a), `missing ${a}`);

@@ -42,7 +42,7 @@ export const makeAdminController = ({ setRole, listPartners, setSuspend, platfor
     });
     void recordAudit({
       actorId: req.auth?.partnerId,
-      action: data?.suspended ? 'account.unsuspend' : 'account.suspend',
+      action: data?.suspended ? 'account.suspend' : 'account.unsuspend',
       targetType: 'partner',
       targetId: params.partnerId,
       detail: { username: data?.username ?? null, reason: body.reason ?? null },
