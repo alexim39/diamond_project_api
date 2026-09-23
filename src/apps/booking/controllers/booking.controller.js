@@ -4,6 +4,22 @@ import { PartnersModel } from './../../partner/models/partner.model.js';
 import { EmailSubscriptionModel } from "../../email-subscription/models/email-subscription.model.js";
 import { ownerEmailTemplate } from "../services/email/ownerTemplate.js";
 import { userNotificationEmailTemplate } from "../services/email/userTemplate.js";
+import { buildPartnerAccess } from '../../../modules/crm/application/Prospect.access.js';
+
+// Ownership guard: bookings key off the owner's `username`. Reads + status
+// need owner/upline/admin; deletes need owner/admin. Submit stays
+// partner-authenticated (attribution rides the form's username).
+const guard = buildPartnerAccess({
+  findPartnerById: (id) => PartnersModel.findById(id).select('role email partnerOf').lean().catch(() => null),
+});
+const deny = (res, err) => res.status(err?.statusCode ?? 403).json({ message: err?.message ?? 'Forbidden', success: false });
+
+// Resolve a booking's owning partner id from its `username` (null = orphan).
+const ownerIdOf = async (booking) => {
+  if (!booking?.username) return null;
+  const owner = await PartnersModel.findOne({ username: booking.username }).select('_id').lean().catch(() => null);
+  return owner ? String(owner._id) : null;
+};
 
 // User survey form
 export const SessionBookingController = async (req, res) => {
@@ -114,10 +130,16 @@ export const SessionBookingController = async (req, res) => {
   }
 };
 
-// Get all booking for partner
+// Get all booking for partner — owner, upline or admin.
 export const getBookingsForPartner = async (req, res) => {
   try {
     const { createdBy } = req.params;
+
+    try {
+      await guard.requireListAccess(req.auth?.partnerId, createdBy);
+    } catch (err) {
+      return deny(res, err);
+    }
 
     // Step 1: Find the user and get username
     const partner = await PartnersModel.findById(createdBy);
@@ -154,7 +176,7 @@ export const getBookingsForPartner = async (req, res) => {
   }
 };
 
-// delete booking
+// delete booking — owner or admin only.
 export const deleteBooking = async (req, res) => {
   try {
     const { id } = req.params;
@@ -167,6 +189,12 @@ export const deleteBooking = async (req, res) => {
         message: "Booking not found",
         success: false,
       });
+    }
+
+    try {
+      await guard.requireOwnerId(req.auth?.partnerId, await ownerIdOf(booking), 'delete this booking');
+    } catch (err) {
+      return deny(res, err);
     }
 
     // Here we delete the survey entry
@@ -185,10 +213,24 @@ export const deleteBooking = async (req, res) => {
   }
 };
 
-// Booking update
+// Booking update — owner, upline (support) or admin.
 export const UpdateBooking = async (req, res) => {
     try {
       const { body } = req;
+      if (body?.id) {
+        try {
+          const current = await BookingModel.findById(body.id).select('username').lean().catch(() => null);
+          if (!current) {
+            return res.status(404).json({
+              message: "Booking not found",
+              success: false,
+            });
+          }
+          await guard.requireListAccess(req.auth?.partnerId, await ownerIdOf(current));
+        } catch (err) {
+          return deny(res, err);
+        }
+      }
       const updatedBooking = await BookingModel.findByIdAndUpdate(
         body.id,
         {
@@ -217,10 +259,16 @@ export const UpdateBooking = async (req, res) => {
     }
 };
 
-// get partner email list
+// get partner email list — owner, upline or admin (PII harvest guard).
 export const getPartnerEmailList = async (req, res) => {
+  try {
+    const { createdBy } = req.params;
+
     try {
-      const { createdBy } = req.params;
+      await guard.requireListAccess(req.auth?.partnerId, createdBy);
+    } catch (err) {
+      return deny(res, err);
+    }
   
       // Step 1: Find the user and get username
       const partner = await PartnersModel.findById(createdBy);

@@ -18,7 +18,6 @@ import EmailSubscriptionRouter from './src/apps/email-subscription/index.js';
 
 import EmailRouter from './src/apps/email/index.js';
 import SmsRouter from './src/apps/sms/index.js';
-import ProfileImageRouter from './src/services/upload-profile-picture.js';
 import TicketRouter from './src/apps/ticket/index.js';
 import TeamsRouter from './src/apps/teams/index.js';
 import SettingsRouter from './src/apps/settings/index.js';
@@ -118,7 +117,11 @@ app.use('/emailSubscription', EmailSubscriptionRouter);
 
 app.use('/emails', EmailRouter);
 app.use('/sms', SmsRouter);
-app.use('/image', ProfileImageRouter);
+// RETIRED: legacy disk upload (POST /image/profile/:userId) had no auth,
+// no file-type/size limits and wrote to local disk. Profile photos go
+// through session-owned POST /v1/settings/profile-image (Cloudinary).
+// The /uploads static serve below stays for previously stored filenames.
+// app.use('/image', ProfileImageRouter);
 app.use('/ticket', TicketRouter);
 app.use('/team', TeamsRouter);
 app.use('/settings', SettingsRouter);
