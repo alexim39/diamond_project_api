@@ -29,6 +29,7 @@ import { PartnersModel } from '../infrastructure/Prospect.models.js';
 import { ReleaseProspectToPoolUseCase } from '../application/Prospect.release.js';
 import { ClaimPoolLeadUseCase } from '../application/Prospect.claim.js';
 import { PushPoolLeadToPartnerUseCase } from '../application/Prospect.push.js';
+import { AssignPoolLeadToPartnerUseCase } from '../application/Prospect.push.js';
 import { AcceptPageLeadUseCase } from '../application/Prospect.accept.js';
 import { GetPoolUseCase, RateLeadUseCase, ImportLeadsUseCase } from '../application/Prospect.pool.js';
 import {
@@ -195,6 +196,20 @@ export const buildProspectRouter = (deps = {}) => {
       detail: { username: data.username, prospectId: data.prospectId },
     });
     res.status(200).json({ message: `Lead pushed to @${data.username} — free, in their pipeline now`, data, success: true });
+  }));
+
+  router.post('/admin/leads/:leadId/assign', requireRole('admin'), validate({ params: LeadIdParam, body: PushPoolLeadSchema }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    // Route-scope usecase (c.* are req/res handlers, not usecases).
+    const assigner = deps.adminLeadAssign ?? new AssignPoolLeadToPartnerUseCase({});
+    const data = await assigner.execute({ leadId: params.leadId, username: body.username });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'poollead.assign',
+      targetType: 'leadpool', targetId: params.leadId,
+      detail: { username: data.username },
+    });
+    res.status(200).json({ message: `Lead assigned to @${data.username} — in their My Page Leads inbox`, data, success: true });
   }));
 
   // Admin page-lead desk — private /:username submissions (never pool rows).

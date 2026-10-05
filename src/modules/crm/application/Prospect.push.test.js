@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PushPoolLeadToPartnerUseCase } from './Prospect.push.js';
+import { AssignPoolLeadToPartnerUseCase } from './Prospect.push.js';
 
 const survey = (over = {}) => ({
   _id: '64f000000000000000000001',
@@ -130,4 +131,36 @@ test('push releases the pool row when the pipeline create fails', async () => {
     /db down/,
   );
   assert.equal(f.surveyRows.get(LEAD_ID).prospectStatus, 'Not Moved');
+});
+
+test('assign transfers row ownership to the partner inbox, no pipeline copy', async () => {
+  const f = base();
+  const uc = new AssignPoolLeadToPartnerUseCase({ ...f });
+  const res = await uc.execute({ leadId: LEAD_ID, username: 'market' });
+  assert.equal(res.id, LEAD_ID);
+  assert.equal(res.username, 'market');
+  assert.equal(f.surveyRows.get(LEAD_ID).username, 'market');
+  assert.equal(f.prospectRows.length, 0);
+});
+
+test('assign rejects bad targets and rows no longer up for grabs', async () => {
+  const f = base();
+  f.partners.findOne = () => ({ select: () => ({ lean: async () => null }) });
+  const uc = new AssignPoolLeadToPartnerUseCase({ ...f });
+  await assert.rejects(uc.execute({ leadId: LEAD_ID, username: 'ghost' }), /Target partner not found/);
+  await assert.rejects(uc.execute({ leadId: LEAD_ID, username: 'business' }), /Cannot assign to business/);
+  await assert.rejects(uc.execute({ leadId: 'nope', username: 'market' }), /Invalid lead id/);
+
+  const taken = base();
+  taken.surveyRows.get(LEAD_ID).prospectStatus = 'Claimed';
+  await assert.rejects(
+    new AssignPoolLeadToPartnerUseCase({ ...taken }).execute({ leadId: LEAD_ID, username: 'market' }),
+    /no longer available in the pool/,
+  );
+  const owned = base();
+  owned.surveyRows.get(LEAD_ID).username = 'market';
+  await assert.rejects(
+    new AssignPoolLeadToPartnerUseCase({ ...owned }).execute({ leadId: LEAD_ID, username: 'other' }),
+    /no longer available in the pool/,
+  );
 });

@@ -4,15 +4,19 @@ import { PartnersModel } from '../../../apps/partner/models/partner.model.js';
 import { ProspectSurveyModel } from '../../../apps/survey/models/survey.model.js';
 
 /**
- * Admin push — grant a shared-pool lead to a partner, free of charge.
- * Same pipeline copy as a paid claim (contact unlocks, 48h work clock via
- * claimedAt, pool row cleared) but with no wallet debit: claimFeePaid is 0,
+ * Admin pool grants — two free handoffs from shared inventory to a partner.
+ *
+ * PushPoolLeadToPartnerUseCase: admin-granted claim. Copies the pool row
+ * into the partner's pipeline (contact unlocks, 48h work clock via
+ * claimedAt, pool row cleared) with no wallet debit: claimFeePaid is 0,
  * which also keeps the push outside the paid daily-cap count
- * (`claimFeePaid: { $gt: 0 }`). Order mirrors the claim money-safety model:
- * verify pool row → resolve target partner → duplicate check (scoped to the
- * target's contacts) → atomic survey take (first push wins) → create
- * prospect → delete survey. A failed create releases the row back to
- * 'Not Moved' so the lead is never stranded.
+ * (`claimFeePaid: { $gt: 0 }`).
+ *
+ * AssignPoolLeadToPartnerUseCase: inbox assignment. Transfers ownership of
+ * the survey row itself (`username: 'business'` → target partner) with no
+ * prospect copy. The row leaves the pool and lands in the partner's
+ * My Page Leads inbox (and the admin page-leads desk under the new owner);
+ * the partner accepts it into follow-ups free whenever ready.
  */
 export class PushPoolLeadToPartnerUseCase {
   /** @param {{surveys, prospects, partners}} deps */
@@ -91,5 +95,40 @@ export class PushPoolLeadToPartnerUseCase {
       await this.surveys.updateOne({ _id: leadId }, { $set: { prospectStatus: 'Not Moved' } }).catch(() => null);
       throw err;
     }
+  }
+}
+
+/**
+ * Admin assign — hand a shared-pool lead to a partner's Page Leads inbox.
+ * Single atomic ownership transfer: only a row still owned by 'business'
+ * and still 'Not Moved' can move (stuck rows must be reopened first), so
+ * concurrent assigns race on the filter and the loser gets a 409.
+ * No prospect copy, no fee, no daily-cap interaction — the partner accepts
+ * the row into follow-ups free via the normal Page Leads flow.
+ */
+export class AssignPoolLeadToPartnerUseCase {
+  /** @param {{surveys, partners}} deps */
+  constructor({ surveys, partners } = {}) {
+    Object.assign(this, {
+      surveys: surveys ?? ProspectSurveyModel,
+      partners: partners ?? PartnersModel,
+    });
+  }
+
+  async execute({ leadId, username }) {
+    if (!/^[a-fA-F0-9]{24}$/.test(String(leadId ?? ''))) throw new ValidationException('Invalid lead id');
+    const target = String(username ?? '').trim();
+    if (!target) throw new ValidationException('Provide a valid partner username');
+    if (target.toLowerCase() === 'business') throw new ValidationException('Cannot assign to business — business is the shared Buy Prospect pool. Enter a real partner username');
+    const partner = await this.partners.findOne({ username: target }).select('_id username').lean().catch(() => null);
+    if (!partner) throw new NotFoundException('Target partner not found');
+
+    const moved = await this.surveys.findOneAndUpdate(
+      { _id: leadId, username: 'business', prospectStatus: 'Not Moved' },
+      { $set: { username: target } },
+      { new: true },
+    ).lean().catch(() => null);
+    if (!moved) throw new ConflictException('Lead is no longer available in the pool');
+    return { id: String(moved._id ?? leadId), username: target };
   }
 }
