@@ -164,3 +164,8 @@ export const PageLeadIdParam = z.object({ pageLeadId: objectId });
 export const ReassignPageLeadSchema = z.object({
   owner: z.string().trim().min(2).max(80),
 });
+
+/** POST /v1/prospects/admin/leads/:leadId/push — grant a pool lead to a partner, free. */
+export const PushPoolLeadSchema = z.object({
+  username: z.string().trim().min(2).max(80),
+});

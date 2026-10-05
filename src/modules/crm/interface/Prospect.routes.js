@@ -6,7 +6,7 @@ import {
   ProspectIdParam, PartnerIdParam, CreateProspectSchema, UpdateProspectSchema,
   UpdateStatusSchema, LogCommunicationSchema, PaginationQuery, CommIdsParam, StuckQuery,
   ConvertProspectSchema, ClaimProspectSchema, AcceptPageLeadSchema, PoolQuery, RateLeadSchema, ImportLeadsSchema,
-  AdminLeadsQuery, LeadIdParam, AdminPageLeadsQuery, PageLeadIdParam, ReassignPageLeadSchema,
+  AdminLeadsQuery, LeadIdParam, AdminPageLeadsQuery, PageLeadIdParam, ReassignPageLeadSchema, PushPoolLeadSchema,
 } from './Prospect.validator.js';
 import { requireRole } from '../../identity-access/interface/RequireRole.js';
 import { makeProspectController } from './Prospect.controller.js';
@@ -28,6 +28,7 @@ import { buildProspectAccess } from '../application/Prospect.access.js';
 import { PartnersModel } from '../infrastructure/Prospect.models.js';
 import { ReleaseProspectToPoolUseCase } from '../application/Prospect.release.js';
 import { ClaimPoolLeadUseCase } from '../application/Prospect.claim.js';
+import { PushPoolLeadToPartnerUseCase } from '../application/Prospect.push.js';
 import { AcceptPageLeadUseCase } from '../application/Prospect.accept.js';
 import { GetPoolUseCase, RateLeadUseCase, ImportLeadsUseCase } from '../application/Prospect.pool.js';
 import {
@@ -180,6 +181,20 @@ export const buildProspectRouter = (deps = {}) => {
       detail: { status: data.status },
     });
     res.status(200).json({ message: 'Pool lead reopened — it is claimable again', data, success: true });
+  }));
+
+  router.post('/admin/leads/:leadId/push', requireRole('admin'), validate({ params: LeadIdParam, body: PushPoolLeadSchema }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    // Route-scope usecase (c.* are req/res handlers, not usecases).
+    const pusher = deps.adminLeadPush ?? new PushPoolLeadToPartnerUseCase({});
+    const data = await pusher.execute({ leadId: params.leadId, username: body.username });
+    void recordAudit({
+      actorId: req.auth?.partnerId, action: 'poollead.push',
+      targetType: 'leadpool', targetId: params.leadId,
+      detail: { username: data.username, prospectId: data.prospectId },
+    });
+    res.status(200).json({ message: `Lead pushed to @${data.username} — free, in their pipeline now`, data, success: true });
   }));
 
   // Admin page-lead desk — private /:username submissions (never pool rows).
