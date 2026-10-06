@@ -1,4 +1,4 @@
-import { sendEmail } from '../../../services/emailService.js';
+import { appBaseUrl, sendEmail } from '../../../services/emailService.js';
 
 const escapeHtml = (s) =>
   String(s ?? '')
@@ -30,7 +30,7 @@ export class DigestMailer {
       <p>Hi there,</p>
       <p>Here's what you missed:</p>
       ${sections}
-      <p><a href="/dashboard/notifications/center">Catch up in Notifications</a></p>
+      <p><a href="${appBaseUrl()}/dashboard/notifications/center">Catch up in Notifications</a></p>
       <p style="color:#888;font-size:12px;">You get this because your email digest is on. Change anytime in Notification settings.</p>
     `;
     await this.send(to, digest.subject, html);

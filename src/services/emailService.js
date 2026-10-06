@@ -50,6 +50,14 @@ export const __resetEmailTransporter = () => {
   transporter = null;
 };
 
+/**
+ * Partner-app base URL for links inside emails (inbox clients have no
+ * router — relative hrefs go nowhere). Same precedence as the auth
+ * routes: explicit FRONTEND_URL, then APP_BASE_URL, then production.
+ */
+export const appBaseUrl = () =>
+  (process.env.FRONTEND_URL || process.env.APP_BASE_URL || 'https://c21fg.online').replace(/\/+$/, '');
+
 // Reusable function to send emails.
 // Never throws: legacy callers `await` this bare inside request flows
 // (booking, survey, tickets), so a mail hiccup must not 500 the request.

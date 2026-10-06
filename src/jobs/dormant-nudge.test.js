@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runDormantNudgeJob } from './dormant-nudge.js';
 import { buildDormantNudge } from '../modules/notifications/infrastructure/LifecycleMailer.js';
+import { MentionMailer } from '../modules/notifications/infrastructure/MentionMailer.js';
+import { DigestMailer } from '../modules/notifications/infrastructure/DigestMailer.js';
 
 const DAY = 86400000;
 const NOW = new Date('2026-10-06T09:00:00Z');
@@ -66,5 +68,20 @@ test('dormant template names the member and links sign-in', () => {
   const mail = buildDormantNudge({ memberName: 'Ada', daysAway: 5 });
   assert.match(mail.subject, /Ada/);
   assert.match(mail.html, /5 days/);
-  assert.match(mail.html, /\/partner\/signin/);
+  assert.match(mail.html, /https:\/\/c21fg\.online\/partner\/signin/);
+  assert.doesNotMatch(mail.html, /href="\//);
+});
+
+test('every mail template links absolute app URLs, never router-relative', async () => {
+  const mention = new MentionMailer().buildMention({ authorName: 'A', excerpt: 'hi', sourceType: 'post' });
+  assert.match(mention.html, /https:\/\/c21fg\.online\/dashboard\/community/);
+  assert.doesNotMatch(mention.html, /href="\//);
+  const sent = [];
+  const digest = new DigestMailer({ send: async (to, subject, html) => { sent.push({ to, subject, html }); } });
+  await digest.sendDigest({
+    to: 'a@x.test',
+    digest: { subject: 'D', groups: [{ label: 'G', count: 1, titles: ['T'], more: 0 }] },
+  });
+  assert.match(sent[0].html, /https:\/\/c21fg\.online\/dashboard\/notifications\/center/);
+  assert.doesNotMatch(sent[0].html, /href="\//);
 });

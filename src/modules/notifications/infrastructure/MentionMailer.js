@@ -1,4 +1,4 @@
-import { sendEmail } from '../../../services/emailService.js';
+import { appBaseUrl, sendEmail } from '../../../services/emailService.js';
 
 const escapeHtml = (s) =>
   String(s ?? '')
@@ -29,7 +29,7 @@ export class MentionMailer {
       <p>Hi there,</p>
       <p><strong>${escapeHtml(authorName)}</strong> mentioned you in a ${escapeHtml(sourceType)}:</p>
       <blockquote>${escapeHtml(excerpt)}</blockquote>
-      <p><a href="/dashboard/community">View it in Community</a></p>
+      <p><a href="${appBaseUrl()}/dashboard/community">View it in Community</a></p>
       <p style="color:#888;font-size:12px;">You get this because community email is on and your digest is immediate. Change anytime in Notification settings.</p>
     `,
     };

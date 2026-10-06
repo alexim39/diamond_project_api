@@ -1,9 +1,14 @@
+import { appBaseUrl } from '../../../services/emailService.js';
+
 const escapeHtml = (s) =>
   String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+
+/** Absolute app links — email clients can't resolve router-relative hrefs. */
+const appLink = (path) => `${appBaseUrl()}${path}`;
 
 const footer = (why) => `
   <p style="color:#888;font-size:12px;">${why} Change anytime in Notification settings.</p>
@@ -27,7 +32,7 @@ export const buildGoalRisk = ({ memberName, uplineName, title, remaining, daysLe
       'Check in today: one honest conversation beats a week of hoping.',
       'Help them pick the single next action, not ten.',
     ])}
-    <p><a href="/dashboard/network/tree">View your team</a></p>
+    <p><a href="${appLink('/dashboard/network/tree')}">View your team</a></p>
     ${footer('You get this because someone in your downline has a goal at risk.')}
   `,
 });
@@ -41,7 +46,7 @@ export const buildGoalDone = ({ memberName, title }) => ({
       'Set your next goal while the momentum is hot.',
       'Tell your upline — wins shared are wins doubled.',
     ])}
-    <p><a href="/dashboard/goals">Set your next goal</a></p>
+    <p><a href="${appLink('/dashboard/goals')}">Set your next goal</a></p>
     ${footer('You get this because you completed a goal.')}
   `,
 });
@@ -56,7 +61,7 @@ export const buildContactListSubmitted = ({ memberName, uplineName, count }) => 
       `Book sessions straight into their calendar and confirm the night before.`,
       `Mark each outcome in the pipeline so ${escapeHtml(memberName)} sees progress.`,
     ])}
-    <p><a href="/dashboard/mentorship/team/contact-lists">Work their contact list</a></p>
+    <p><a href="${appLink('/dashboard/mentorship/team/contact-lists')}">Work their contact list</a></p>
     ${footer('You get this because someone in your downline submitted a contact list.')}
   `,
 });
@@ -70,7 +75,7 @@ export const buildTrackComplete = ({ memberName }) => ({
       'Open My Journey to see what your training unlocked.',
       'Offer to walk a newer member through IPO — teaching locks in learning.',
     ])}
-    <p><a href="/dashboard/progress">View your journey</a></p>
+    <p><a href="${appLink('/dashboard/progress')}">View your journey</a></p>
     ${footer('You get this because you completed the full training track.')}
   `,
 });
@@ -84,7 +89,7 @@ export const buildTrackCompleteUpline = ({ memberName, uplineName }) => ({
       `Recognise ${memberName} publicly — Community shout-outs duplicate effort.`,
       'Point them at their next gate in your next 15-minute review.',
     ])}
-    <p><a href="/dashboard/network/tree">View your team</a></p>
+    <p><a href="${appLink('/dashboard/network/tree')}">View your team</a></p>
     ${footer('You get this because someone in your downline finished training.')}
   `,
 });
@@ -99,7 +104,7 @@ export const buildWelcome = ({ memberName }) => ({
       'Add your first prospect from people you already know.',
       'Set your first goal so your pace is tracked from day one.',
     ])}
-    <p><a href="/dashboard">Open your Daily Action Center</a></p>
+    <p><a href="${appLink('/dashboard')}">Open your Daily Action Center</a></p>
     ${footer('You get this because you just joined Diamond Project.')}
   `,
 });
@@ -115,7 +120,7 @@ export const buildRecruitAlert = ({ memberName, uplineName }) => ({
       'Walk them through the IPO course and their first prospect list.',
       'Check their profile is complete so they are reachable.',
     ])}
-    <p><a href="/dashboard/mentorship/partners/my-partners">View your partners</a></p>
+    <p><a href="${appLink('/dashboard/mentorship/partners/my-partners')}">View your partners</a></p>
     ${footer('You get this because someone joined with your code.')}
   `,
 });
@@ -130,7 +135,7 @@ export const buildPromotionMember = ({ memberName, toLabel }) => ({
       'Tell your upline — recognition fuels duplication.',
       'Set one goal that matches your new rank.',
     ])}
-    <p><a href="/dashboard/progress">View your journey</a></p>
+    <p><a href="${appLink('/dashboard/progress')}">View your journey</a></p>
     ${footer('You get this because you earned a promotion.')}
   `,
 });
@@ -145,7 +150,7 @@ export const buildPromotionUpline = ({ memberName, toLabel, uplineName }) => ({
       'Review their next gate together in your next 15-minute review.',
       'Ask who they are developing behind them — leaders build leaders.',
     ])}
-    <p><a href="/dashboard/network/tree">View your team</a></p>
+    <p><a href="${appLink('/dashboard/network/tree')}">View your team</a></p>
     ${footer('You get this because someone in your downline earned a promotion.')}
   `,
 });
@@ -160,7 +165,7 @@ export const buildTrainingRequest = ({ memberName, uplineName, keyLabel }) => ({
       'If not yet, decline with a clear reason so they know what remains.',
       'Use the moment — a quick call here compounds into momentum.',
     ])}
-    <p><a href="/dashboard/mentorship/team/confirmations">Review pending confirmations</a></p>
+    <p><a href="${appLink('/dashboard/mentorship/team/confirmations')}">Review pending confirmations</a></p>
     ${footer('You get this because someone in your downline needs your confirmation.')}
   `,
 });
@@ -177,7 +182,7 @@ export const buildTrainingOutcome = ({ memberName, keyLabel, approved, note }) =
       'Open My Journey to see your next requirement.',
       'Keep the streak — book your next training or action today.',
     ])}
-    <p><a href="/dashboard/progress">View your journey</a></p>
+    <p><a href="${appLink('/dashboard/progress')}">View your journey</a></p>
     ${footer('You get this because your training was confirmed.')}
   `
     : `
@@ -185,7 +190,7 @@ export const buildTrainingOutcome = ({ memberName, keyLabel, approved, note }) =
     <p>Thank you for taking the next step. Your upline reviewed your <strong>${escapeHtml(keyLabel)}</strong> and feels it is not quite complete yet. Their reason:</p>
     <blockquote>${escapeHtml(note) || 'No reason given — please ask your upline directly.'}</blockquote>
     <p>Finish the outstanding part and mark it done again — your upline will be notified.</p>
-    <p><a href="/dashboard/progress">Back to your journey</a></p>
+    <p><a href="${appLink('/dashboard/progress')}">Back to your journey</a></p>
     ${footer('You get this because your training review needs another pass.')}
   `,
 });
@@ -200,7 +205,7 @@ export const buildDormantNudge = ({ memberName, daysAway }) => ({
       'Follow up with one prospect today — fortune lives in the follow-up.',
       'Finish one training lesson to keep your promotion gates unlocking.',
     ])}
-    <p><a href="/partner/signin">Sign back in</a></p>
+    <p><a href="${appLink('/partner/signin')}">Sign back in</a></p>
     ${footer('You get this because your account has been inactive.')}
   `,
 });
