@@ -189,3 +189,18 @@ export const buildTrainingOutcome = ({ memberName, keyLabel, approved, note }) =
     ${footer('You get this because your training review needs another pass.')}
   `,
 });
+
+export const buildDormantNudge = ({ memberName, daysAway }) => ({
+  subject: `${memberName}, your business missed you — pick up where you left off`,
+  html: `
+    <p>Hi ${escapeHtml(memberName)},</p>
+    <p>It has been ${escapeHtml(daysAway)} days since you last signed in to Diamond Project. Your pipeline, team and goals are exactly where you left them — one session gets you moving again:</p>
+    ${steps([
+      'Open your Daily Action Center and do the top item only.',
+      'Follow up with one prospect today — fortune lives in the follow-up.',
+      'Finish one training lesson to keep your promotion gates unlocking.',
+    ])}
+    <p><a href="/partner/signin">Sign back in</a></p>
+    ${footer('You get this because your account has been inactive.')}
+  `,
+});

@@ -221,6 +221,12 @@ const partnersSchema = mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Dormant-nudge guard — stamped when the 3-day inactivity email fires.
+    // One-time per account: the job skips stamped rows forever.
+    dormantNudgeAt: {
+      type: Date,
+      default: null,
+    },
     // Presence heartbeat — stamped on signin + throttled app ping while the
     // dashboard is open. Powers the admin "Online now" pill. Null = offline.
     lastSeenAt: {

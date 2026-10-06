@@ -10,6 +10,7 @@ import { runBirthdayJob } from './birthday.js';
 import { runDailyBriefJob } from './daily-brief.js';
 import { runWeeklyReviewJob } from './weekly-review.js';
 import { runDigestJob } from './digest.js';
+import { runDormantNudgeJob } from './dormant-nudge.js';
 import { runOutreachDueJob } from './outreach-due.js';
 import { runBroadcastDueJob } from './broadcast-due.js';
 import { runLeadPoolDueJob } from './leadpool-due.js';
@@ -22,12 +23,13 @@ import { runLeadPoolDueJob } from './leadpool-due.js';
  * - weekly review request (Monday 07:00 server-local): one keyed prompt.
  * - birthday greetings (08:00): $expr-matched celebrants only.
  * - email digests (19:00 server-local): daily cadence + weekly on Mondays.
+ * - dormant nudge (09:00 server-local): one-time "we miss you" mail.
  * - scheduled outreach (every minute): fire due bulk-SMS outbox rows.
  * - scheduled broadcasts (every minute): fire due multi-channel campaigns.
  * - lead-pool sweep (every 15 minutes): warn + auto-return idle claims.
  * Jobs never throw into the scheduler — failures are logged, not fatal.
  * `runSnapshotJob` / `runBirthdayJob` / `runDailyBriefJob` /
- * `runWeeklyReviewJob` / `runDigestJob` / `runOutreachDueJob` /
+ * `runWeeklyReviewJob` / `runDigestJob` / `runDormantNudgeJob` / `runOutreachDueJob` /
  * `runBroadcastDueJob` / `runLeadPoolDueJob` are exported for tests and triggers.
  */
 export const buildSnapshotJob = (deps = {}) => new BuildTeamSnapshotsUseCase({
@@ -54,17 +56,19 @@ export function scheduleJobs() {
   cron.schedule('30 6 * * *', () => runDailyBriefJob());
   cron.schedule('0 7 * * 1', () => runWeeklyReviewJob());
   cron.schedule('0 8 * * *', () => runBirthdayJob());
+  cron.schedule('0 9 * * *', () => runDormantNudgeJob());
   cron.schedule('0 19 * * *', () => runDigestJob());
   cron.schedule('* * * * *', () => runOutreachDueJob());
   cron.schedule('* * * * *', () => runBroadcastDueJob());
   cron.schedule('*/15 * * * *', () => runLeadPoolDueJob());
-  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00, digests at 19:00, outreach + broadcasts due every minute, lead-pool sweep every 15 minutes');
+  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00, dormant nudge at 09:00, digests at 19:00, outreach + broadcasts due every minute, lead-pool sweep every 15 minutes');
 }
 
 export { runBirthdayJob } from './birthday.js';
 export { runDailyBriefJob } from './daily-brief.js';
 export { runWeeklyReviewJob } from './weekly-review.js';
 export { runDigestJob } from './digest.js';
+export { runDormantNudgeJob } from './dormant-nudge.js';
 export { runOutreachDueJob } from './outreach-due.js';
 export { runBroadcastDueJob } from './broadcast-due.js';
 export { runLeadPoolDueJob } from './leadpool-due.js';
