@@ -21,11 +21,30 @@ import { MongoCommunityStore } from '../../community/infrastructure/Community.mo
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 const stamp = z.object({ done: z.boolean() }).passthrough();
 
+const accountsSchema = z.union([
+  z.object({
+    count: z.number().int().min(0).max(1000),
+    refs: z.array(z.string().max(100)).max(10).optional(),
+    maintenanceRef: z.string().max(100).optional(),
+    maintenanceMonth: z.string().max(7).optional(),
+  }).passthrough(),
+  z.number().int().min(0).max(1000),
+]);
+const maintenanceSchema = z.union([
+  z.object({
+    done: z.boolean().optional(),
+    ref: z.string().max(100).optional(),
+    month: z.string().max(7).optional(),
+  }).passthrough(),
+  z.boolean(),
+]);
+
 const MilestonesSchema = z.object({
   ipo: stamp.optional(),
   qsg: stamp.optional(),
   smo: stamp.optional(),
-  accounts: z.union([z.object({ count: z.number().int() }).passthrough(), z.number().int()]).optional(),
+  accounts: accountsSchema.optional(),
+  maintenance: maintenanceSchema.optional(),
   fullTime: stamp.optional(),
   office: stamp.optional(),
   officeAddress: z.string().max(200).optional(),
@@ -37,10 +56,10 @@ const MilestonesSchema = z.object({
 
 const NominationSchema = z.object({ note: z.string().trim().max(500).optional().default('') });
 const DecisionSchema = z.object({ partnerId: objectId, approved: z.boolean() });
-const TrainingRequestSchema = z.object({ key: z.enum(['ipo', 'qsg', 'smo', 'fullTime', 'office', 'onboardingSession']) });
+const TrainingRequestSchema = z.object({ key: z.enum(['ipo', 'qsg', 'smo', 'fullTime', 'office', 'onboardingSession', 'accounts', 'maintenance']) });
 const TrainingDecisionSchema = z.object({
   partnerId: objectId,
-  key: z.enum(['ipo', 'qsg', 'smo', 'fullTime', 'office', 'onboardingSession']),
+  key: z.enum(['ipo', 'qsg', 'smo', 'fullTime', 'office', 'onboardingSession', 'accounts', 'maintenance']),
   approved: z.boolean(),
   note: z.string().trim().max(500).optional().default(''),
 }).refine((b) => b.approved === true || b.note.length > 0, {

@@ -62,7 +62,7 @@ describe('video watch gate (CompleteLessonUseCase)', () => {
 
   it('non-video lessons skip the gate entirely', async () => {
     const uc = new CompleteLessonUseCase({ training: fakeTraining({}), progress: null, recognition: null, network: null });
-    const res = await uc.execute({ partnerId: 'p', courseId: 'qsg', lessonId: 'qsg-1', answers: [1, 0] });
+    const res = await uc.execute({ partnerId: 'p', courseId: 'qsg', lessonId: 'qsg-1', answers: [1, 0, 0, 0] });
     assert.equal(res.progress.done, 1);
   });
 });

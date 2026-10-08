@@ -1,6 +1,7 @@
 import { BookingModel } from "../models/booking.model.js";
 import { sendEmail } from "../../../services/emailService.js";
 import { PartnersModel } from './../../partner/models/partner.model.js';
+import { ProspectModel } from '../../prospect/models/prospect.model.js';
 import { EmailSubscriptionModel } from "../../email-subscription/models/email-subscription.model.js";
 import { ownerEmailTemplate } from "../services/email/ownerTemplate.js";
 import { userNotificationEmailTemplate } from "../services/email/userTemplate.js";
@@ -21,6 +22,48 @@ const ownerIdOf = async (booking) => {
   return owner ? String(owner._id) : null;
 };
 
+// Pipeline order for forward-only advances (terminal stages never touched).
+const STAGE_RANK = { New: 0, Contacted: 1, Interested: 2, 'In Negotiation': 3, Converted: 4, Closed: 4 };
+
+/**
+ * Advance a prospect forward-only (never backward, never out of terminal).
+ * Best-effort: all failures resolve null so booking flows never break.
+ */
+const advanceProspect = async (prospectId, to, note) => {
+  try {
+    if (!prospectId || !STAGE_RANK[to]) return null;
+    const current = await ProspectModel.findById(prospectId).select('status.stage').lean().catch(() => null);
+    if (!current) return null;
+    const from = current?.status?.stage ?? null;
+    if (from === 'Converted' || from === 'Closed') return null;
+    if (from && (STAGE_RANK[from] ?? -1) >= STAGE_RANK[to]) return null;
+    const at = new Date();
+    await ProspectModel.findByIdAndUpdate(prospectId, {
+      $set: {
+        'status.stage': to,
+        'status.stageEnteredAt': at,
+        'status.updatedAt': at,
+        ...(note ? { 'status.note': String(note).slice(0, 2000) } : {}),
+      },
+      $push: { stageHistory: { from, to, at } },
+    }).catch(() => null);
+    return { from, to };
+  } catch { return null; }
+};
+
+/** Resolve a prospect for a booking: explicit id first, phone fallback. */
+const resolveProspectId = async (prospectId, ownerPartnerId, phone) => {
+  if (prospectId) {
+    const hit = await ProspectModel.findById(prospectId).select('_id').lean().catch(() => null);
+    if (hit) return String(hit._id);
+  }
+  if (!ownerPartnerId || !phone) return null;
+  const docs = await ProspectModel.find({ partnerId: ownerPartnerId }).select('prospectPhone').lean().catch(() => []);
+  const norm = String(phone).replace(/\D/g, '');
+  const hit = (docs ?? []).find((d) => String(d.prospectPhone ?? '').replace(/\D/g, '') === norm);
+  return hit ? String(hit._id) : null;
+};
+
 // User survey form
 export const SessionBookingController = async (req, res) => {
   try {
@@ -37,7 +80,8 @@ export const SessionBookingController = async (req, res) => {
       name,
       surname,
       userDevice,
-      username
+      username,
+      prospectId
     } = req.body;
 
     // Check for required fields — email is optional (not all prospects share it),
@@ -70,7 +114,7 @@ export const SessionBookingController = async (req, res) => {
       });
     }
 
-    // Create the booking
+    // Create the booking (pipeline link rides along when the booker came from a prospect page).
     const userBooking = await BookingModel.create({
       reason,
       description,
@@ -84,9 +128,23 @@ export const SessionBookingController = async (req, res) => {
       name,
       surname,
       userDevice,
-      username
+      username,
+      prospectId: prospectId ?? null,
       // status: 'Scheduled',
     });
+
+    // Pipeline link — a booked presentation moves the prospect to Interested
+    // (forward-only; terminal/advanced stages untouched). Best-effort.
+    try {
+      const owner = prospectId ? null : await PartnersModel.findOne({ username }).select('_id').lean().catch(() => null);
+      const pid = await resolveProspectId(prospectId, owner ? String(owner._id) : null, phone);
+      if (pid) {
+        if (!userBooking.prospectId) {
+          await BookingModel.findByIdAndUpdate(userBooking._id, { $set: { prospectId: pid } }).catch(() => null);
+        }
+        await advanceProspect(pid, 'Interested', `Presentation scheduled for ${consultDate ?? ''} ${consultTime ?? ''}`.trim());
+      }
+    } catch { /* pipeline sync never fails the booking */ }
 
     // Find the user by username (for owner notification — best-effort)
     const partner = await PartnersModel.findOne({ username });
@@ -239,6 +297,24 @@ export const UpdateBooking = async (req, res) => {
         },
         { new: true, runValidators: true } // new: true returns the updated document
       );
+
+      // Pipeline link — a held presentation moves the prospect to In
+      // Negotiation (forward-only). All other outcomes leave the stage
+      // alone (the remark is mirrored to the timeline client-side).
+      // Best-effort, never fails the update.
+      try {
+        if (body.sessionStatus === 'Completed' && updatedBooking) {
+          let pid = updatedBooking.prospectId ? String(updatedBooking.prospectId) : null;
+          if (!pid) {
+            const oid = await ownerIdOf(updatedBooking);
+            pid = await resolveProspectId(null, oid, updatedBooking.phone);
+            if (pid) {
+              await BookingModel.findByIdAndUpdate(body.id, { $set: { prospectId: pid } }).catch(() => null);
+            }
+          }
+          if (pid) await advanceProspect(pid, 'In Negotiation', 'Presentation held — outcome recorded');
+        }
+      } catch { /* pipeline sync never fails the update */ }
   
       if (!updatedBooking) {
         return res.status(404).json({ 

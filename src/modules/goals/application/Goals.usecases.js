@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '../../../shared/domain/AppError.js';
+import { ForbiddenException, NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 import { computeProgress, createGoalEntity } from '../domain/Goal.entity.js';
 import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
 
@@ -79,6 +79,32 @@ export class DeleteGoalUseCase {
     assertOwner(await this.goals.findById(goalId), requesterId);
     await this.goals.deleteById(goalId);
     return { deleted: true };
+  }
+}
+
+export class CelebrateGoalUseCase {
+  /** @param {{goals, orders, prospects, network, community, recognition}} deps */
+  constructor({ goals, orders, prospects, network, community, recognition }) {
+    Object.assign(this, { goals, orders, prospects, network, community, recognition });
+  }
+
+  async execute({ requesterId, goalId, now = new Date() }) {
+    const doc = assertOwner(await this.goals.findById(goalId), requesterId);
+    const start = new Date(doc.startDate);
+    const end = new Date(doc.endDate);
+    const current = await currentValue(doc.kind, doc.partnerId, start, end, this);
+    const progress = computeProgress(current, doc.target, start, end, now);
+    if (!progress.complete) throw new ValidationException('Goal not complete yet — keep pushing');
+    // Idempotent: one celebration post per goal (refType/refId dedupe).
+    const existing = await this.community?.findAutoPost?.('goal', goalId).catch(() => null);
+    if (existing) return { post: existing, duplicate: true };
+    let name = 'A partner';
+    try {
+      const node = await this.network?.findNode?.(doc.partnerId);
+      if (node) name = [node.name, node.surname].filter(Boolean).join(' ') || node.username || name;
+    } catch { /* name falls back */ }
+    const post = await this.recognition.goal(doc.partnerId, goalId, doc.title || doc.kind, name);
+    return { post, duplicate: false };
   }
 }
 

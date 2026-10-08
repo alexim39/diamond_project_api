@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   catalogSummaries,
   courseProgress,
+  COURSES,
   getCourse,
   getCourseWithQuiz,
   getCourseWithQuizFull,
@@ -119,5 +120,34 @@ describe('quiz answer stripping', () => {
   it('unknown course / lesson throw', async () => {
     await assert.rejects(() => getCourseWithQuiz('nope', noQuizStore), /Unknown course/);
     await assert.rejects(() => getLessonWithQuiz('ipo', 'nope', noQuizStore), /Unknown lesson/);
+  });
+});
+
+describe('catalog completeness (IPO bar)', () => {
+  it('every lesson ships body, takeaways, quiz and transcript', () => {
+    for (const c of COURSES) {
+      assert.ok(c.lessons.length > 0, `${c.id} has lessons`);
+      for (const l of c.lessons) {
+        assert.ok(String(l.body ?? '').trim().length > 50, `${c.id}/${l.id} body`);
+        assert.ok((l.takeaways ?? []).length >= 2, `${c.id}/${l.id} takeaways`);
+        assert.ok((l.quiz ?? []).length >= 2, `${c.id}/${l.id} quiz`);
+        for (const q of l.quiz ?? []) {
+          assert.ok(q.q && (q.options ?? []).length >= 3, `${c.id}/${l.id} quiz options`);
+          assert.ok(Number.isInteger(q.answer) && q.answer >= 0 && q.answer < q.options.length, `${c.id}/${l.id} quiz answer`);
+        }
+        assert.ok(String(l.transcript ?? '').trim().length > 50, `${c.id}/${l.id} transcript`);
+        // Video is optional (in production) but must be a valid path when set.
+        if (l.videoUrl !== null && l.videoUrl !== undefined) {
+          assert.match(String(l.videoUrl), /^(https:\/\/|\/courses\/)/, `${c.id}/${l.id} videoUrl`);
+        }
+      }
+    }
+  });
+
+  it('ladder milestones are wired (ipo/qsg/smo)', () => {
+    const byMilestone = Object.fromEntries(COURSES.filter((c) => c.milestone).map((c) => [c.milestone, c.id]));
+    assert.equal(byMilestone.ipo, 'ipo');
+    assert.equal(byMilestone.qsg, 'qsg');
+    assert.equal(byMilestone.smo, 'smo');
   });
 });

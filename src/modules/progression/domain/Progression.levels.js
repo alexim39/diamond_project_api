@@ -67,7 +67,7 @@ export const TRAINING_KEY_LABELS = { ipo: 'IPO', qsg: 'QSG', smo: 'SMO' };
  * self-attested before (office / full-time / onboarding). Gates use
  * `confirmed()` for every key here, never bare `done`.
  */
-export const CONFIRMABLE_KEYS = ['ipo', 'qsg', 'smo', 'fullTime', 'office', 'onboardingSession'];
+export const CONFIRMABLE_KEYS = ['ipo', 'qsg', 'smo', 'fullTime', 'office', 'onboardingSession', 'accounts', 'maintenance'];
 export const CONFIRM_KEY_LABELS = {
   ipo: 'IPO',
   qsg: 'QSG',
@@ -75,6 +75,8 @@ export const CONFIRM_KEY_LABELS = {
   fullTime: 'Full-time',
   office: 'Office',
   onboardingSession: 'Onboarding session',
+  accounts: 'DTC accounts',
+  maintenance: 'Monthly maintenance',
 };
 
 /**
@@ -162,8 +164,8 @@ export const gate = (level, signals = {}, m = {}) => {
     case 'kingsman':
       return [
         req('activeTeam', 'Grow 5 active partners', 'Activate 5 team members with recent orders', (signals.activeDownline ?? 0) >= 5),
-        req('accounts', 'Maintain 3 accounts', 'Record your maintained accounts', (m.accounts?.count ?? 0) >= 3),
-        req('maintenance', 'Monthly maintenance compliance', 'Keep personal volume flowing monthly', signals.maintenanceOk === true),
+        req('accounts', 'Maintain 3 DTC accounts', 'Record your 3 DTC accounts with evidence for upline confirmation', (m.accounts?.count ?? 0) >= 3 && confirmed(m.accounts)),
+        req('maintenance', 'Monthly maintenance compliance', 'Keep personal volume flowing monthly (shop orders auto-count, or record DTC receipt for confirmation)', signals.maintenanceOk === true || confirmed(m.maintenance)),
         req('smo', 'Complete SMO', 'Take the SMO course in the Training Center', confirmed(m.smo)),
       ];
     case 'ecl':
@@ -227,3 +229,43 @@ export const resolveProgression = (signals = {}, m = {}, from = 'partner') => {
 };
 
 export const RANK = (level) => LEVELS.indexOf(level);
+
+const DAY_MS = 86400000;
+
+/**
+ * Journey forecast — honest linear ETA for countable gates only.
+ * Uses 30-day recruit pace; duplication legs (raise 5 Kingsmen/ECLs)
+ * return null because linear projection would mislead.
+ * @param {object} signals live signals (recruits, activeDownline)
+ * @param {Array} missing unresolved requirements [{key}]
+ * @param {number|null} recruits30d recruits added in the last 30 days
+ * @param {Date} now reference date
+ * @returns {{remaining, pacePer30d, weeksOut, etaDate, stalled, basis, label}|null}
+ */
+export const forecastJourney = (signals = {}, missing = [], recruits30d = null, now = new Date()) => {
+  const pace = Number(recruits30d);
+  const pacePer30d = Number.isFinite(pace) && pace >= 0 ? pace : null;
+  const targets = [];
+  for (const r of missing ?? []) {
+    if (r.key === 'recruits') targets.push({ key: r.key, remaining: Math.max(0, 1 - (signals.recruits ?? 0)), kind: 'recruits' });
+    else if (r.key === 'activeTeam') targets.push({ key: r.key, remaining: Math.max(0, 5 - (signals.activeDownline ?? 0)), kind: 'actives' });
+  }
+  if (targets.length === 0) return null;
+  const remaining = Math.max(...targets.map((t) => t.remaining));
+  if (remaining <= 0) return null;
+  const basis = 'at current 30-day pace';
+  if (pacePer30d === null) return { remaining, pacePer30d: null, weeksOut: null, etaDate: null, stalled: false, basis, label: `${remaining} to go ${basis} — pace unknown yet` };
+  if (pacePer30d <= 0) {
+    return {
+      remaining, pacePer30d: 0, weeksOut: null, etaDate: null, stalled: true, basis,
+      label: `${remaining} to go — stalled: no recruits in the last 30 days`,
+    };
+  }
+  const daysOut = Math.ceil((remaining / pacePer30d) * 30);
+  const weeksOut = Math.max(1, Math.round(daysOut / 7));
+  const etaDate = new Date(new Date(now).getTime() + daysOut * DAY_MS).toISOString();
+  return {
+    remaining, pacePer30d, weeksOut, etaDate, stalled: false, basis,
+    label: `${remaining} to go ${basis} (${pacePer30d}/30d) — about ${weeksOut} week${weeksOut === 1 ? '' : 's'} out`,
+  };
+};

@@ -5,12 +5,14 @@ import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { GOAL_KINDS } from '../domain/Goal.entity.js';
 import {
-  CreateGoalUseCase, DeleteGoalUseCase, GetTrendsUseCase, ListGoalsUseCase, UpdateGoalUseCase,
+  CelebrateGoalUseCase, CreateGoalUseCase, DeleteGoalUseCase, GetTrendsUseCase, ListGoalsUseCase, UpdateGoalUseCase,
 } from '../application/Goals.usecases.js';
 import { MongoGoalStore } from '../infrastructure/Goals.mongo.repository.js';
 import { MongoOrderReader } from '../../billing/infrastructure/Billing.mongo.repository.js';
 import { MongoProspectRepository } from '../../crm/infrastructure/Prospect.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
+import { RecognitionUseCases } from '../../community/application/Community.usecases.js';
+import { MongoCommunityStore } from '../../community/infrastructure/Community.mongo.repository.js';
 import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
 import { resolveSubject } from '../../network/application/SubjectScope.js';
 
@@ -56,6 +58,11 @@ export const buildGoalsRouter = (deps = {}) => {
   const update = new UpdateGoalUseCase({ goals });
   const remove = new DeleteGoalUseCase({ goals });
   const trends = new GetTrendsUseCase({ orders });
+  const community = deps.community ?? new MongoCommunityStore();
+  const celebrate = deps.celebrate ?? new CelebrateGoalUseCase({
+    goals, orders, prospects, network, community,
+    recognition: deps.recognition ?? new RecognitionUseCases({ community }),
+  });
 
   const router = express.Router();
   // Session identity owns every goal — no :partnerId to tamper with.
@@ -100,6 +107,12 @@ export const buildGoalsRouter = (deps = {}) => {
     const params = req.validated?.params ?? req.params;
     await remove.execute({ requesterId: req.auth?.partnerId, goalId: params.goalId });
     res.status(200).json({ message: 'Goal deleted successfully', success: true });
+  }));
+
+  router.post('/:goalId/celebrate', validate({ params: GoalIdParam }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await celebrate.execute({ requesterId: req.auth?.partnerId, goalId: params.goalId });
+    res.status(200).json({ message: data?.duplicate ? 'Goal already celebrated' : 'Goal celebrated in the community', data, success: true });
   }));
 
   return router;

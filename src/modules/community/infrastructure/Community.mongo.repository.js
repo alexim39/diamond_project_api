@@ -101,6 +101,12 @@ export class MongoCommunityStore {
     return shaped(await PostModel.findById(id).lean());
   }
 
+  /** Existing auto-post for a ref (dedupe for goal/promotion celebrations). */
+  async findAutoPost(refType, refId) {
+    if (!refType || !refId) return null;
+    return shaped(await PostModel.findOne({ refType: String(refType), refId: String(refId) }).lean());
+  }
+
   async findCommentById(id) {
     return shaped(await CommentModel.findById(id).lean());
   }

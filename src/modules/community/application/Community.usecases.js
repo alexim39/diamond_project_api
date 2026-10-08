@@ -415,4 +415,18 @@ export class RecognitionUseCases {
       refId: String(courseId),
     });
   }
+
+  async goal(partnerId, goalId, goalTitle, authorName) {
+    return this.community.createPost({
+      authorId: partnerId,
+      kind: 'recognition',
+      title: `${authorName} smashed a goal: ${goalTitle}`,
+      body: 'Goal achieved — congratulate them.',
+      link: '',
+      scope: 'global',
+      auto: true,
+      refType: 'goal',
+      refId: String(goalId),
+    });
+  }
 }

@@ -21,7 +21,24 @@ const progressionSchema = new mongoose.Schema(
     ipo: { type: stampSchema, default: () => ({}) },
     qsg: { type: stampSchema, default: () => ({}) },
     smo: { type: stampSchema, default: () => ({}) },
-    accounts: { count: { type: Number, default: 0, min: 0 } },
+    accounts: {
+      count: { type: Number, default: 0, min: 0 },
+      refs: { type: [String], default: [] },
+      maintenanceRef: { type: String, default: '' },
+      maintenanceMonth: { type: String, default: '' },
+      done: { type: Boolean, default: false },
+      at: { type: Date, default: null },
+      confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', default: null },
+      confirmedAt: { type: Date, default: null },
+    },
+    maintenance: {
+      done: { type: Boolean, default: false },
+      at: { type: Date, default: null },
+      confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', default: null },
+      confirmedAt: { type: Date, default: null },
+      ref: { type: String, default: '' },
+      month: { type: String, default: '' },
+    },
     fullTime: { type: stampSchema, default: () => ({}) },
     office: { type: stampSchema, default: () => ({}) },
     officeAddress: { type: String, default: '' },
@@ -133,7 +150,7 @@ export class MongoProgressionStore {
     if (partnerIds.length === 0 || keys.length === 0) return [];
     const or = keys.map((k) => ({ [`${k}.done`]: true, [`${k}.confirmedAt`]: null }));
     const rows = await ProgressionModel.find({ partnerId: { $in: partnerIds }, $or: or })
-      .select('partnerId level ipo qsg smo fullTime office onboardingSession updatedAt')
+      .select('partnerId level ipo qsg smo fullTime office onboardingSession accounts maintenance updatedAt')
       .sort({ updatedAt: -1 })
       .limit(Math.min(Math.max(Number(limit) || 100, 1), 200))
       .lean();
@@ -158,14 +175,14 @@ export class MongoProgressionStore {
    * responsiveness leg. Bounded; sparse confirmedBy legs live in the manifest.
    */
   async decisionsByApprover(approverId, since) {
-    const keys = ['ipo', 'qsg', 'smo', 'fullTime', 'office', 'onboardingSession'];
+    const keys = ['ipo', 'qsg', 'smo', 'fullTime', 'office', 'onboardingSession', 'accounts', 'maintenance'];
     const rows = await ProgressionModel.find({
       $or: keys.map((k) => ({
         [`${k}.confirmedBy`]: approverId,
         [`${k}.confirmedAt`]: { $gte: since },
       })),
     })
-      .select('ipo qsg smo fullTime office onboardingSession')
+      .select('ipo qsg smo fullTime office onboardingSession accounts maintenance')
       .limit(500)
       .lean();
     const out = [];

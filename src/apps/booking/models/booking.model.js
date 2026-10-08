@@ -63,6 +63,16 @@ const userBookingSchema = mongoose.Schema(
             default: 'business',
             //required: [true, "Please enter username"]
         },
+        // Pipeline link — the prospect this session is for. Stored at
+        // booking time (the book-session page knows the exact id) so the
+        // pipeline can advance without phone-match guesswork. Optional for
+        // legacy rows created before the link existed.
+        prospectId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Prospect',
+            default: null,
+            index: true,
+        },
         status: {
             type: String,
             default: 'Scheduled',
