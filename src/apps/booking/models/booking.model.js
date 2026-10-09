@@ -73,6 +73,19 @@ const userBookingSchema = mongoose.Schema(
             default: null,
             index: true,
         },
+        // Reminder idempotency — T-24h / T-1h stamps. Null-check in the
+        // job filter makes each leg fire exactly once, even across
+        // overlapping runs or parallel dynos.
+        reminded24hAt: {
+            type: Date,
+            default: null,
+            index: true,
+        },
+        reminded1hAt: {
+            type: Date,
+            default: null,
+            index: true,
+        },
         status: {
             type: String,
             default: 'Scheduled',

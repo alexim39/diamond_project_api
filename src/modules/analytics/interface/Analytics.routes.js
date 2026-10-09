@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
-import { GetActionsUseCase, GetActivationUseCase, GetBenchUseCase, GetFunnelUseCase, GetTeamUseCase } from '../application/Analytics.usecases.js';
+import { GetActionsUseCase, GetActivationUseCase, GetBenchUseCase, GetFunnelUseCase, GetOrgFunnelUseCase, GetRetentionUseCase, GetTeamUseCase } from '../application/Analytics.usecases.js';
 import { resolveSubject } from '../../network/application/SubjectScope.js';
-import { GetStuckProspectsUseCase } from '../../crm/application/Prospect.queries.js';
+import { GetFollowUpRemindersUseCase, GetStuckProspectsUseCase } from '../../crm/application/Prospect.queries.js';
 import { GetMyProgressionUseCase } from '../../progression/application/Progression.usecases.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
 import { MongoTeamSnapshotStore } from '../infrastructure/TeamSnapshots.mongo.repository.js';
@@ -15,6 +15,7 @@ import { MongoNetworkRepository } from '../../network/infrastructure/Network.mon
 import { MongoGoalStore } from '../../goals/infrastructure/Goals.mongo.repository.js';
 import { MongoNotificationStore } from '../../notifications/infrastructure/Notifications.mongo.repository.js';
 import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
+import { requireRole } from '../../identity-access/interface/RequireRole.js';
 import { MongoEventStore } from '../../events/infrastructure/Events.mongo.repository.js';
 import { GetNotificationFeedUseCase } from '../../notifications/application/Notifications.usecases.js';
 import { ListGoalsUseCase } from '../../goals/application/Goals.usecases.js';
@@ -45,6 +46,7 @@ export const buildAnalyticsRouter = (deps = {}) => {
   const feed = deps.feed ?? new GetNotificationFeedUseCase({ prospects, ledger, reads });
   const goals = deps.goals ?? new ListGoalsUseCase({ goals: goalStore, orders, prospects, network });
   const stuck = deps.stuck ?? new GetStuckProspectsUseCase({ prospects });
+  const reminders = deps.reminders ?? new GetFollowUpRemindersUseCase({ prospects });
   const progressStore = deps.progressStore ?? new MongoProgressionStore();
   const progression = deps.progression ?? new GetMyProgressionUseCase({ progress: progressStore, network, orders });
   const funnel = new GetFunnelUseCase({ prospects });
@@ -64,7 +66,9 @@ export const buildAnalyticsRouter = (deps = {}) => {
       return 0;
     }
   });
-  const actions = new GetActionsUseCase({ feed, goals, prospects, stuck, progression, events: eventStore, poolCount });
+  const actions = new GetActionsUseCase({ feed, goals, prospects, stuck, progression, events: eventStore, poolCount, reminders });
+  const orgFunnel = deps.orgFunnel ?? new GetOrgFunnelUseCase({ prospects });
+  const retention = deps.retention ?? new GetRetentionUseCase({ partners, progress: progressStore });
   const activation = new GetActivationUseCase({ partners, prospects, progress: progressStore, network });
   const bench = new GetBenchUseCase({ progress: progressStore, network });
 
@@ -101,6 +105,22 @@ export const buildAnalyticsRouter = (deps = {}) => {
   router.get('/bench', asyncHandler(async (req, res) => {
     const data = await bench.execute({ partnerId: req.auth?.partnerId });
     res.status(200).json({ message: 'Leadership bench retrieved successfully', data, success: true });
+  }));
+
+  router.get('/admin/funnel', requireRole('admin'), validate({ query: WindowQuery }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const data = await orgFunnel.execute({ days: q?.days });
+    res.status(200).json({ message: 'Organization funnel retrieved successfully', data, success: true });
+  }));
+
+  const RetentionQuery = z.object({
+    months: z.coerce.number().int().min(2).max(12).optional().default(6),
+  });
+
+  router.get('/admin/retention', requireRole('admin'), validate({ query: RetentionQuery }), asyncHandler(async (req, res) => {
+    const q = req.validated?.query ?? req.query;
+    const data = await retention.execute({ months: q?.months });
+    res.status(200).json({ message: 'Cohort retention retrieved successfully', data, success: true });
   }));
 
   return router;

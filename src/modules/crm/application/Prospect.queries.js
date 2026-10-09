@@ -2,6 +2,7 @@ import { NotFoundException, ValidationException } from '../../../shared/domain/A
 import { PartnerId } from '../domain/Prospect.entity.js';
 import { buildProspectNotifications } from '../domain/Prospect.notifications.js';
 import { stuckAnalysis } from '../domain/Prospect.stuck.js';
+import { bucketFollowUps } from '../domain/Prospect.reminders.js';
 
 const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
 const idOrThrow = (value, field) => {
@@ -38,6 +39,22 @@ export class GetProspectsByPartnerUseCase {
     if (q) query.q = String(q).trim().slice(0, 80);
     if (stage) query.stage = String(stage).trim();
     return this.prospects.findByPartnerId(pid, query);
+  }
+}
+
+/**
+ * GET /v1/prospects/reminders/mine — follow-up commitments due, bucketed
+ * overdue / today / upcoming from each prospect's latest open touch.
+ */
+export class GetFollowUpRemindersUseCase {
+  /** @param {{prospects}} deps */
+  constructor({ prospects }) { this.prospects = prospects; }
+
+  async execute({ partnerId, now = new Date() }) {
+    const pid = PartnerId.create(partnerId);
+    const items = await this.prospects.findDueFollowUps(pid, now, { withinDays: 7, limit: 200 });
+    const buckets = bucketFollowUps(items, now);
+    return { ...buckets, total: buckets.overdue.length + buckets.today.length + buckets.upcoming.length };
   }
 }
 

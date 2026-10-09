@@ -92,6 +92,34 @@ export class MongoPartnerRepository {
     return (docs ?? []).map((d) => ({ id: String(d._id), lastSeenAt: d.lastSeenAt ?? null }));
   }
   /** Case-insensitive role count (absorbs legacy 'User'/'admin' casing). */
+  /**
+   * Signup cohorts: member ids per trailing calendar month (newest last),
+   * bounded per cohort so org rollups stay cheap at any scale.
+   */
+  async signupCohorts(months = 6, perCohortCap = 2000, now = new Date()) {
+    const m = Math.min(Math.max(Number(months) || 6, 2), 12);
+    const cap = Math.min(Math.max(Number(perCohortCap) || 2000, 100), 5000);
+    const cursor = new Date(now);
+    cursor.setDate(1);
+    cursor.setHours(0, 0, 0, 0);
+    const out = [];
+    for (let i = m - 1; i >= 0; i -= 1) {
+      const start = new Date(cursor);
+      start.setMonth(cursor.getMonth() - i);
+      const end = new Date(start);
+      end.setMonth(start.getMonth() + 1);
+      const ids = await PartnersModel.find({ createdAt: { $gte: start, $lt: end } })
+        .select('_id')
+        .sort({ _id: 1 })
+        .limit(cap)
+        .lean();
+      const y = start.getFullYear();
+      const mo = String(start.getMonth() + 1).padStart(2, '0');
+      out.push({ month: `${y}-${mo}`, ids: ids.map((r) => String(r._id)), capped: ids.length >= cap });
+    }
+    return out;
+  }
+
   async countByRole(role) {
     return PartnersModel.find({ role: String(role) })
       .collation({ locale: 'en', strength: 2 })

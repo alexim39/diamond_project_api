@@ -125,6 +125,33 @@ export class MongoCommunityStore {
     }));
   }
 
+  /**
+   * Keyword search over posts the requester may see: global scope plus
+   * team posts by the requester or their bounded downline. Newest first.
+   */
+  async searchPosts({ authorIds = [], q, limit = 5 }) {
+    const clean = String(q ?? '').trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (clean.length < 2) return [];
+    const re = new RegExp(clean, 'i');
+    const ids = (authorIds ?? []).map(String);
+    const docs = await PostModel.find({
+      $and: [
+        { $or: [{ title: re }, { body: re }] },
+        {
+          $or: [
+            { scope: 'global' },
+            { scope: 'team', authorId: { $in: ids } },
+            { authorId: { $in: ids } },
+          ],
+        },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .limit(Math.min(Math.max(Number(limit) || 5, 1), 10))
+      .lean();
+    return docs.map(shaped);
+  }
+
   /** Newest-first candidates (visibility filtered in the use case). */
   async recentCandidates(before, limit = 60, excludeIds = []) {
     const filter = before ? { createdAt: { $lt: before } } : {};

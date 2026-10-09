@@ -109,6 +109,37 @@ export class MongoProspectRepository {
     return Object.fromEntries(rows.map((r) => [r._id, r.count]));
   }
 
+  /** Org-wide funnel: same shape, no partner filter (admin console). */
+  async orgStageDistribution(start, end) {
+    const rows = await ProspectModel.aggregate([
+      { $match: { createdAt: { $gte: start, $lte: end } } },
+      { $group: { _id: { $ifNull: ['$status.stage', 'New'] }, count: { $sum: 1 } } },
+    ]);
+    return Object.fromEntries(rows.map((r) => [r._id, r.count]));
+  }
+
+  /**
+   * Follow-up commitments due: prospects whose LATEST open touch carries a
+   * followUpDate within the window (overdue + today + upcoming). Terminal
+   * stages excluded. Bounded, soonest first. A fresh touch without a
+   * followUpDate naturally drops the prospect out (mark-done by doing).
+   */
+  async findDueFollowUps(partnerId, now = new Date(), { withinDays = 7, limit = 200 } = {}) {
+    const end = new Date(now);
+    end.setHours(0, 0, 0, 0);
+    end.setDate(end.getDate() + Math.min(Math.max(Number(withinDays) || 7, 1), 30) + 1);
+    const rows = await ProspectModel.aggregate([
+      { $match: { partnerId } },
+      { $match: { 'status.stage': { $nin: ['Converted', 'Closed'] } } },
+      { $addFields: { __last: { $last: '$communications' } } },
+      { $match: { '__last.followUpDate': { $ne: null, $lte: end } } },
+      { $sort: { '__last.followUpDate': 1 } },
+      { $limit: Math.min(Math.max(Number(limit) || 200, 1), 500) },
+      { $project: { __last: 0 } },
+    ]);
+    return rows.map(ProspectMapper.toDomain);
+  }
+
   /** Hottest pipeline: currently in negotiation, most recently touched first. */
   async findReadyToConvert(partnerId, limit = 5) {
     const docs = await ProspectModel.find({ partnerId, 'status.stage': 'In Negotiation' })

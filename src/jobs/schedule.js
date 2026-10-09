@@ -14,6 +14,7 @@ import { runDormantNudgeJob } from './dormant-nudge.js';
 import { runOutreachDueJob } from './outreach-due.js';
 import { runBroadcastDueJob } from './broadcast-due.js';
 import { runLeadPoolDueJob } from './leadpool-due.js';
+import { runSessionRemindersJob } from './session-reminders.js';
 
 /**
  * Background jobs — the single scheduling mechanism (the legacy birthday
@@ -27,10 +28,12 @@ import { runLeadPoolDueJob } from './leadpool-due.js';
  * - scheduled outreach (every minute): fire due bulk-SMS outbox rows.
  * - scheduled broadcasts (every minute): fire due multi-channel campaigns.
  * - lead-pool sweep (every 15 minutes): warn + auto-return idle claims.
+ * - session reminders (every 15 minutes): T-24h SMS + T-1h SMS/push for bookings.
  * Jobs never throw into the scheduler — failures are logged, not fatal.
  * `runSnapshotJob` / `runBirthdayJob` / `runDailyBriefJob` /
  * `runWeeklyReviewJob` / `runDigestJob` / `runDormantNudgeJob` / `runOutreachDueJob` /
- * `runBroadcastDueJob` / `runLeadPoolDueJob` are exported for tests and triggers.
+ * `runBroadcastDueJob` / `runLeadPoolDueJob` / `runSessionRemindersJob` are
+ * exported for tests and triggers.
  */
 export const buildSnapshotJob = (deps = {}) => new BuildTeamSnapshotsUseCase({
   network: deps.network ?? new MongoNetworkRepository(),
@@ -61,7 +64,8 @@ export function scheduleJobs() {
   cron.schedule('* * * * *', () => runOutreachDueJob());
   cron.schedule('* * * * *', () => runBroadcastDueJob());
   cron.schedule('*/15 * * * *', () => runLeadPoolDueJob());
-  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00, dormant nudge at 09:00, digests at 19:00, outreach + broadcasts due every minute, lead-pool sweep every 15 minutes');
+  cron.schedule('*/15 * * * *', () => runSessionRemindersJob());
+  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00, dormant nudge at 09:00, digests at 19:00, outreach + broadcasts due every minute, lead-pool sweep + session reminders every 15 minutes');
 }
 
 export { runBirthdayJob } from './birthday.js';
@@ -72,3 +76,4 @@ export { runDormantNudgeJob } from './dormant-nudge.js';
 export { runOutreachDueJob } from './outreach-due.js';
 export { runBroadcastDueJob } from './broadcast-due.js';
 export { runLeadPoolDueJob } from './leadpool-due.js';
+export { runSessionRemindersJob } from './session-reminders.js';

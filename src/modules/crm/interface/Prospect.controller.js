@@ -35,6 +35,16 @@ export const makeProspectController = (uc, opts = {}) => {
     res.status(200).json({ message: 'Contact created successfully!', success: true, data });
   }),
 
+  importContacts: asyncHandler(async (req, res) => {
+    const body = req.validated?.body ?? req.body;
+    // Session owns the import: partnerId always comes from auth.
+    const data = await uc.importContacts.execute({ partnerId: me(req), rows: body.rows });
+    res.status(200).json({
+      message: `Imported ${data.inserted} of ${data.total} contacts${data.skipped.length > 0 ? ` (${data.skipped.length} skipped)` : ''}`,
+      data, success: true,
+    });
+  }),
+
   update: asyncHandler(async (req, res) => {
     const body = req.validated?.body ?? req.body;
     const prospectId = req.validated?.params?.prospectId ?? req.params.prospectId ?? body.prospectId;
@@ -139,6 +149,12 @@ export const makeProspectController = (uc, opts = {}) => {
     if (guard) await guard.requireRead(me(req), pid(req));
     const data = await uc.getById.execute({ prospectId: pid(req) });
     res.status(200).json({ message: 'Prospect retrieved successfully!', data, success: true });
+  }),
+
+  remindersMine: asyncHandler(async (req, res) => {
+    // Session-owned: the id comes from auth, never params — nothing to guard.
+    const data = await uc.reminders.execute({ partnerId: me(req) });
+    res.status(200).json({ message: 'Follow-up reminders retrieved successfully', data, success: true });
   }),
 
   getByPartner: asyncHandler(async (req, res) => {

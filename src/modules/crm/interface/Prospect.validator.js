@@ -26,6 +26,11 @@ export const CreateProspectSchema = z.object({
   notes: z.string().trim().max(2000).optional().default(''),
 });
 
+/** Member contact import — parsed rows, capped; per-row issues never fail the batch. */
+export const ImportContactsSchema = z.object({
+  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(500),
+});
+
 export const UpdateProspectSchema = z.object({
   prospectName: z.string().trim().min(2).max(80).optional(),
   prospectSurname: z.string().trim().max(80).optional(),

@@ -3,7 +3,7 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
-  ProspectIdParam, PartnerIdParam, CreateProspectSchema, UpdateProspectSchema,
+  ProspectIdParam, PartnerIdParam, CreateProspectSchema, ImportContactsSchema, UpdateProspectSchema,
   UpdateStatusSchema, LogCommunicationSchema, PaginationQuery, CommIdsParam, StuckQuery,
   ConvertProspectSchema, ClaimProspectSchema, AcceptPageLeadSchema, PoolQuery, RateLeadSchema, ImportLeadsSchema,
   AdminLeadsQuery, LeadIdParam, AdminPageLeadsQuery, PageLeadIdParam, ReassignPageLeadSchema, PushPoolLeadSchema,
@@ -18,12 +18,13 @@ import { GetMyContactListUseCase, ListActivationBoardUseCase, ListDownlineContac
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
 import {
-  GetProspectByIdUseCase, GetProspectsByPartnerUseCase, GetProspectNotificationsUseCase,
+  GetFollowUpRemindersUseCase, GetProspectByIdUseCase, GetProspectsByPartnerUseCase, GetProspectNotificationsUseCase,
   GetStuckProspectsUseCase,
 } from '../application/Prospect.queries.js';
 import { MongoProspectRepository, MongoPartnerLookup, MongoReservationCodes } from '../infrastructure/Prospect.mongo.repository.js';
 import { MongoCampaignLookup } from '../../marketing/infrastructure/Marketing.mongo.repository.js';
 import { ConvertProspectToPartnerUseCase } from '../application/Prospect.convert.js';
+import { ImportContactsUseCase } from '../application/Prospect.import.js';
 import { buildProspectAccess } from '../application/Prospect.access.js';
 import { PartnersModel } from '../infrastructure/Prospect.models.js';
 import { ReleaseProspectToPoolUseCase } from '../application/Prospect.release.js';
@@ -64,8 +65,10 @@ export const buildProspectRouter = (deps = {}) => {
     findProspectById: (id) => prospects.findById(id),
     findPartnerById: (id) => PartnersModel.findById(id).select('role email partnerOf').lean(),
   });
+  const create = new CreateProspectUseCase({ prospects, campaigns });
   const c = makeProspectController({
-    create: new CreateProspectUseCase({ prospects, campaigns }),
+    create,
+    importContacts: new ImportContactsUseCase({ create }),
     update: new UpdateProspectUseCase({ prospects }),
     updateStatus: new UpdateProspectStatusUseCase({ prospects, events }),
     remove: new DeleteProspectUseCase({ prospects }),
@@ -75,6 +78,7 @@ export const buildProspectRouter = (deps = {}) => {
     removeCommunication: new RemoveCommunicationUseCase({ prospects }),
     notifications: new GetProspectNotificationsUseCase({ prospects }),
     stuck: new GetStuckProspectsUseCase({ prospects }),
+    reminders: new GetFollowUpRemindersUseCase({ prospects }),
     convert: new ConvertProspectToPartnerUseCase({ prospects, reservations }),
     release: new ReleaseProspectToPoolUseCase({ prospects }),
     claim: new ClaimPoolLeadUseCase({}),
@@ -98,6 +102,7 @@ export const buildProspectRouter = (deps = {}) => {
 
   router.post('/', validate({ body: CreateProspectSchema }), c.create);
   router.post('/create', validate({ body: CreateProspectSchema }), c.create);
+  router.post('/import', validate({ body: ImportContactsSchema }), c.importContacts);
 
   // NOTE: static single-segment aliases MUST precede `/:prospectId` or Express swallows them as ids.
   // Contact-list endpoints likewise precede every `/:prospectId/*` route.
@@ -111,6 +116,9 @@ export const buildProspectRouter = (deps = {}) => {
 
   router.get('/by-partner/:partnerId', validate({ params: PartnerIdParam, query: PaginationQuery }), c.getByPartner);
   router.get('/all-createdBy/:createdBy', validate({ query: PaginationQuery }), c.getByPartner);
+
+  // Session-owned follow-up reminders — static path precedes `/:prospectId`.
+  router.get('/reminders/mine', c.remindersMine);
 
   router.get('/notifications/:partnerId', validate({ params: PartnerIdParam }), c.notifications);
 

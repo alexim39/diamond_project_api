@@ -30,6 +30,7 @@ const ROUTERS = [
   './modules/progression/index.js',
   './modules/analytics/interface/Analytics.routes.js',
   './modules/dashboard/interface/Dashboard.routes.js',
+  './modules/search/index.js',
   './modules/reports/interface/Reports.routes.js',
   './modules/exports/interface/Exports.routes.js',
   './modules/goals/interface/Goals.routes.js',

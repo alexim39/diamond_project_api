@@ -60,6 +60,20 @@ export function buildProspectNotifications(prospects, now = new Date()) {
 
     const openCommunications = (prospect.communications ?? []).filter((c) => c.status !== 'Closed');
     const lastComm = openCommunications[openCommunications.length - 1];
+    // Committed callback dates — the follow-up promise itself. Skips
+    // Closed-lost outcomes; a fresh touch without a date clears it.
+    if (lastComm?.followUpDate && lastComm?.outcome !== 'Closed-lost') {
+      const days = daysBetween(lastComm.followUpDate);
+      if (Number.isFinite(days) && days <= 7) {
+        if (days < 0) {
+          notifications.push({ title: `OVERDUE: Call back ${fullName}`, description: `Promised follow-up was ${Math.abs(days)} day(s) ago`, icon: 'report', tag: 'Follow-up overdue', urgency: true, status, prospectId: prospect.id ?? prospect._id });
+        } else if (days === 0) {
+          notifications.push({ title: `Call back ${fullName} today`, description: 'You promised a follow-up for today', icon: 'priority_high', tag: 'Follow-up due', urgency: true, status, prospectId: prospect.id ?? prospect._id });
+        } else {
+          notifications.push({ title: `Follow up with ${fullName} in ${days} day(s)`, description: 'Callback coming up', icon: 'event_note', tag: 'Follow-up upcoming', status, prospectId: prospect.id ?? prospect._id });
+        }
+      }
+    }
     if (lastComm?.date) {
       const commDate = new Date(lastComm.date);
       const daysSince = Math.floor((today.getTime() - commDate.getTime()) / (1000 * 60 * 60 * 24));

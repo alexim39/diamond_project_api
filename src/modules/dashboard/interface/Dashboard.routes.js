@@ -13,7 +13,7 @@ import { GetNotificationFeedUseCase } from '../../notifications/application/Noti
 import { MongoTeamSnapshotStore } from '../../analytics/infrastructure/TeamSnapshots.mongo.repository.js';
 import { ListGoalsUseCase } from '../../goals/application/Goals.usecases.js';
 import { GetActionsUseCase, GetFunnelUseCase, GetTeamUseCase } from '../../analytics/application/Analytics.usecases.js';
-import { GetStuckProspectsUseCase } from '../../crm/application/Prospect.queries.js';
+import { GetFollowUpRemindersUseCase, GetStuckProspectsUseCase } from '../../crm/application/Prospect.queries.js';
 import { MongoEventStore } from '../../events/infrastructure/Events.mongo.repository.js';
 import { GetMyProgressionUseCase } from '../../progression/application/Progression.usecases.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
@@ -35,10 +35,11 @@ export const buildDashboardRouter = (deps = {}) => {
   const feed = deps.feed ?? new GetNotificationFeedUseCase({ prospects, ledger, reads });
   const goals = deps.goals ?? new ListGoalsUseCase({ goals: goalStore, orders, prospects, network });
   const stuck = deps.stuck ?? new GetStuckProspectsUseCase({ prospects });
+  const reminders = deps.reminders ?? new GetFollowUpRemindersUseCase({ prospects });
   const progressStore = deps.progressStore ?? new MongoProgressionStore();
   const progression = deps.progression ?? new GetMyProgressionUseCase({ progress: progressStore, network, orders });
   const eventStore = deps.eventStore ?? new MongoEventStore();
-  const actions = deps.actions ?? new GetActionsUseCase({ feed, goals, prospects, stuck, progression, events: eventStore });
+  const actions = deps.actions ?? new GetActionsUseCase({ feed, goals, prospects, stuck, progression, events: eventStore, reminders });
   const funnel = deps.funnel ?? new GetFunnelUseCase({ prospects });
   const snapshots = deps.snapshots ?? new MongoTeamSnapshotStore();
   const team = deps.team ?? new GetTeamUseCase({

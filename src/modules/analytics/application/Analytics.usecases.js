@@ -110,13 +110,13 @@ const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
  * upcoming gatherings, journey milestones, then the rest.
  */
 export class GetActionsUseCase {
-  /** @param {{feed, goals, prospects, stuck, progression, events, poolCount}} deps (stuck/progression/events/poolCount optional) */
-  constructor({ feed, goals, prospects, stuck, progression, events, poolCount = null }) {
-    Object.assign(this, { feed, goals, prospects, stuck, progression, events, poolCount });
+  /** @param {{feed, goals, prospects, stuck, progression, events, poolCount, reminders}} deps (stuck/progression/events/poolCount/reminders optional) */
+  constructor({ feed, goals, prospects, stuck, progression, events, poolCount = null, reminders = null }) {
+    Object.assign(this, { feed, goals, prospects, stuck, progression, events, poolCount, reminders });
   }
 
   async execute({ partnerId, now = new Date(), limit = 15 }) {
-    const [feed, goals, hot, stuck, journey, gatherings, poolAvailable] = await Promise.all([
+    const [feed, goals, hot, stuck, journey, gatherings, poolAvailable, due] = await Promise.all([
       this.feed.execute({ partnerId, now, limit: 50 }),
       this.goals.execute({ partnerId, now }),
       this.prospects.findReadyToConvert(partnerId, 5),
@@ -124,6 +124,7 @@ export class GetActionsUseCase {
       this.progression ? this.progression.summarize({ partnerId, now }) : null,
       this.events ? this.events.upcomingRsvps(partnerId, now) : [],
       this.poolCount ? this.poolCount(partnerId).catch(() => null) : null,
+      this.reminders ? this.reminders.execute({ partnerId, now }).catch(() => null) : null,
     ]);
 
     const actions = [];
@@ -165,6 +166,26 @@ export class GetActionsUseCase {
         title: `${s.name} stuck in ${s.stage} (${s.daysInStage}d)`,
         detail: `No movement for ${s.daysInStage} days — threshold is ${s.limit}`,
         link: `/dashboard/prospects/detail/${s.prospectId}`,
+      });
+    }
+    for (const r of (due?.overdue ?? []).slice(0, 5)) {
+      actions.push({
+        id: `action:reminder:${r.prospectId}`,
+        priority: 'high',
+        category: 'follow-up',
+        title: `Call back ${r.name} — ${r.daysOverdue}d overdue`,
+        detail: 'You promised a follow-up — keep the promise',
+        link: `/dashboard/prospects/detail/${r.prospectId}`,
+      });
+    }
+    for (const r of (due?.today ?? []).slice(0, 5)) {
+      actions.push({
+        id: `action:reminder:${r.prospectId}`,
+        priority: 'high',
+        category: 'follow-up',
+        title: `Call back ${r.name} today`,
+        detail: 'Follow-up promised for today',
+        link: `/dashboard/prospects/detail/${r.prospectId}`,
       });
     }
     for (const g of (gatherings ?? []).slice(0, 3)) {
@@ -327,5 +348,66 @@ export class GetBenchUseCase {
       pendingNominations: (pendingNominations ?? []).length,
       leaders: (dist.ecl ?? 0) + (dist.cell_leader ?? 0) + (dist.g_leader ?? 0) + (dist.g8 ?? 0),
     };
+  }
+}
+
+/**
+ * Org-wide funnel (admin console): all prospects created in-window
+ * grouped by current stage, with the same funnel math as member views.
+ */
+export class GetOrgFunnelUseCase {
+  /** @param {{prospects}} deps */
+  constructor({ prospects }) {
+    this.prospects = prospects;
+  }
+
+  async execute({ days = 30, now = new Date() } = {}) {
+    const d = clampDays(days);
+    const { start, end } = windows(now, d);
+    const distribution = await this.prospects.orgStageDistribution(start, end);
+    return { days: d, ...buildFunnel(distribution, distribution.Closed ?? 0) };
+  }
+}
+
+/**
+ * Signup-cohort rank retention (admin console): trailing calendar months,
+ * each cohort's current stored-level distribution. Bounded per cohort —
+ * `capped` flags truncated months. Reads, never writes.
+ */
+export class GetRetentionUseCase {
+  /** @param {{partners, progress}} deps */
+  constructor({ partners, progress }) {
+    Object.assign(this, { partners, progress });
+  }
+
+  async execute({ months = 6, now = new Date() } = {}) {
+    const cohorts = await this.partners.signupCohorts(months, 2000, now);
+    const out = [];
+    for (const cohort of cohorts) {
+      const levels = cohort.ids.length > 0 && this.progress?.levelsFor
+        ? await this.progress.levelsFor(cohort.ids).catch(() => ({}))
+        : {};
+      const distribution = {};
+      let ranked = 0;
+      for (const id of cohort.ids) {
+        const lvl = levels[String(id)];
+        if (lvl === undefined) continue;
+        ranked += 1;
+        distribution[lvl] = (distribution[lvl] ?? 0) + 1;
+      }
+      const advanced = Object.entries(distribution)
+        .filter(([lvl]) => !['prospect', 'partner'].includes(lvl))
+        .reduce((s, [, n]) => s + n, 0);
+      out.push({
+        month: cohort.month,
+        cohort: cohort.ids.length,
+        ranked,
+        advanced,
+        advancedRate: ranked > 0 ? Math.round((advanced / ranked) * 1000) / 10 : null,
+        distribution,
+        capped: cohort.capped,
+      });
+    }
+    return { months: out.length, cohorts: out };
   }
 }
