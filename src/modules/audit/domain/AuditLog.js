@@ -38,6 +38,12 @@ export const AUDIT_ACTIONS = Object.freeze([
   'billing.plan.update',
   'product.create',
   'product.update',
+  'bonus.claim',
+  'bonus.campaign.create',
+  'bonus.campaign.update',
+  'tutorial.create',
+  'tutorial.update',
+  'tutorial.delete',
 ]);
 
 const str = (v, max) => {

@@ -50,6 +50,9 @@ import ReservationsRouter from './src/modules/reservations/index.js';
 import SettingsV1Router from './src/modules/settings/index.js';
 import OutreachRouter from './src/modules/outreach/index.js';
 import SubscriptionsRouter from './src/modules/subscriptions/index.js';
+import { buildAdminBonusRouter, buildBonusRouter } from './src/modules/bonuses/interface/Bonus.routes.js';
+import { buildAdminTutorialRouter, buildTutorialRouter } from './src/modules/tutorials/interface/Tutorial.routes.js';
+import { ensureSeedBonus } from './src/modules/bonuses/index.js';
 import { subscribeActivation } from './src/modules/activation/index.js';
 import { subscribePromotionFanout } from './src/modules/notifications/application/PromotionFanout.js';
 import { subscribeTrainingFanout } from './src/modules/notifications/application/TrainingFanout.js';
@@ -158,6 +161,10 @@ app.use('/v1/reservations', ReservationsRouter);
 app.use('/v1/settings', SettingsV1Router);
 app.use('/v1/outreach', OutreachRouter);
 app.use('/v1/admin/subscriptions', SubscriptionsRouter);
+app.use('/v1/bonuses', buildBonusRouter());
+app.use('/v1/admin/bonuses', buildAdminBonusRouter());
+app.use('/v1/tutorials', buildTutorialRouter());
+app.use('/v1/admin/tutorials', buildAdminTutorialRouter());
 
 
 
@@ -240,6 +247,10 @@ mongoose.connect(`mongodb+srv://${process.env.MONGODB_USERNAME}:${process.env.MO
       (error) => console.warn('Index ensure skipped:', error?.message ?? error),
     );
     scheduleJobs();
+    ensureSeedBonus().then(
+      (r) => console.log(`[bonuses] seed: ${r.seeded ? `created welcome N2500 (${r.id})` : 'welcome campaign present'}`),
+      (error) => console.warn('[bonuses] seed skipped:', error?.message ?? error),
+    );
     app.listen(port, () => {
         console.log(`Server is running on port: http://localhost:${port}`)
     })

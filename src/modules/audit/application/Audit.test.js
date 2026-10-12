@@ -36,6 +36,8 @@ describe('AUDIT_ACTIONS vocabulary', () => {
       'partnersurvey.delete', 'page.reset',
       'subscription.delete', 'subscription.status',
       'billing.plan.update', 'product.create', 'product.update',
+      'bonus.claim', 'bonus.campaign.create', 'bonus.campaign.update',
+      'tutorial.create', 'tutorial.update', 'tutorial.delete',
     ]) {
       assert.ok(AUDIT_ACTIONS.includes(a), `missing ${a}`);
     }

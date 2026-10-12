@@ -31,6 +31,8 @@ const ROUTERS = [
   './modules/analytics/interface/Analytics.routes.js',
   './modules/dashboard/interface/Dashboard.routes.js',
   './modules/search/index.js',
+  './modules/bonuses/index.js',
+  './modules/tutorials/index.js',
   './modules/reports/interface/Reports.routes.js',
   './modules/exports/interface/Exports.routes.js',
   './modules/goals/interface/Goals.routes.js',
