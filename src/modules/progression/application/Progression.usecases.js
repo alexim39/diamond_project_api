@@ -174,12 +174,14 @@ export class GetMyProgressionUseCase {
     Object.assign(this, { progress, network, orders, recognition, events });
   }
 
-  async execute({ partnerId, now = new Date() }) {
+  async execute({ partnerId, now = new Date(), readOnly = false }) {
     const doc = await this.progress.ensure(partnerId);
     const signals = await assembleSignals(partnerId, this, now);
     const resolved = resolveProgression(signals, toMilestones(doc), doc.level ?? 'partner');
     let promoted = null;
-    if (RANK(resolved.level) > RANK(doc.level ?? 'partner')) {
+    // Read-only coaching reads (upline/admin viewing a member) never
+    // mutate the ladder, post recognition, or fan out events.
+    if (!readOnly && RANK(resolved.level) > RANK(doc.level ?? 'partner')) {
       const from = doc.level ?? 'partner';
       await this.progress.setLevel(partnerId, resolved.level);
       promoted = { from, to: resolved.level };

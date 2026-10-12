@@ -11,6 +11,8 @@ import { collectDownlineIds } from '../infrastructure/Network.mongo.repository.j
 import { lenientRole } from '../../identity-access/domain/PartnerRole.js';
 import { adminBootstrapEmails } from '../../identity-access/domain/PartnerRole.js';
 import { GetMember360UseCase } from '../../identity-access/application/Member360.usecase.js';
+import { ResolveViewAsUseCase } from '../application/Network.viewas.js';
+import { recordAudit } from '../../audit/index.js';
 import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
 import { MongoProspectRepository } from '../../crm/infrastructure/Prospect.mongo.repository.js';
 import { MongoProgressionStore } from '../../progression/infrastructure/Progression.mongo.repository.js';
@@ -73,6 +75,17 @@ export const buildNetworkRouter = (deps = {}) => {
     const body = req.validated?.body ?? req.body;
     const data = await presence.execute({ requesterId: req.auth?.partnerId, ids: body.ids });
     res.status(200).json({ message: 'Presence retrieved successfully', data, success: true });
+  }));
+  // View-as entry: admin or upline opens a read-only member view.
+  // Audited at entry (who looked at whom); the view itself only calls
+  // existing subject-scoped reads, so no access rule is widened.
+  const viewAs = deps.viewAs ?? new ResolveViewAsUseCase({
+    partners, network, audits: { record: (entry) => recordAudit(entry) },
+  });
+  router.post('/view-as', validate({ body: z.object({ partnerId: PartnerIdParam.shape.partnerId }) }), asyncHandler(async (req, res) => {
+    const body = req.validated?.body ?? req.body;
+    const data = await viewAs.execute({ requesterId: req.auth?.partnerId, targetId: body.partnerId });
+    res.status(200).json({ message: 'Member view opened (read-only)', data, success: true });
   }));
   // Downline 360: upline read-only view reusing the admin 360 shape.
   // Ancestor check keeps it scoped — same pattern as overview targets.

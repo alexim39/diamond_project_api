@@ -81,6 +81,25 @@ export class MongoPartnerRepository {
     };
   }
   /** Bulk presence read — id + lastSeenAt only, capped, lean. */
+  /**
+   * Directory-safe labels for a bounded id set (username + display name).
+   * Used by admin desks (e.g. ticket reporters) — never emails/phones.
+   */
+  async findLabelsByIds(ids) {
+    const list = [...new Set((Array.isArray(ids) ? ids : []).map((v) => String(v ?? '').trim()))]
+      .filter((v) => /^[a-fA-F0-9]{24}$/.test(v)).slice(0, 100);
+    if (list.length === 0) return [];
+    const docs = await PartnersModel.find({ _id: { $in: list } })
+      .select('_id username name surname')
+      .limit(100)
+      .lean()
+      .catch(() => []);
+    return (docs ?? []).map((d) => ({
+      id: String(d._id),
+      username: d.username ?? null,
+      name: [d.name, d.surname].filter(Boolean).join(' ') || d.username || 'Member',
+    }));
+  }
   async findPresence(ids) {
     const list = [...new Set((Array.isArray(ids) ? ids : []).map((v) => String(v ?? '').trim()))].slice(0, 100);
     if (list.length === 0) return [];

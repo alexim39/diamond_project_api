@@ -4,9 +4,9 @@ export const TICKET_STATUSES = Object.freeze(['open', 'in-progress', 'resolved',
 
 /** GET (admin) — inbox listing passthrough with bounded paging. */
 export class ListTicketsUseCase {
-  /** @param {{tickets}} deps */
-  constructor({ tickets }) {
-    this.tickets = tickets;
+  /** @param {{tickets, partners?}} deps (partners optional — reporter labels) */
+  constructor({ tickets, partners = null }) {
+    Object.assign(this, { tickets, partners });
   }
 
   async execute({ status = null, q = '', limit = 25, skip = 0 } = {}) {
@@ -14,7 +14,25 @@ export class ListTicketsUseCase {
       const { ValidationException } = await import('../../../shared/domain/AppError.js');
       throw new ValidationException(`Unknown ticket status (expected one of: ${TICKET_STATUSES.join(', ')})`);
     }
-    return this.tickets.list({ status, q, limit, skip });
+    const page = await this.tickets.list({ status, q, limit, skip });
+    // Reporter labels in one batched, directory-safe lookup (best-effort —
+    // the inbox never fails because a label lookup did).
+    if (this.partners?.findLabelsByIds) {
+      try {
+        const labels = await this.partners.findLabelsByIds(
+          (page.items ?? []).map((t) => t.partnerId),
+        );
+        const byId = Object.fromEntries(labels.map((l) => [String(l.id), l]));
+        return {
+          ...page,
+          items: (page.items ?? []).map((t) => ({
+            ...t,
+            reporter: byId[String(t.partnerId)] ?? null,
+          })),
+        };
+      } catch { /* labels degrade to null */ }
+    }
+    return page;
   }
 }
 

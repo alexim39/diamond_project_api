@@ -42,6 +42,28 @@ describe('ListTicketsUseCase', () => {
     const uc = new ListTicketsUseCase({ tickets: fakeTickets([]) });
     await assert.rejects(uc.execute({ status: 'nope' }), /Unknown ticket status/);
   });
+
+  it('attaches reporter labels in one batched lookup', async () => {
+    const uc = new ListTicketsUseCase({
+      tickets: fakeTickets([ticket()]),
+      partners: {
+        findLabelsByIds: async (ids) => ids.map((id) => ({ id: String(id), username: 'member', name: 'Mem Ber' })),
+      },
+    });
+    const res = await uc.execute({});
+    assert.equal(res.items[0].reporter?.username, 'member');
+    assert.equal(res.items[0].reporter?.name, 'Mem Ber');
+  });
+
+  it('degrades to null reporters when labels fail', async () => {
+    const uc = new ListTicketsUseCase({
+      tickets: fakeTickets([ticket()]),
+      partners: { findLabelsByIds: async () => { throw new Error('db down'); } },
+    });
+    const res = await uc.execute({});
+    assert.equal(res.total, 1);
+    assert.ok(!('reporter' in res.items[0]) || res.items[0].reporter == null);
+  });
 });
 
 describe('DecideTicketUseCase', () => {

@@ -15,6 +15,7 @@ import { MongoProspectRepository } from '../../crm/infrastructure/Prospect.mongo
 import { MongoEventStore } from '../../events/infrastructure/Events.mongo.repository.js';
 import { MongoReportStore } from '../../reports/infrastructure/Reports.mongo.repository.js';
 import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
+import { resolveSubject } from '../../network/application/SubjectScope.js';
 import { RecognitionUseCases } from '../../community/application/Community.usecases.js';
 import { MongoCommunityStore } from '../../community/infrastructure/Community.mongo.repository.js';
 
@@ -105,6 +106,18 @@ export const buildProgressionRouter = (deps = {}) => {
 
   router.get('/mine', asyncHandler(async (req, res) => {
     const data = await mine.execute({ partnerId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Progression retrieved successfully', data, success: true });
+  }));
+
+  // Coaching read: own, upline or admin (outsiders get 403). Read-only —
+  // viewing a member never promotes them or posts recognition.
+  router.get('/by-member/:partnerId', validate({ params: z.object({ partnerId: objectId }) }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const subject = await resolveSubject({
+      requesterId: req.auth?.partnerId, subjectId: params.partnerId,
+      network, partners,
+    });
+    const data = await mine.execute({ partnerId: subject, readOnly: true });
     res.status(200).json({ message: 'Progression retrieved successfully', data, success: true });
   }));
 

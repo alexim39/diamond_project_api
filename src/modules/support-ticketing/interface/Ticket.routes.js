@@ -12,6 +12,7 @@ import { MongoTicketRepository } from '../infrastructure/Ticket.mongo.repository
 import { TicketMailer } from '../infrastructure/clients/TicketMailer.js';
 import { NotifyUseCase } from '../../notifications/application/NotificationsCenter.usecases.js';
 import { MongoStoredNotificationStore } from '../../notifications/infrastructure/StoredNotifications.mongo.repository.js';
+import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
 import { recordAudit } from '../../audit/index.js';
 
 const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
@@ -39,7 +40,7 @@ export const buildTicketRouter = ({ ticketRepo, mailer, inbox: inboxDep, decide:
   const mail = mailer ?? new TicketMailer();
   const submitTicket = new SubmitTicketUseCase({ ticketRepo: repo, mailer: mail });
   const handler = makeSubmitTicketController(submitTicket);
-  const inbox = inboxDep ?? new ListTicketsUseCase({ tickets: repo });
+  const inbox = inboxDep ?? new ListTicketsUseCase({ tickets: repo, partners: new MongoPartnerRepository() });
   const decide = decideDep ?? new DecideTicketUseCase({ tickets: repo });
   const notifyStore = new MongoStoredNotificationStore();
   const notify = new NotifyUseCase({ stored: notifyStore });
