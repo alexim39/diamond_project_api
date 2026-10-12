@@ -1,21 +1,55 @@
 import { ConflictException, ForbiddenException, NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 import { createRecordEntity } from '../domain/Reservation.entity.js';
+import { buildProspectAccess } from '../../crm/application/Prospect.access.js';
 import { PartnersModel } from '../../../apps/partner/models/partner.model.js';
 import { ProspectModel } from '../../../apps/prospect/models/prospect.model.js';
 import { NotifyUseCase } from '../../notifications/application/NotificationsCenter.usecases.js';
 import { MongoStoredNotificationStore } from '../../notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { sendEmail } from '../../../services/emailService.js';
 
-/** POST /v1/reservations/record — upline links a code (→ Approved, ready to use). */
+// Default prospect guard (same rule as the prospect slice): owner, upline
+// (ancestor chain) or admin. Overridable via deps for tests.
+const defaultRecordAccess = () => buildProspectAccess({
+  findProspectById: (id) => ProspectModel.findById(id).select('partnerId').lean().catch(() => null),
+  findPartnerById: (id) => PartnersModel.findById(id).select('role email partnerOf').lean().catch(() => null),
+});
+
+/**
+ * POST /v1/reservations/record — record a code, routed to its credit holder.
+ *
+ * - No prospectId: self-record, beneficiary = session (today, untouched).
+ * - prospectId: beneficiary = the prospect's OWNER (derived server-side),
+ *   actor recorded separately — so an upline promoting for a downline can
+ *   never silently take the credit.
+ * - onBehalfOf: explicit intent, must equal the prospect's owner (400
+ *   otherwise); requires a prospect (400 without one).
+ * Strangers fail closed (404, never confirming the prospect exists).
+ */
 export class RecordReservationUseCase {
-  /** @param {{reservations}} deps */
-  constructor({ reservations }) {
+  /** @param {{reservations, access?}} deps */
+  constructor({ reservations, access = null }) {
     this.reservations = reservations;
+    this.access = access ?? defaultRecordAccess();
   }
 
-  async execute({ referrerId, code, prospectId = null }) {
-    const entity = createRecordEntity({ code, prospectId });
-    return this.reservations.record({ ...entity, partnerId: referrerId });
+  async execute({ referrerId, code, prospectId = null, onBehalfOf = null }) {
+    const entity = createRecordEntity({ code, prospectId, onBehalfOf });
+    let beneficiaryId = String(referrerId);
+    let recordedBy = null;
+    if (entity.onBehalfOf && !entity.prospectId) {
+      throw new ValidationException('onBehalfOf requires a prospect');
+    }
+    if (entity.prospectId) {
+      const { ownerId } = await this.access.requireSupport(referrerId, entity.prospectId);
+      if (entity.onBehalfOf && entity.onBehalfOf !== ownerId) {
+        throw new ValidationException('onBehalfOf must match the prospect owner');
+      }
+      beneficiaryId = entity.onBehalfOf ?? ownerId;
+      if (beneficiaryId !== String(referrerId)) recordedBy = String(referrerId);
+    }
+    return this.reservations.record({
+      ...entity, partnerId: beneficiaryId, ...(recordedBy ? { recordedBy } : {}),
+    });
   }
 }
 
@@ -48,6 +82,7 @@ export class ListMyReservationsUseCase {
         code: r.code,
         status: r.status,
         prospectId: r.prospectId ?? null,
+        recordedBy: r.recordedBy ?? null,
         prospect: r.prospectId ? (prospectLabels[String(r.prospectId)] ?? { name: 'Unknown', phone: '' }) : null,
         createdAt: r.createdAt ?? null,
       })),
@@ -65,14 +100,15 @@ export class ListReviewQueueUseCase {
     this.reservations = reservations;
   }
 
-  async execute({ status = 'Pending', limit = 50, skip = 0, q = '' }) {
+  async execute({ status = 'Pending', limit = 50, skip = 0, q = '', sort = 'oldest' }) {
     if (!REVIEW_STATUSES.includes(status) && status !== 'All') {
       throw new ValidationException('Invalid status filter');
     }
     const lim = Math.min(Math.max(Number(limit) || 50, 1), 200);
     const sk = Math.max(Number(skip) || 0, 0);
+    const dir = sort === 'newest' ? -1 : 1;
     const [{ items, total }, summary] = await Promise.all([
-      this.reservations.listByStatus(status, lim, sk, q),
+      this.reservations.listByStatus(status, lim, sk, q, dir),
       this.reservations.statusSummary().catch(() => null),
     ]);
     // NOTE: filter raw values BEFORE String() — String(null) is the

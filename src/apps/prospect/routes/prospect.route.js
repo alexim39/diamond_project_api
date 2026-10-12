@@ -1,7 +1,7 @@
 import express from 'express';
 import {
     CreateContactList,  GetContactsCreatedBy,  importSurveyToContact, getAllMySurveyProspect, ImportSingleProspectFromSurveyToContact,
-    getProspectById, UpdateProspectStatus, UpdateProspectRemark, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
+    getProspectById, UpdateProspectStatus, UpdateProspectsStatusMany, UpdateProspectRemark, deleteSingleFromProspect, UpdateContactList, getSurveyProspectFor, moveSingleProspectBackToSurvey
 } from '../controllers/prospect.controller.js'
 import { UpdateProspectCommunications, DeleteProspectCommunication} from '../controllers/communictions.controller.js'
 import { requireAuth } from '../../../shared/http/requireAuth.js';
@@ -29,6 +29,8 @@ ProspectRouter.get('/import-single/:partnerId/:prospectId/:source', requireAuth,
 ProspectRouter.get('/getById/:prospectId', requireAuth, getProspectById );
 // update status — owner, upline (support) or admin
 ProspectRouter.post('/updateStatus', requireAuth, UpdateProspectStatus);
+// bulk update statuses — same rule, per prospect (one round trip, honest partial outcome)
+ProspectRouter.post('/updateStatusMany', requireAuth, UpdateProspectsStatusMany);
 // update coaching note — owner, upline (support) or admin
 ProspectRouter.post('/updateRemark', requireAuth, UpdateProspectRemark);
 // delete signle prospect for user on prospect model — owner or admin

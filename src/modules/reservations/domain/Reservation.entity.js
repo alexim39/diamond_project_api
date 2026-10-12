@@ -17,12 +17,18 @@ const text = (value, field, { min = 1, max = 2000 } = {}) => {
   return s;
 };
 
-/** @param {{code, prospectId?}} input (Zod-whitelisted upstream) */
+/** @param {{code, prospectId?, onBehalfOf?}} input (Zod-whitelisted upstream) */
 export const createRecordEntity = (input) => {
   const entity = { code: text(input.code, 'reservation code', { min: 3, max: 64 }) };
   if (input.prospectId !== undefined && input.prospectId !== null && String(input.prospectId).trim() !== '') {
     if (!objectIdLike(input.prospectId)) throw new ValidationException('Invalid prospect id');
     entity.prospectId = String(input.prospectId);
+  }
+  // Explicit beneficiary for promote-on-behalf: verified against the
+  // prospect's owner in the usecase (never trusted blindly).
+  if (input.onBehalfOf !== undefined && input.onBehalfOf !== null && String(input.onBehalfOf).trim() !== '') {
+    if (!objectIdLike(input.onBehalfOf)) throw new ValidationException('Invalid onBehalfOf');
+    entity.onBehalfOf = String(input.onBehalfOf).trim();
   }
   return entity;
 };

@@ -13,6 +13,9 @@ const objectId = z.string().trim().regex(/^[a-fA-F0-9]{24}$/, 'Invalid id');
 const RecordSchema = z.object({
   code: z.string().trim().min(3).max(64),
   prospectId: objectId.optional(),
+  // Promote-on-behalf: must equal the prospect's owner (verified in the
+  // usecase); absent = today's behavior, beneficiary derived or session.
+  onBehalfOf: objectId.optional(),
 });
 const MineQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(50),
@@ -40,7 +43,17 @@ export const buildReservationsRouter = (deps = {}) => {
       referrerId: req.auth?.partnerId,
       code: body.code,
       prospectId: body.prospectId ?? null,
+      onBehalfOf: body.onBehalfOf ?? null,
     });
+    if (data?.recordedBy) {
+      // On-behalf records name both sides for the audit trail; self-records
+      // stay audit-quiet exactly like today.
+      void recordAudit({
+        actorId: req.auth?.partnerId, action: 'reservation.record-on-behalf',
+        targetType: 'reservation-code', targetId: String(data.id ?? data.code),
+        detail: { code: data.code ?? null, beneficiary: data.partnerId ?? null, prospectId: data.prospectId ?? null },
+      });
+    }
     res.status(200).json({ message: 'Reservation code recorded and approved', data, success: true });
   }));
 
@@ -67,6 +80,7 @@ export const buildReservationsRouter = (deps = {}) => {
     q: z.string().trim().max(64).optional().default(''),
     limit: z.coerce.number().int().min(1).max(200).optional(),
     skip: z.coerce.number().int().min(0).optional(),
+    sort: z.enum(['newest', 'oldest']).optional().default('oldest'),
   }) }), asyncHandler(async (req, res) => {
     const q = req.validated?.query ?? req.query;
     const data = await queue.execute({
@@ -74,6 +88,7 @@ export const buildReservationsRouter = (deps = {}) => {
       limit: q?.limit,
       skip: q?.skip,
       q: q?.q ?? '',
+      sort: q?.sort ?? 'oldest',
     });
     res.status(200).json({ message: 'Review queue retrieved successfully', data, success: true });
   }));

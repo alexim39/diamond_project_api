@@ -47,6 +47,9 @@ export const INDEXES = [
   { collection: 'partners', keys: { dobMonth: 1, dobDay: 1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, createdAt: -1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, 'status.stage': 1 }, options: {} },
+  // Downline contact-list coaching query (?status=&attention= match the
+  // free-text `status.name` on both status shapes via anchored regexes).
+  { collection: 'prospects', keys: { partnerId: 1, 'status.name': 1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, updatedAt: -1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, prospectSource: 1, createdAt: -1 }, options: {} },
   { collection: 'prospects', keys: { partnerId: 1, campaignId: 1, createdAt: -1 }, options: {} },
