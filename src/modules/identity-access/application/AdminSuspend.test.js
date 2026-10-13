@@ -172,21 +172,30 @@ describe('ListPartnersUseCase', () => {
     const uc = new ListPartnersUseCase({ partners: repo });
     const res = await uc.execute({ role: 'admin', suspended: 'yes', limit: 25, skip: 0 });
     assert.equal(res.total, 1);
-    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: 'admin', suspended: 'yes', login: 'all' });
+    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: 'admin', suspended: 'yes', login: 'all', hideErased: true });
   });
 
   it('normalizes role casing and unknown suspended values', async () => {
     const repo = dirPartners([]);
     const uc = new ListPartnersUseCase({ partners: repo });
     await uc.execute({ role: 'Admin', suspended: 'maybe' });
-    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: 'admin', suspended: 'all', login: 'all' });
+    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: 'admin', suspended: 'all', login: 'all', hideErased: true });
   });
 
   it('passes the login window through', async () => {
     const repo = dirPartners([]);
     const uc = new ListPartnersUseCase({ partners: repo });
     await uc.execute({ login: 'dormant30' });
-    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: null, suspended: 'all', login: 'dormant30' });
+    assert.deepEqual(repo.lastArgs, { limit: 25, skip: 0, q: '', role: null, suspended: 'all', login: 'dormant30', hideErased: true });
+  });
+
+  it('hides erased accounts by default but honors an explicit opt-out', async () => {
+    const repo = dirPartners([]);
+    const uc = new ListPartnersUseCase({ partners: repo });
+    await uc.execute({});
+    assert.equal(repo.lastArgs.hideErased, true);
+    await uc.execute({ hideErased: false });
+    assert.equal(repo.lastArgs.hideErased, false);
   });
 
   it('clamps paging bounds', async () => {

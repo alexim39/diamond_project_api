@@ -39,7 +39,7 @@ export class ListPartnersUseCase {
     this.partners = partners;
   }
 
-  async execute({ limit = 25, skip = 0, q = '', role = null, suspended = 'all', login = 'all' } = {}) {
+  async execute({ limit = 25, skip = 0, q = '', role = null, suspended = 'all', login = 'all', hideErased = true } = {}) {
     const lim = Math.min(Math.max(Number(limit) || 25, 1), 100);
     const sk = Math.max(Number(skip) || 0, 0);
     const { items, total } = await this.partners.listPartners({
@@ -49,6 +49,7 @@ export class ListPartnersUseCase {
       role: role && role !== 'all' ? String(role).toLowerCase() : null,
       suspended: ['yes', 'no'].includes(suspended) ? suspended : 'all',
       login: ['dormant30', 'new7', 'online', 'active1h'].includes(login) ? login : 'all',
+      hideErased: hideErased !== false,
     });
     return { items: items.map(toSafePartner), total, limit: lim, skip: sk };
   }

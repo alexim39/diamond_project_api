@@ -151,8 +151,11 @@ export class MongoPartnerRepository {
   }
 
   /** Admin directory listing — lean, paginated, safe fields projected upstream. */
-  async listPartners({ limit = 25, skip = 0, q = '', role = null, suspended = 'all', login = 'all' }) {
+  async listPartners({ limit = 25, skip = 0, q = '', role = null, suspended = 'all', login = 'all', hideErased = true }) {
     const filter = {};
+    // Erased accounts stay in the DB (ledger/audit trail) but leave the
+    // directory view. Marker must match ErasePartnerUseCase's suspendReason.
+    if (hideErased) filter.suspendReason = { $ne: 'Account erased (GDPR)' };
     if (q) {
       const escaped = String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const re = new RegExp(escaped, 'i');
