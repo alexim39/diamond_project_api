@@ -150,6 +150,19 @@ export class MongoPartnerRepository {
     return PartnersModel.countDocuments({ partnerOf: partnerId });
   }
 
+  /**
+   * Erasure support: move direct recruits one level up (their subtrees
+   * follow by parent id — no recursion, no cycles possible upward).
+   * Returns the moved count.
+   */
+  async reassignDownline(partnerId, newUplineId) {
+    const res = await PartnersModel.updateMany(
+      { partnerOf: partnerId },
+      { $set: { partnerOf: newUplineId } },
+    ).catch(() => null);
+    return res?.modifiedCount ?? 0;
+  }
+
   /** Admin directory listing — lean, paginated, safe fields projected upstream. */
   async listPartners({ limit = 25, skip = 0, q = '', role = null, suspended = 'all', login = 'all', hideErased = true }) {
     const filter = {};

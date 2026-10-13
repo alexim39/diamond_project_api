@@ -114,6 +114,22 @@ const partnersSchema = mongoose.Schema(
       type: String,
       default: null,
     },
+    // Self-service erasure (GDPR): request stamp, scheduled execution, and
+    // the 48h-reminder stamp. Account stays fully functional until the sweep
+    // job executes; cancellation clears all three. Never set directly —
+    // only via POST/DELETE /v1/auth/me/erasure and the erasure-due job.
+    eraseRequestedAt: {
+      type: Date,
+      default: null,
+    },
+    eraseScheduledFor: {
+      type: Date,
+      default: null,
+    },
+    eraseReminderAt: {
+      type: Date,
+      default: null,
+    },
     whatsappGroupLink: {
       type: String,
     },

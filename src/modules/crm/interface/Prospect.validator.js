@@ -98,11 +98,11 @@ export const CommIdsParam = z.object({ prospectId: objectId, communicationId: ob
 /**
  * Enrollment-code shape — mirrors the partner signup form
  * (`partner-signup.component.ts`) so a code recorded here is guaranteed
- * usable at registration: business-issued `NV/NI/NR + 6 digits`,
- * `247…` paths, or the generic two-letters-plus-alphanumerics leg.
+ * usable at registration: business-issued legs (`247…` paths, `NV/NI/NR` +
+ * digits, letter-led codes) plus digit-led paths like `274/test/1`.
  * Backend Zod intentionally repeats the frontend pattern (defense in depth).
  */
-export const EnrollmentCodePattern = /^(247[A-Za-z0-9\/]+|NR\d{6}|NI\d{6}|NV\d{6}|[A-Za-z]{2}[A-Za-z0-9]+)$/i;
+export const EnrollmentCodePattern = /^[A-Za-z0-9][A-Za-z0-9/-]{2,63}$/;
 
 export const ConvertProspectSchema = z.object({
   code: z.string().trim().min(3).max(64).regex(EnrollmentCodePattern, 'Reservation code format not recognised'),

@@ -15,6 +15,7 @@ import { runOutreachDueJob } from './outreach-due.js';
 import { runBroadcastDueJob } from './broadcast-due.js';
 import { runLeadPoolDueJob } from './leadpool-due.js';
 import { runSessionRemindersJob } from './session-reminders.js';
+import { runErasureDueJob } from './erasure-due.js';
 
 /**
  * Background jobs — the single scheduling mechanism (the legacy birthday
@@ -29,6 +30,7 @@ import { runSessionRemindersJob } from './session-reminders.js';
  * - scheduled broadcasts (every minute): fire due multi-channel campaigns.
  * - lead-pool sweep (every 15 minutes): warn + auto-return idle claims.
  * - session reminders (every 15 minutes): T-24h SMS + T-1h SMS/push for bookings.
+ * - self-erasure sweep (daily 03:30 server-local): 48h reminders + due executions.
  * Jobs never throw into the scheduler — failures are logged, not fatal.
  * `runSnapshotJob` / `runBirthdayJob` / `runDailyBriefJob` /
  * `runWeeklyReviewJob` / `runDigestJob` / `runDormantNudgeJob` / `runOutreachDueJob` /
@@ -65,7 +67,8 @@ export function scheduleJobs() {
   cron.schedule('* * * * *', () => runBroadcastDueJob());
   cron.schedule('*/15 * * * *', () => runLeadPoolDueJob());
   cron.schedule('*/15 * * * *', () => runSessionRemindersJob());
-  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00, dormant nudge at 09:00, digests at 19:00, outreach + broadcasts due every minute, lead-pool sweep + session reminders every 15 minutes');
+  cron.schedule('30 3 * * *', () => runErasureDueJob());
+  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00, dormant nudge at 09:00, digests at 19:00, outreach + broadcasts due every minute, lead-pool sweep + session reminders every 15 minutes, self-erasure sweep at 03:30');
 }
 
 export { runBirthdayJob } from './birthday.js';
@@ -77,3 +80,4 @@ export { runOutreachDueJob } from './outreach-due.js';
 export { runBroadcastDueJob } from './broadcast-due.js';
 export { runLeadPoolDueJob } from './leadpool-due.js';
 export { runSessionRemindersJob } from './session-reminders.js';
+export { runErasureDueJob } from './erasure-due.js';

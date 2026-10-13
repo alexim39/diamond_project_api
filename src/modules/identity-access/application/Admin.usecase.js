@@ -233,8 +233,8 @@ export class ErasePartnerUseCase {
     Object.assign(this, { partners, prospects, tickets, codes, sessions });
   }
 
-  async execute({ requesterId, partnerId }) {
-    if (String(requesterId) === String(partnerId)) {
+  async execute({ requesterId, partnerId, viaSelfRequest = false }) {
+    if (String(requesterId) === String(partnerId) && !viaSelfRequest) {
       throw new ForbiddenException('You cannot erase your own account');
     }
     const target = await this.partners.findById(partnerId);
@@ -248,8 +248,20 @@ export class ErasePartnerUseCase {
     const downline = await this.partners.countDownline
       ? await this.partners.countDownline(partnerId)
       : 0;
+    // No orphaned subtrees: direct recruits move one level up first (their
+    // own downlines follow by parent id). Only a root with downline still
+    // refuses — there is nowhere above to move them.
+    let movedDownline = 0;
+    let newUplineId = null;
     if (downline > 0) {
-      throw new ConflictException(`Reassign ${downline} downline member(s) before erasing this account`);
+      const upline = target.partnerOf ? String(target.partnerOf) : '';
+      if (!upline) {
+        throw new ConflictException(`Reassign ${downline} downline member(s) before erasing this account`);
+      }
+      newUplineId = upline;
+      movedDownline = this.partners.reassignDownline
+        ? await this.partners.reassignDownline(partnerId, upline)
+        : 0;
     }
 
     const tag = `${String(target._id ?? target.id ?? partnerId).slice(-6)}${Math.random().toString(36).slice(2, 6)}`;
@@ -296,6 +308,6 @@ export class ErasePartnerUseCase {
     if (this.sessions?.revoke) {
       await this.sessions.revoke(String(partnerId), { reason: 'Account erased', by: String(requesterId) }).catch(() => null);
     }
-    return { erased: toSafePartner(updated), removed };
+    return { erased: toSafePartner(updated), removed, movedDownline, newUplineId };
   }
 }

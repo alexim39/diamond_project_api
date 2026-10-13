@@ -13,6 +13,7 @@ const fakePartners = (rows = []) => {
   return {
     byId,
     downline: 0,
+    reassignCalls: [],
     findById: async (id) => byId.has(String(id)) ? { ...byId.get(String(id)) } : null,
     updateById: async (id, patch) => {
       const row = byId.get(String(id));
@@ -25,6 +26,14 @@ const fakePartners = (rows = []) => {
     },
     countByRole: async (role) => [...byId.values()].filter((r) => String(r.role).toLowerCase() === role).length,
     countDownline: async () => fakePartners.downlineCount ?? 0,
+    reassignDownline: async function (id, next) {
+      this.reassignCalls.push([String(id), String(next)]);
+      let n = 0;
+      for (const r of byId.values()) {
+        if (String(r.partnerOf ?? '') === String(id)) { r.partnerOf = String(next); n++; }
+      }
+      return n;
+    },
   };
 };
 fakePartners.downlineCount = 0;
@@ -91,5 +100,37 @@ describe('ErasePartnerUseCase', () => {
     const res = await uc.execute({ requesterId: 'admin1', partnerId: 'p1' });
     assert.deepEqual(res.removed, { prospects: 0, tickets: 0, codes: 0 });
     assert.equal(res.erased.suspended, true);
+  });
+
+  it('moves mid-tree downline one level up instead of refusing', async () => {
+    fakePartners.downlineCount = 2;
+    try {
+      const store = fakePartners([
+        partner({ _id: 'mid', partnerOf: 'grand' }),
+        partner({ _id: 'kid1', partnerOf: 'mid' }),
+        partner({ _id: 'kid2', partnerOf: 'mid' }),
+      ]);
+      const uc = new ErasePartnerUseCase({
+        partners: store,
+        prospects: counter(0), tickets: counter(0), codes: counter(0), sessions: fakeSessions(),
+      });
+      const res = await uc.execute({ requesterId: 'admin1', partnerId: 'mid' });
+      assert.equal(res.movedDownline, 2);
+      assert.equal(res.newUplineId, 'grand');
+      assert.deepEqual(store.reassignCalls, [['mid', 'grand']]);
+      assert.equal(store.byId.get('kid1').partnerOf, 'grand');
+      assert.equal(store.byId.get('kid2').partnerOf, 'grand');
+      assert.equal(res.erased.name, 'Deleted');
+    } finally {
+      fakePartners.downlineCount = 0;
+    }
+  });
+
+  it('viaSelfRequest allows self-erasure while keeping other guards', async () => {
+    const uc = eraseUc([partner({ _id: 'p1' })]);
+    const res = await uc.execute({ requesterId: 'p1', partnerId: 'p1', viaSelfRequest: true });
+    assert.equal(res.erased.name, 'Deleted');
+    assert.equal(res.movedDownline, 0);
+    assert.equal(res.newUplineId, null);
   });
 });
