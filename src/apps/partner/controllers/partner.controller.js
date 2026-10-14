@@ -715,19 +715,15 @@ export const getPartnersOf = async (req, res) => {
       return res.status(err.statusCode ?? 403).json({ message: err.message, success: false });
     }
 
-    // Find all partners where partnerOf matches the provided partnerId
+    // Find all partners where partnerOf matches the provided partnerId.
+    // An empty downline is a healthy state (brand-new partners start here),
+    // not a 404 — the clients render their activation CTA from this page.
     const partners = await PartnersModel.find({ partnerOf: partnerId }).exec();
 
-    // Check if no partners are found
-    if (partners.length === 0) {
-      return res.status(404).json({
-        message: `No partners found for this partner.`,
-        success: false
-      });
-    }
-
     res.status(200).json({
-      message: "Partners retrieved successfully!",
+      message: partners.length === 0
+        ? "No partners yet — share a reservation code to grow this downline."
+        : "Partners retrieved successfully!",
       data: partners.map(safePartner),
       success: true
     });
