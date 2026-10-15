@@ -64,7 +64,7 @@ export const UpdateStatusSchema = z.object({
 });
 
 export const LogCommunicationSchema = z.object({
-  type: z.enum(['call', 'email', 'text', 'zoom', 'whatsapp']),
+  type: z.enum(['call', 'email', 'text', 'zoom', 'whatsapp', 'presentation']),
   interestLevel: z.enum(['hot', 'warm', 'cold']),
   date: z.coerce.date().optional(),
   duration: z.coerce.number().int().min(0).max(100000).optional().default(0),

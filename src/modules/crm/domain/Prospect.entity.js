@@ -73,7 +73,7 @@ export const createProspectEntity = (input) => {
   };
 };
 
-export const COMMUNICATION_TYPES = ['call', 'email', 'text', 'zoom', 'whatsapp'];
+export const COMMUNICATION_TYPES = ['call', 'email', 'text', 'zoom', 'whatsapp', 'presentation'];
 export const INTEREST_LEVELS = ['hot', 'warm', 'cold'];
 export const COMMUNICATION_OUTCOMES = ['Connected', 'No answer', 'Booked session', 'Follow-up set', 'Closed-lost'];
 

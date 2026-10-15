@@ -26,10 +26,13 @@ export const publicIdFromUrl = (url) => {
 };
 
 export class CloudinaryImageStore extends ImageStore {
-  /** @param {{cloudName, apiKey, apiSecret, folder, sdk?}} config */
+  /** @param {{cloudName, apiKey, apiSecret, folder, resourceType?, label?, sdk?}} config */
   constructor(config = {}) {
     super();
     this.folder = config.folder || 'diamond-projects';
+    // Upload kind (images by default; decks use 'auto' for PDFs).
+    this.resourceType = config.resourceType || 'image';
+    this.label = config.label || 'Image';
     this.sdk = config.sdk ?? cloudinary;
     if (!config.sdk) {
       this.sdk.config({
@@ -41,15 +44,16 @@ export class CloudinaryImageStore extends ImageStore {
     }
   }
 
-  async upload(buffer, { publicId } = {}) {
-    if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error('Empty image upload');
+  async upload(buffer, { publicId, resourceType } = {}) {
+    if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error(`Empty ${this.label.toLowerCase()} upload`);
+    const rt = resourceType ?? this.resourceType;
     const sdk = this.sdk;
     return new Promise((resolve, reject) => {
       const stream = sdk.uploader.upload_stream(
-        { folder: this.folder, public_id: publicId, resource_type: 'image' },
+        { folder: this.folder, public_id: publicId, resource_type: rt },
         (error, result) => {
-          if (error) return reject(new Error(`Image upload failed: ${error?.message ?? 'unknown error'}`));
-          if (!result?.secure_url) return reject(new Error('Image upload returned no URL'));
+          if (error) return reject(new Error(`${this.label} upload failed: ${error?.message ?? 'unknown error'}`));
+          if (!result?.secure_url) return reject(new Error(`${this.label} upload returned no URL`));
           resolve({ url: result.secure_url, publicId: result.public_id ?? null });
         },
       );
@@ -58,13 +62,13 @@ export class CloudinaryImageStore extends ImageStore {
   }
 
   /** Delete one asset by public id — `not found` counts as deleted. */
-  async destroy(publicId) {
+  async destroy(publicId, { resourceType } = {}) {
     if (!publicId) return { deleted: false };
     try {
-      const result = await this.sdk.uploader.destroy(publicId, { resource_type: 'image' });
+      const result = await this.sdk.uploader.destroy(publicId, { resource_type: resourceType ?? this.resourceType });
       return { deleted: result?.result === 'ok' || result?.result === 'not found' };
     } catch (error) {
-      throw new Error(`Image delete failed: ${error?.message ?? 'unknown error'}`);
+      throw new Error(`${this.label} delete failed: ${error?.message ?? 'unknown error'}`);
     }
   }
 }

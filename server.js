@@ -52,6 +52,7 @@ import OutreachRouter from './src/modules/outreach/index.js';
 import SubscriptionsRouter from './src/modules/subscriptions/index.js';
 import { buildAdminBonusRouter, buildBonusRouter } from './src/modules/bonuses/interface/Bonus.routes.js';
 import { buildAdminTutorialRouter, buildTutorialRouter } from './src/modules/tutorials/interface/Tutorial.routes.js';
+import { buildAdminKitRouter, buildKitRouter } from './src/modules/kits/interface/Kit.routes.js';
 import { ensureSeedBonus } from './src/modules/bonuses/index.js';
 import { subscribeActivation } from './src/modules/activation/index.js';
 import { subscribePromotionFanout } from './src/modules/notifications/application/PromotionFanout.js';
@@ -165,6 +166,8 @@ app.use('/v1/bonuses', buildBonusRouter());
 app.use('/v1/admin/bonuses', buildAdminBonusRouter());
 app.use('/v1/tutorials', buildTutorialRouter());
 app.use('/v1/admin/tutorials', buildAdminTutorialRouter());
+app.use('/v1/kits', buildKitRouter());
+app.use('/v1/admin/kits', buildAdminKitRouter());
 
 
 

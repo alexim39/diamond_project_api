@@ -58,3 +58,19 @@ test('notifications builder flags overdue and due-today callbacks', () => {
   assert.ok(tags.includes('Follow-up overdue'));
   assert.ok(tags.includes('Follow-up due'));
 });
+
+test('presentation touches feed reminders and notifications like any touch', () => {
+  const items = [
+    row({
+      id: 'deck',
+      communications: [{
+        status: 'Open', type: 'presentation', outcome: 'Follow-up set',
+        followUpDate: iso('2026-10-09T09:00:00Z'), date: iso('2026-10-06T09:00:00Z'),
+      }],
+    }),
+  ];
+  const b = bucketFollowUps(items, NOW);
+  assert.deepEqual(b.upcoming.map((e) => e.prospectId), ['deck']);
+  const notes = buildProspectNotifications(items, NOW);
+  assert.ok(notes.length > 0);
+});

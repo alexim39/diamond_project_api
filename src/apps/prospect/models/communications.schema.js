@@ -10,7 +10,7 @@ export const CommunicationSchema = new mongoose.Schema(
     },
     type: {
         type: String,
-        enum: ['call', 'email', 'text', 'zoom', 'whatsapp'],
+        enum: ['call', 'email', 'text', 'zoom', 'whatsapp', 'presentation'],
         required: true,
     },
     duration: {
