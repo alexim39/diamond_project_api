@@ -7,7 +7,7 @@ import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import { KIT_AREAS } from '../domain/Kit.js';
 import {
   CreateKitUseCase, DeleteKitUseCase, ListAdminKitsUseCase,
-  ListKitsUseCase, UpdateKitUseCase,
+  ListKitsUseCase, UpdateKitUseCase, KitStatsUseCase, KitAdminStatsUseCase,
 } from '../application/Kit.usecases.js';
 import { recordAudit } from '../../audit/index.js';
 import { env } from '../../../shared/config/env.js';
@@ -50,6 +50,7 @@ const UpdateSchema = z.object({
 /** Member routes — active kits grouped by area. */
 export const buildKitRouter = (deps = {}) => {
   const list = deps.list ?? new ListKitsUseCase({});
+  const stats = deps.stats ?? new KitStatsUseCase({});
 
   const router = express.Router();
   router.use(requireAuth);
@@ -57,6 +58,12 @@ export const buildKitRouter = (deps = {}) => {
   router.get('/', asyncHandler(async (req, res) => {
     const data = await list.execute();
     res.status(200).json({ message: 'Kits retrieved successfully', data, success: true });
+  }));
+
+  // Static segment first — otherwise 'stats' matches `/:id`.
+  router.get('/stats/mine', asyncHandler(async (req, res) => {
+    const data = await stats.execute({ partnerId: req.auth?.partnerId });
+    res.status(200).json({ message: 'Kit stats retrieved successfully', data, success: true });
   }));
 
   router.get('/:id', validate({ params: z.object({ id: objectId }) }), asyncHandler(async (req, res) => {
@@ -76,6 +83,7 @@ export const buildAdminKitRouter = (deps = {}) => {
   const create = deps.create ?? new CreateKitUseCase({});
   const update = deps.update ?? new UpdateKitUseCase({});
   const remove = deps.remove ?? new DeleteKitUseCase({});
+  const statsAll = deps.statsAll ?? new KitAdminStatsUseCase({});
   // Deck PDFs ride the shared Cloudinary store (deploy-proof like profile/
   // community images) with PDF delivery — local disk is never a target.
   const decks = deps.decks ?? buildImageStore({
@@ -87,6 +95,11 @@ export const buildAdminKitRouter = (deps = {}) => {
 
   const router = express.Router();
   router.use(requireAuth, requireRole('admin'));
+
+  router.get('/stats', asyncHandler(async (req, res) => {
+    const data = await statsAll.execute();
+    res.status(200).json({ message: 'Kit stats retrieved successfully', data, success: true });
+  }));
 
   router.get('/', asyncHandler(async (req, res) => {
     const data = await list.execute({});

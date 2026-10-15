@@ -26,6 +26,12 @@ const rsvpSchema = new mongoose.Schema(
     eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event', required: true, index: true },
     partnerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true },
     status: { type: String, enum: ['going', 'interested', 'declined'], required: true },
+    // Reminder idempotency (event-reminder sweep mirrors session-reminders):
+    // atomic null-check stamps so parallel dynos never double-send.
+    reminded24hAt: { type: Date, default: null },
+    reminded1hAt: { type: Date, default: null },
+    // Post-event turnout, marked by the organizer (null = unmarked).
+    attended: { type: Boolean, default: null },
   },
   { timestamps: { createdAt: true, updatedAt: true } },
 );
@@ -132,6 +138,47 @@ export class MongoEventStore {
       { new: true, upsert: true },
     ).lean();
     return shaped(doc);
+  }
+
+  /**
+   * Organizer attendee list — going/interested rows joined to partner
+   * contact fields (powers reminders, the checklist and no-show nudges).
+   * Caller gates author-or-admin; the store just reads.
+   */
+  async attendees(eventId, limit = 200) {
+    const lim = Math.min(Math.max(Number(limit) || 200, 1), 500);
+    const rows = await EventRsvpModel.find({
+      eventId, status: { $in: ['going', 'interested'] },
+    }).sort({ createdAt: 1 }).limit(lim).lean();
+    if (rows.length === 0) return [];
+    const ids = [...new Set(rows.map((r) => String(r.partnerId)))];
+    const partners = await PartnersModel.find({ _id: { $in: ids } })
+      .select('name surname username phone email').lean().catch(() => []);
+    const byId = Object.fromEntries((partners ?? []).map((p) => [String(p._id), p]));
+    return rows.map((r) => {
+      const p = byId[String(r.partnerId)] ?? null;
+      return {
+        partnerId: oid(r.partnerId),
+        status: r.status,
+        attended: r.attended ?? null,
+        reminded24hAt: r.reminded24hAt ?? null,
+        reminded1hAt: r.reminded1hAt ?? null,
+        name: p ? [p.name, p.surname].filter(Boolean).join(' ') || p.username : 'Former member',
+        username: p?.username ?? null,
+        phone: p?.phone ?? null,
+        email: p?.email ?? null,
+      };
+    });
+  }
+
+  /** Organizer marks turnout on an existing RSVP (walk-ins RSVP first). */
+  async markAttendance(eventId, partnerId, attended) {
+    const doc = await EventRsvpModel.findOneAndUpdate(
+      { eventId, partnerId, status: { $in: ['going', 'interested'] } },
+      { $set: { attended: attended === true } },
+      { new: true },
+    ).lean();
+    return doc ? shaped(doc) : null;
   }
 
   async rsvpCounts(eventIds) {

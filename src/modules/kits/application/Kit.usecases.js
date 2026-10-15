@@ -1,6 +1,7 @@
 import { NotFoundException, ValidationException } from '../../../shared/domain/AppError.js';
 import { KIT_AREAS, createSlides } from '../domain/Kit.js';
 import { KitModel } from '../infrastructure/Kit.mongo.js';
+import { ProspectModel } from '../../../apps/prospect/models/prospect.model.js';
 
 const oid = (v) => String(v);
 const shaped = (t) => t ? {
@@ -160,5 +161,83 @@ export class DeleteKitUseCase {
     const doc = await this.kits.findByIdAndDelete(kitId).lean();
     if (!doc) throw new NotFoundException('Kit not found');
     return { deleted: true, id: String(kitId), fileUrl: doc.fileUrl ?? null };
+  }
+}
+
+/**
+ * Presentation stats — derived from logged `presentation` touches, so the
+ * numbers can only ever describe what partners actually presented.
+ * Conversion = outcome `Booked session` OR prospect stage now `Converted`
+ * (either signal means the deck moved the deal).
+ */
+const KIT_REF = /^kit:(.+)$/;
+
+function emptyKitStats() {
+  return { presented: 0, outcomes: {}, booked: 0, converted: 0 };
+}
+
+function foldPresentation(stats, prospect, comm) {
+  const docs = Array.isArray(comm.documentsShared) ? comm.documentsShared : [];
+  const kitIds = [...new Set(
+    docs.map((d) => { const m = KIT_REF.exec(String(d ?? '')); return m ? m[1] : null; }).filter(Boolean),
+  )];
+  if (kitIds.length === 0) return stats;
+  const stage = prospect?.status && typeof prospect.status === 'object'
+    ? (prospect.status.stage ?? prospect.status.name)
+    : prospect?.status;
+  const converted = String(stage ?? '').toLowerCase() === 'converted';
+  const booked = comm.outcome === 'Booked session';
+  for (const id of kitIds) {
+    const row = stats[id] ?? (stats[id] = emptyKitStats());
+    row.presented += 1;
+    if (comm.outcome) row.outcomes[comm.outcome] = (row.outcomes[comm.outcome] ?? 0) + 1;
+    if (booked) row.booked += 1;
+    if (converted) row.converted += 1;
+  }
+  return stats;
+}
+
+async function presentationRows(prospects, filter) {
+  // Bounded scan: newest prospects first (recent presenting matters most).
+  const docs = await prospects
+    .find({ ...filter, 'communications.type': 'presentation' })
+    .sort({ updatedAt: -1 })
+    .limit(2000)
+    .select('status communications')
+    .lean();
+  const stats = {};
+  for (const p of docs ?? []) {
+    for (const c of p.communications ?? []) {
+      if (c?.type === 'presentation') foldPresentation(stats, p, c);
+    }
+  }
+  return stats;
+}
+
+/** My deck stats — this partner's presentations only. */
+export class KitStatsUseCase {
+  /** @param {{prospects}} deps */
+  constructor({ prospects } = {}) {
+    this.prospects = prospects ?? ProspectModel;
+  }
+
+  async execute({ partnerId }) {
+    const byKit = await presentationRows(this.prospects, { partnerId });
+    const total = Object.values(byKit).reduce((n, r) => n + r.presented, 0);
+    return { byKit, total };
+  }
+}
+
+/** Admin deck stats — every presentation on the platform. */
+export class KitAdminStatsUseCase {
+  /** @param {{prospects}} deps */
+  constructor({ prospects } = {}) {
+    this.prospects = prospects ?? ProspectModel;
+  }
+
+  async execute() {
+    const byKit = await presentationRows(this.prospects, {});
+    const total = Object.values(byKit).reduce((n, r) => n + r.presented, 0);
+    return { byKit, total };
   }
 }

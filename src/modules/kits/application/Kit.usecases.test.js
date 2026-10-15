@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ListKitsUseCase, ListAdminKitsUseCase, CreateKitUseCase, UpdateKitUseCase, DeleteKitUseCase,
+  KitStatsUseCase, KitAdminStatsUseCase,
 } from './Kit.usecases.js';
 
 const kit = (over = {}) => ({
@@ -148,5 +149,65 @@ describe('ListAdminKitsUseCase', () => {
     const uc = new ListAdminKitsUseCase({ kits: chainable(fakeKits([kit(), kit({ _id: 'k2', active: false })])) });
     const res = await uc.execute({});
     assert.equal(res.total, 2);
+  });
+});
+
+const prospect = (over = {}) => ({
+  _id: 'p1',
+  status: { stage: 'Interested' },
+  communications: [],
+  ...over,
+});
+const touch = (over = {}) => ({
+  type: 'presentation', outcome: 'Connected', documentsShared: ['kit:k1'], ...over,
+});
+const fakeProspects = (rows = []) => ({
+  lastFilter: null,
+  find(filter) {
+    this.lastFilter = filter;
+    const chain = {
+      sort() { return chain; },
+      limit() { return chain; },
+      select() { return chain; },
+      lean: async () => rows.map((r) => ({ ...r, communications: (r.communications ?? []).map((c) => ({ ...c })) })),
+    };
+    return chain;
+  },
+});
+
+describe('KitStatsUseCase', () => {
+  it('attributes touches by kit, splits outcomes, and counts booked + converted', async () => {
+    const rows = [
+      prospect({ _id: 'p1', communications: [touch({ outcome: 'Booked session' })] }),
+      prospect({
+        _id: 'p2', status: { stage: 'Converted' },
+        communications: [touch({ documentsShared: ['kit:k1'] }), touch({ documentsShared: ['kit:k2'], outcome: 'Follow-up set' })],
+      }),
+      prospect({ _id: 'p3', communications: [{ type: 'call', outcome: 'Connected' }] }),
+    ];
+    const store = fakeProspects(rows);
+    const uc = new KitStatsUseCase({ prospects: store });
+    const res = await uc.execute({ partnerId: 'me' });
+    assert.deepEqual(store.lastFilter, { partnerId: 'me', 'communications.type': 'presentation' });
+    assert.equal(res.total, 3);
+    assert.deepEqual(res.byKit['k1'], { presented: 2, outcomes: { 'Booked session': 1, Connected: 1 }, booked: 1, converted: 1 });
+    assert.deepEqual(res.byKit['k2'], { presented: 1, outcomes: { 'Follow-up set': 1 }, booked: 0, converted: 1 });
+  });
+
+  it('ignores touches without a kit link and empty lists', async () => {
+    const uc = new KitStatsUseCase({ prospects: fakeProspects([prospect({ communications: [touch({ documentsShared: [] })] })]) });
+    const res = await uc.execute({ partnerId: 'me' });
+    assert.deepEqual(res.byKit, {});
+    assert.equal(res.total, 0);
+  });
+});
+
+describe('KitAdminStatsUseCase', () => {
+  it('aggregates platform-wide without a partner filter', async () => {
+    const store = fakeProspects([prospect({ communications: [touch()] })]);
+    const uc = new KitAdminStatsUseCase({ prospects: store });
+    const res = await uc.execute();
+    assert.deepEqual(Object.keys(store.lastFilter), ['communications.type']);
+    assert.equal(res.byKit['k1'].presented, 1);
   });
 });

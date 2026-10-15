@@ -296,3 +296,71 @@ export class FeatureEventUseCase {
     }
   }
 }
+
+/**
+ * Organizer attendee list — going/interested rows with contact fields for
+ * reminders, the checklist and no-show nudges. Author or admin: attendee
+ * phones are PII and never ride the public counts.
+ */
+export class ListAttendeesUseCase {
+  /** @param {{events, partners?}} deps (partners resolves admin override) */
+  constructor({ events, partners = null }) {
+    Object.assign(this, { events, partners });
+  }
+
+  async execute({ partnerId, eventId, limit = 200 }) {
+    const event = await this.events.findEventById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    const mine = String(event.authorId) === String(partnerId);
+    if (!mine && !(await this.isAdmin(partnerId))) {
+      throw new ForbiddenException('Only the organizer or an admin can view attendees');
+    }
+    const attendees = await this.events.attendees(eventId, limit);
+    return { event: { id: String(event.id ?? eventId), title: event.title, startsAt: event.startsAt }, attendees, total: attendees.length };
+  }
+
+  async isAdmin(partnerId) {
+    if (!this.partners?.findById) return false;
+    try {
+      const me = await this.partners.findById(partnerId).catch(() => null);
+      const row = me && typeof me.lean === 'function' ? await me.lean().catch(() => me) : me;
+      return lenientRole(row?.role) === 'admin';
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
+ * Organizer marks turnout on an existing RSVP (walk-ins RSVP first —
+ * one tap in the same UI). Author or admin.
+ */
+export class MarkAttendanceUseCase {
+  /** @param {{events, partners?}} deps (partners resolves admin override) */
+  constructor({ events, partners = null }) {
+    Object.assign(this, { events, partners });
+  }
+
+  async execute({ partnerId, eventId, attendeeId, attended }) {
+    const event = await this.events.findEventById(eventId);
+    if (!event) throw new NotFoundException('Event not found');
+    const mine = String(event.authorId) === String(partnerId);
+    if (!mine && !(await this.isAdmin(partnerId))) {
+      throw new ForbiddenException('Only the organizer or an admin can mark attendance');
+    }
+    const row = await this.events.markAttendance(eventId, attendeeId, attended === true);
+    if (!row) throw new NotFoundException('RSVP not found — they should RSVP first');
+    return row;
+  }
+
+  async isAdmin(partnerId) {
+    if (!this.partners?.findById) return false;
+    try {
+      const me = await this.partners.findById(partnerId).catch(() => null);
+      const row = me && typeof me.lean === 'function' ? await me.lean().catch(() => me) : me;
+      return lenientRole(row?.role) === 'admin';
+    } catch {
+      return false;
+    }
+  }
+}

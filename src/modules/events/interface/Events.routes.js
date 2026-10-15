@@ -4,8 +4,8 @@ import { validate } from '../../../shared/http/validate.js';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { asyncHandler } from '../../../shared/http/asyncHandler.js';
 import {
-  AddEventCommentUseCase, CancelEventUseCase, CreateEventUseCase, DeleteEventCommentUseCase, FeatureEventUseCase, GetEventUseCase, ListEventCommentsUseCase, ListMyEventsUseCase,
-  ListUpcomingUseCase, RsvpUseCase, UpdateEventUseCase,
+  AddEventCommentUseCase, CancelEventUseCase, CreateEventUseCase, DeleteEventCommentUseCase, FeatureEventUseCase, GetEventUseCase, ListAttendeesUseCase, ListEventCommentsUseCase, ListMyEventsUseCase,
+  ListUpcomingUseCase, MarkAttendanceUseCase, RsvpUseCase, UpdateEventUseCase,
 } from '../application/Events.usecases.js';
 import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
 import { MongoEventStore } from '../infrastructure/Events.mongo.repository.js';
@@ -59,6 +59,14 @@ export const buildEventsRouter = (deps = {}) => {
     events,
     partners: deps.partners ?? new MongoPartnerRepository(),
   });
+  const attendees = deps.attendees ?? new ListAttendeesUseCase({
+    events,
+    partners: deps.partners ?? new MongoPartnerRepository(),
+  });
+  const markAttendance = deps.markAttendance ?? new MarkAttendanceUseCase({
+    events,
+    partners: deps.partners ?? new MongoPartnerRepository(),
+  });
 
   const FeatureSchema = z.object({
     featured: z.boolean(),
@@ -96,6 +104,26 @@ export const buildEventsRouter = (deps = {}) => {
     const body = req.validated?.body ?? req.body;
     const data = await rsvp.execute({ partnerId: req.auth?.partnerId, eventId: params.eventId, status: body?.status });
     res.status(200).json({ message: 'RSVP saved successfully', data, success: true });
+  }));
+
+  // Organizer desk — attendee PII stays behind author-or-admin.
+  router.get('/:eventId/attendees', validate({ params: EventIdParam }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await attendees.execute({ partnerId: req.auth?.partnerId, eventId: params.eventId });
+    res.status(200).json({ message: 'Attendees retrieved successfully', data, success: true });
+  }));
+
+  router.post('/:eventId/attendance', validate({
+    params: EventIdParam,
+    body: z.object({ partnerId: objectId, attended: z.boolean() }),
+  }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const body = req.validated?.body ?? req.body;
+    const data = await markAttendance.execute({
+      partnerId: req.auth?.partnerId, eventId: params.eventId,
+      attendeeId: body?.partnerId, attended: body?.attended === true,
+    });
+    res.status(200).json({ message: 'Attendance marked successfully', data, success: true });
   }));
 
   // Discussion — comments + one-level replies (no likes; RSVP is the signal).
