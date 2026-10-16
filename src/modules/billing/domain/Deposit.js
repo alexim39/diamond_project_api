@@ -46,6 +46,7 @@ export const newDepositReference = () =>
 export const DEFAULT_MANUAL_ACCOUNTS = Object.freeze([
   Object.freeze({ bank: 'Opay', number: '6102514335', name: 'ASYNC SOLUTIONS LTD' }),
   Object.freeze({ bank: 'Opay', number: '6102513801', name: 'ASYNC SOLUTIONS LTD' }),
+  Object.freeze({ bank: 'Opay', number: '6141809708', name: 'ASYNC SOLUTIONS LTD' }),
 ]);
 
 export const manualAccounts = (env = process.env) => {
