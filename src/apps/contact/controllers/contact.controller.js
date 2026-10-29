@@ -2,49 +2,85 @@ import {ContactModel, PreapproachDownloadModel} from '../models/contact.model.js
 import { PartnersModel } from '../../partner/models/partner.model.js';
 import { sendEmail } from "../../../services/emailService.js";
 
-  
+const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 // User contact contnroller
 export const ContactController = async (req, res) => {
     try {
+        const name = String(req.body?.name ?? '').trim().slice(0, 120);
+        const surname = String(req.body?.surname ?? '').trim().slice(0, 120);
+        const email = String(req.body?.email ?? '').trim().toLowerCase().slice(0, 254);
+        const subject = String(req.body?.subject ?? '').trim().slice(0, 200);
+        const message = String(req.body?.message ?? '').trim().slice(0, 5000);
+        const username = String(req.body?.username ?? '').trim().slice(0, 60);
 
-        //console.log('sent==',req.body);
+        if (!name || !surname || !subject || !message || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({
+                message: 'Please provide your name, a valid email address, a subject and a message.',
+                success: false,
+            });
+        }
 
-        const contactObject = await ContactModel.create({
-            name: req.body.name,
-            surname: req.body.surname,
-            email: req.body.email,
-            subject: req.body.subject,
-            message: req.body.message,
-        });
+        const contactObject = await ContactModel.create({ name, surname, email, subject, message });
 
-        // Send email after successfully submitting the records
         const emailSubject = 'Diamond Project Contact Form';
         const emailMessage = `
             <h1>Contact Form</h1>
-            <p>Kindly note that ${req.body.name} ${req.body.surname} filled the contact form on Diamond Project webiste.</p>
+            <p>Kindly note that ${escapeHtml(name)} ${escapeHtml(surname)} filled the contact form on the Diamond Project website.</p>
 
             <br>
             <h1>Complete Prospect Response</h1>
-            <p>Name: ${req.body.name}</p>
-            <p>Surname: ${req.body.surname}</p>
-            <p>Email address: ${req.body.email}</p>
-            <p>Subject: ${req.body.subject}</p>
-            <p>Messsage: ${req.body.message}</p>
+            <p>Name: ${escapeHtml(name)}</p>
+            <p>Surname: ${escapeHtml(surname)}</p>
+            <p>Email address: ${escapeHtml(email)}</p>
+            <p>Subject: ${escapeHtml(subject)}</p>
+            <p>Message: ${escapeHtml(message)}</p>
         `;
 
-        const emailsToSend = [partner.email, 'ago.fnc@gmail.com'];
+        const configured = process.env.CONTACT_ALERT_EMAILS
+            || process.env.SUPPORT_OWNER_EMAILS
+            || 'contacts@c21fg.online';
+        const recipients = new Set(
+            configured.split(',').map((entry) => entry.trim()).filter(Boolean)
+        );
 
-        for (const email of emailsToSend) {
-            await sendEmail(email, emailSubject, emailMessage);
+        if (username && username !== 'business') {
+            const partner = await PartnersModel.findOne({ username }).select('email').lean().catch(() => null);
+            if (partner?.email) recipients.add(partner.email);
         }
 
-        res.status(200).json({contactObject, message: 'Contact form submitted successfully', success: true});
+        await Promise.all([...recipients].map((recipient) => sendEmail(recipient, emailSubject, emailMessage)));
+
+        await sendEmail(
+            email,
+            'We received your message - Diamond Project',
+            `<p>Hi ${escapeHtml(name)},</p>
+             <p>Thank you for contacting Diamond Project. We have received your message and a member of our team will respond shortly.</p>
+             <p><strong>Your subject:</strong> ${escapeHtml(subject)}</p>`
+        );
+
+        res.status(200).json({
+            contactObject,
+            message: 'Thank you. Your message has been received and a member of our team will respond shortly.',
+            success: true,
+        });
 
     } catch (error) {
         console.error(error.message);
-        res.status(500).json({
-            error: error.message,
-            message: 'Contact form submission failed',
+        const duplicate = error?.code === 11000;
+        const invalid = error?.name === 'ValidationError';
+        res.status(duplicate ? 409 : invalid ? 400 : 500).json({
+            error: duplicate ? 'Duplicate contact' : error.message,
+            message: duplicate
+                ? 'We already have a message from this email. Please contact us directly at contacts@c21fg.online.'
+                : invalid
+                    ? 'Please check the contact form and try again.'
+                    : 'Contact form submission failed',
             success: false
         })
     }

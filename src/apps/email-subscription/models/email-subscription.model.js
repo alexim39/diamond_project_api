@@ -12,8 +12,24 @@ const emailSubscriptionSchema = mongoose.Schema(
         },
         status: {
             type: String,
-            default: 'Subscribed',
-            //required: [true, "Please enter surname"]
+            default: 'Pending',
+        },
+        confirmTokenHash: {
+            type: String,
+            select: false,
+        },
+        confirmExpiresAt: {
+            type: Date,
+        },
+        confirmedAt: {
+            type: Date,
+        },
+        unsubscribeTokenHash: {
+            type: String,
+            select: false,
+        },
+        unsubscribedAt: {
+            type: Date,
         },
         userDevice: {
             type: String,

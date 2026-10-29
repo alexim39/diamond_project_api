@@ -35,6 +35,9 @@ const LEGACY_DROP = [
   // defaulted to 'business', so subscriber #2 onward 500d. Uniqueness
   // removed from the schema; drop the stale built index here.
   { collection: 'email-subscriptions', indexName: 'username_1' },
+  // Contact email was unique: a visitor could only ever send one message.
+  // Uniqueness removed from the schema; drop the stale built index here.
+  { collection: 'contacts', indexName: 'email_1' },
 ];
 
 export const INDEXES = [
@@ -82,6 +85,9 @@ export const INDEXES = [
   { collection: 'eventrsvps', keys: { eventId: 1 }, options: {} },
   // Admin email-list desk: newest-first sort leg.
   { collection: 'email-subscriptions', keys: { createdAt: -1 }, options: {} },
+  { collection: 'email-subscriptions', keys: { email: 1 }, options: {} },
+  { collection: 'email-subscriptions', keys: { confirmTokenHash: 1 }, options: { sparse: true } },
+  { collection: 'email-subscriptions', keys: { unsubscribeTokenHash: 1 }, options: { sparse: true } },
 ];
 
 /**
