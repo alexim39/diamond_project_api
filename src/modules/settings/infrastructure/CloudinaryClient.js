@@ -48,15 +48,24 @@ export class CloudinaryImageStore extends ImageStore {
     if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error(`Empty ${this.label.toLowerCase()} upload`);
     const rt = resourceType ?? this.resourceType;
     const sdk = this.sdk;
+    // Single-request uploads can hit provider payload limits (HTTP 413) on
+    // large videos, so stream big buffers in 20MB chunks instead.
+    const chunked = buffer.length > 10 * 1024 * 1024 && typeof sdk.uploader?.upload_chunked_stream === 'function';
     return new Promise((resolve, reject) => {
-      const stream = sdk.uploader.upload_stream(
-        { folder: this.folder, public_id: publicId, resource_type: rt },
-        (error, result) => {
-          if (error) return reject(new Error(`${this.label} upload failed: ${error?.message ?? 'unknown error'}`));
-          if (!result?.secure_url) return reject(new Error(`${this.label} upload returned no URL`));
-          resolve({ url: result.secure_url, publicId: result.public_id ?? null });
-        },
-      );
+      const done = (error, result) => {
+        if (error) return reject(new Error(`${this.label} upload failed: ${error?.message ?? 'unknown error'}`));
+        if (!result?.secure_url) return reject(new Error(`${this.label} upload returned no URL`));
+        resolve({ url: result.secure_url, publicId: result.public_id ?? null });
+      };
+      const stream = chunked
+        ? sdk.uploader.upload_chunked_stream(
+          { folder: this.folder, public_id: publicId, resource_type: rt, chunk_size: 20 * 1024 * 1024 },
+          done,
+        )
+        : sdk.uploader.upload_stream(
+          { folder: this.folder, public_id: publicId, resource_type: rt },
+          done,
+        );
       stream.end(buffer);
     });
   }

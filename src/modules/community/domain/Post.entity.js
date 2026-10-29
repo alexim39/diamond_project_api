@@ -17,23 +17,29 @@ const text = (value, field, { min = 1, max = 2000 } = {}) => {
   return s;
 };
 
-/** Posts-only image attachments (v1 scope — comments stay text). */
-export const ATTACHMENT_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+/** Posts support images plus short video clips (comments stay text). */
+export const IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+export const VIDEO_MIMES = ['video/mp4', 'video/webm', 'video/quicktime'];
+export const ATTACHMENT_MIMES = [...IMAGE_MIMES, ...VIDEO_MIMES];
 export const MAX_ATTACHMENTS = 4;
-export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+/** Transport cap (multer/Zod); per-type caps are enforced in the entity. */
+export const MAX_ATTACHMENT_BYTES = MAX_VIDEO_BYTES;
 const ATTACHMENT_URL_RE = /^(?:\/uploads\/community\/[A-Za-z0-9_.-]+|https:\/\/[^\s]+)$/;
 
 /** @param {unknown} value (already Zod-shaped, defense in depth) */
 export const createAttachmentEntities = (value) => {
   const list = value ?? [];
   if (!Array.isArray(list)) throw new ValidationException('Invalid attachments');
-  if (list.length > MAX_ATTACHMENTS) throw new ValidationException(`At most ${MAX_ATTACHMENTS} images per post`);
+  if (list.length > MAX_ATTACHMENTS) throw new ValidationException(`At most ${MAX_ATTACHMENTS} photos or videos per post`);
   return list.map((a) => {
     if (!a || typeof a !== 'object') throw new ValidationException('Invalid attachment');
     if (!ATTACHMENT_URL_RE.test(String(a.url ?? ''))) throw new ValidationException('Invalid attachment url');
     if (!ATTACHMENT_MIMES.includes(a.mime)) throw new ValidationException('Invalid attachment type');
+    const maxBytes = String(a.mime).startsWith('video/') ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
     const size = Number(a.size);
-    if (!Number.isInteger(size) || size < 1 || size > MAX_ATTACHMENT_BYTES) {
+    if (!Number.isInteger(size) || size < 1 || size > maxBytes) {
       throw new ValidationException('Invalid attachment size');
     }
     return { url: String(a.url), mime: a.mime, size };

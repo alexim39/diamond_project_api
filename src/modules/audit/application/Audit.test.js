@@ -23,7 +23,7 @@ const fakeStore = (rows = []) => ({
 describe('AUDIT_ACTIONS vocabulary', () => {
   it('covers every money-adjacent and governance decision', () => {
     for (const a of [
-      'role.set', 'account.suspend', 'account.unsuspend',
+      'role.set', 'permission.set', 'account.suspend', 'account.unsuspend',
       'account.signout', 'account.reset-password', 'account.erase',
       'account.reassign-upline',
       'account.view-as',

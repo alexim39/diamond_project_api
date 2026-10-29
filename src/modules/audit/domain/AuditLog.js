@@ -6,6 +6,7 @@
  */
 export const AUDIT_ACTIONS = Object.freeze([
   'role.set',
+  'permission.set',
   'account.suspend',
   'account.unsuspend',
   'account.signout',

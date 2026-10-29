@@ -1,5 +1,6 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '../../../shared/domain/AppError.js';
 import { lenientRole, normalizeRole } from '../domain/PartnerRole.js';
+import { normalizePermissions } from '../domain/Permissions.js';
 import { toSafePartner } from '../domain/Partner.entity.js';
 
 /**
@@ -28,6 +29,22 @@ export class SetPartnerRoleUseCase {
     }
 
     const updated = await this.partners.updateById(partnerId, { role: next });
+    return toSafePartner(updated);
+  }
+}
+
+export class SetPartnerPermissionsUseCase {
+  constructor({ partners }) {
+    this.partners = partners;
+  }
+
+  async execute({ partnerId, permissions }) {
+    const target = await this.partners.findById(partnerId);
+    if (!target) throw new NotFoundException('Partner not found');
+
+    const updated = await this.partners.updateById(partnerId, {
+      permissions: normalizePermissions(permissions),
+    });
     return toSafePartner(updated);
   }
 }

@@ -20,6 +20,7 @@ const ROUTERS = [
   './modules/broadcast/interface/Broadcast.routes.js',
   './modules/community/interface/Community.routes.js',
   './modules/support-ticketing/index.js',
+  './modules/prolificwomen/index.js',
   './modules/reservations/index.js',
   './modules/coaching/index.js',
   './modules/marketing/index.js',

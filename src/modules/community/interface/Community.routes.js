@@ -24,7 +24,7 @@ import { MongoStoredNotificationStore } from '../../notifications/infrastructure
 import { MentionMailer } from '../../notifications/infrastructure/MentionMailer.js';
 import { buildSmsSender } from '../../notifications/infrastructure/SmsSender.js';
 import { buildPushSender } from '../../notifications/infrastructure/PushSender.js';
-import { ATTACHMENT_MIMES, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, POST_KINDS, AUDIENCE_SCOPES } from '../domain/Post.entity.js';
+import { ATTACHMENT_MIMES, MAX_ATTACHMENTS, MAX_ATTACHMENT_BYTES, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, POST_KINDS, AUDIENCE_SCOPES } from '../domain/Post.entity.js';
 import { MongoPartnerRepository } from '../../identity-access/infrastructure/Auth.mongo.repository.js';
 import { communityUpload } from './Community.upload.js';
 import { buildImageStore } from '../../settings/infrastructure/CloudinaryClient.js';
@@ -109,14 +109,15 @@ export const buildCommunityRouter = (deps = {}) => {
     partners: deps.partners ?? new MongoPartnerRepository(),
   });
   const update = new UpdatePostUseCase({ community, events });
-  const remove = new DeletePostUseCase({ community });
-  // Community images live on Cloudinary (profile-photo pattern) under their
+  // Community media lives on Cloudinary (profile-photo pattern) under its
   // own folder; unconfigured credentials surface as 503, same as profiles.
-  const images = deps.images ?? buildImageStore({ ...(env.cloudinary ?? {}), folder: 'diamond-projects/community' });
+  // Wired into delete paths too so post media dies with the post.
+  const images = deps.images ?? buildImageStore({ ...(env.cloudinary ?? {}), folder: 'diamond-projects/community', label: 'Media' });
+  const remove = new DeletePostUseCase({ community, media: images });
   const directory = new DirectoryUseCase({ community });
   const analytics = new CommunityAnalyticsUseCase({ community });
   const reported = deps.reported ?? new ListReportedUseCase({ community });
-  const moderate = deps.moderate ?? new ModeratePostUseCase({ community });
+  const moderate = deps.moderate ?? new ModeratePostUseCase({ community, media: images });
 
   const router = express.Router();
   router.use(requireAuth);
@@ -133,20 +134,42 @@ export const buildCommunityRouter = (deps = {}) => {
     res.status(200).json({ message: 'Post created successfully', data, success: true });
   }));
 
-  // Image upload (multipart `image` field) — streams the buffer to
-  // Cloudinary and returns its URL to attach on POST /. Legacy local files
-  // keep serving; only new uploads go to the cloud.
-  router.post('/attachments', communityUpload.single('image'), asyncHandler(async (req, res) => {
+  // Media upload (multipart `media` field) — streams the buffer to
+  // Cloudinary and returns its URL to attach on POST /. Images upload as
+  // image assets, videos as video assets. Legacy local files keep serving;
+  // only new uploads go to the cloud.
+  router.post('/attachments', communityUpload.single('media'), asyncHandler(async (req, res) => {
     if (!req.file?.buffer) {
-      return res.status(400).json({ message: 'No image uploaded', success: false, code: 'VALIDATION_ERROR' });
+      return res.status(400).json({ message: 'No media uploaded', success: false, code: 'VALIDATION_ERROR' });
+    }
+    const original = String(req.file.originalname ?? '').toLowerCase();
+    const ext = original.match(/\.(jpe?g|png|webp|gif|mp4|webm|mov)$/)?.[1] ?? '';
+    const mime = String(req.file.mimetype ?? '').trim()
+      || (ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+        : ext === 'png' ? 'image/png'
+          : ext === 'webp' ? 'image/webp'
+            : ext === 'gif' ? 'image/gif'
+              : ext === 'mp4' ? 'video/mp4'
+                : ext === 'webm' ? 'video/webm'
+                  : ext === 'mov' ? 'video/quicktime' : '');
+    if (!ATTACHMENT_MIMES.includes(mime)) {
+      return res.status(400).json({ message: 'Only images and videos are allowed', success: false, code: 'VALIDATION_ERROR' });
+    }
+    const isVideo = mime.startsWith('video/');
+    const maxBytes = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    if (req.file.size > maxBytes) {
+      return res.status(400).json({ message: `Media is too large (max ${Math.round(maxBytes / 1024 / 1024)}MB)`, success: false, code: 'VALIDATION_ERROR' });
     }
     const author = String(req.auth?.partnerId ?? 'anon').replace(/[^a-fA-F0-9]/g, '') || 'anon';
-    const stored = await images.upload(req.file.buffer, { publicId: `community-${author}-${Date.now()}` });
+    const stored = await images.upload(req.file.buffer, {
+      publicId: `community-${author}-${Date.now()}`,
+      ...(isVideo ? { resourceType: 'video' } : {}),
+    });
     res.status(200).json({
-      message: 'Image uploaded successfully',
+      message: 'Media uploaded successfully',
       data: {
         url: stored.url,
-        mime: req.file.mimetype,
+        mime,
         size: req.file.size,
       },
       success: true,

@@ -5,8 +5,48 @@ import { LEADERSHIP_LEVELS, createCommentEntity, createPostEntity, extractMentio
 import { lenientRole } from '../../identity-access/domain/PartnerRole.js';
 import { isAncestor } from '../../network/infrastructure/Network.mongo.repository.js';
 import { NOTIFICATION_EVENTS, mentionCreated } from '../../notifications/domain/NotificationEvents.js';
+import { publicIdFromUrl } from '../../settings/infrastructure/CloudinaryClient.js';
+import { unlink } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const pageOf = (limit) => Math.min(Math.max(Number(limit) || 20, 1), 50);
+
+/** Legacy on-disk attachments live under `src/uploads/community/`. */
+const LEGACY_FILE_RE = /^\/uploads\/community\/([A-Za-z0-9_.-]+)$/;
+const legacyUploadsDir = path.join(
+  path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'uploads', 'community',
+);
+
+/**
+ * Destroy every attachment behind a deleted post — Cloudinary assets by
+ * public id (video assets need `resource_type: video`), legacy local
+ * files by unlink. Best-effort per asset: one missing file never fails
+ * the delete. Returns the destroy count for tests/logs.
+ */
+export async function destroyPostMedia(media, attachments) {
+  const list = Array.isArray(attachments) ? attachments : [];
+  if (list.length === 0) return { destroyed: 0 };
+  const jobs = list.map(async (a) => {
+    try {
+      const url = String(a?.url ?? '');
+      const mime = String(a?.mime ?? '');
+      const legacy = LEGACY_FILE_RE.exec(url);
+      if (legacy) {
+        await unlink(path.join(legacyUploadsDir, legacy[1]));
+        return true;
+      }
+      const publicId = publicIdFromUrl(url);
+      if (!publicId || !media?.destroy) return false;
+      await media.destroy(publicId, { resourceType: mime.startsWith('video/') ? 'video' : 'image' });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  const results = await Promise.all(jobs);
+  return { destroyed: results.filter(Boolean).length };
+}
 
 async function viewerLevel(progress, viewerId) {
   if (!progress?.levelsFor) return null;
@@ -275,16 +315,19 @@ export class UpdatePostUseCase {
 
 /** Authors delete their own posts (comments, likes, saves and reports go too). */
 export class DeletePostUseCase {
-  /** @param {{community}} deps */
-  constructor({ community }) {
+  /** @param {{community, media?}} deps (media optional — destroys Cloudinary/legacy attachments) */
+  constructor({ community, media = null }) {
     this.community = community;
+    this.media = media;
   }
 
   async execute({ partnerId, postId }) {
     const post = await this.community.findPostById(postId);
     if (!post) throw new NotFoundException('Post not found');
     if (String(post.authorId) !== String(partnerId)) throw new ForbiddenException('Only the author can delete');
-    return this.community.deletePostCascade(postId);
+    const result = await this.community.deletePostCascade(postId);
+    await destroyPostMedia(this.media, post.attachments).catch(() => null);
+    return result;
   }
 }
 export class PinPostUseCase {

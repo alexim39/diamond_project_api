@@ -103,6 +103,10 @@ const partnersSchema = mongoose.Schema(
       type: String,
       default: 'User'
     },
+    permissions: {
+      type: [String],
+      default: [],
+    },
     // Admin suspension — set only via PATCH /v1/admin/partners/:id/suspend.
     // Suspended partners fail signin and session checks; existing JWTs die
     // at expiry (24h) at the latest.

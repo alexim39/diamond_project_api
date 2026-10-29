@@ -74,6 +74,10 @@ import { buildPushSender } from './src/modules/notifications/infrastructure/Push
 import ProspectV1Router from './src/modules/crm/index.js';
 import PagesRouter from './src/modules/partner-pages/interface/Pages.routes.js';
 import PartnerSurveysRouter from './src/modules/partner-surveys/interface/Surveys.routes.js';
+import ProlificWomanLeadRouter, {
+  AdminLeadRouter as ProlificWomanAdminLeadRouter,
+  InboxLeadRouter as ProlificWomanInboxLeadRouter,
+} from './src/modules/prolificwomen/index.js';
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 import { ensureIndexes } from './src/shared/mongo/indexes.js';
 import { scheduleJobs } from './src/jobs/schedule.js';
@@ -97,12 +101,14 @@ app.use(cors({
         'http://localhost:4200', 
         'http://localhost:4201', 
         'http://localhost:4202',
+        'http://localhost:4203',
         'https://c21fg.online',
         'https://www.c21fg.online',
         'https://survey.c21fg.online',
         'http://survey.c21fg.online',
         'https://shop.c21fg.online',
         'https://diamondproject.c21fg.online',
+        'https://prolificwomen.c21fg.online',
         ...extraOrigins,
     ]
 }));
@@ -168,6 +174,10 @@ app.use('/v1/tutorials', buildTutorialRouter());
 app.use('/v1/admin/tutorials', buildAdminTutorialRouter());
 app.use('/v1/kits', buildKitRouter());
 app.use('/v1/admin/kits', buildAdminKitRouter());
+
+app.use('/prolificwomen', ProlificWomanLeadRouter);
+app.use('/v1/prolificwomen', ProlificWomanInboxLeadRouter);
+app.use('/v1/admin/prolificwomen', ProlificWomanAdminLeadRouter);
 
 
 
