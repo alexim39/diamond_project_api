@@ -2,7 +2,7 @@ import express from 'express';
 import { requireAuth } from '../../../shared/http/requireAuth.js';
 import { rateLimit } from '../../../shared/http/rateLimit.js';
 import { requireRole } from '../../../modules/identity-access/interface/RequireRole.js';
-import { 
+import {
     createCampaign,
     createFacebookCampaign,
     getCampaignsCreatedBy,
@@ -11,7 +11,19 @@ import {
     createYoutubeCampaign,
     createLinkedinCampaign,
     getCampaign,
-    updateCampaignStatus
+    updateCampaignStatus,
+    allocateCampaignNow,
+    allocationSummary,
+    myAllocationSummaries,
+    campaignAllocations,
+    updateAllocationSettings,
+    reportAllocation,
+    reportAllocationBySurvey,
+    verdictAllocation,
+    listReportedAllocations,
+    cancelCampaign,
+    duplicateCampaign,
+    estimateSupply,
 } from '../controllers/campaign.controller.js'
 const CampaignRouter = express.Router();
 
@@ -33,6 +45,20 @@ CampaignRouter.get('/all-createdBy/:createdBy', requireAuth, getCampaignsCreated
 
 // Admin queue (role-gated) — must precede /:id so 'queue' isn't read as an id.
 CampaignRouter.get('/queue', requireAuth, requireRole('admin'), listCampaignsForAdmin);
+
+// Allocation desk — static segments precede /:id/* so nothing is read as an id.
+CampaignRouter.get('/allocations/reported', requireAuth, requireRole('admin'), listReportedAllocations);
+CampaignRouter.post('/allocations/:allocationId/report', requireAuth, reportAllocation);
+CampaignRouter.post('/allocations/by-survey/:surveyId/report', requireAuth, reportAllocationBySurvey);
+CampaignRouter.patch('/allocations/:allocationId/verdict', requireAuth, requireRole('admin'), verdictAllocation);
+CampaignRouter.get('/mine/allocation-summary', requireAuth, myAllocationSummaries);
+CampaignRouter.get('/estimate-supply', requireAuth, estimateSupply);
+CampaignRouter.post('/:id/allocate', requireAuth, allocateCampaignNow);
+CampaignRouter.post('/:id/duplicate', requireAuth, duplicateCampaign);
+CampaignRouter.post('/:id/cancel', requireAuth, cancelCampaign);
+CampaignRouter.get('/:id/allocation-summary', requireAuth, allocationSummary);
+CampaignRouter.get('/:id/allocations', requireAuth, campaignAllocations);
+CampaignRouter.patch('/:id/allocation', requireAuth, updateAllocationSettings);
 CampaignRouter.patch('/:id/status', requireAuth, requireRole('admin'), updateCampaignStatus);
 
 // Get a camapaign — owner, upline or admin.

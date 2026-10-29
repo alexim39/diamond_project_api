@@ -49,7 +49,7 @@ test('accepts a lead into the caller pipeline with source metadata', async () =>
   });
 
   assert.equal(result.prospectId, 'prospect-1');
-  assert.equal(saved.prospectSource, 'Prolific Woman');
+  assert.equal(saved.prospectSource, 'Prolific Women');
   assert.equal(saved.prospectPhone, '08031234567');
   assert.equal(saved.partnerId, 'partner-1');
   assert.equal(saved.consentToContact, true);

@@ -14,6 +14,8 @@ import { runDormantNudgeJob } from './dormant-nudge.js';
 import { runOutreachDueJob } from './outreach-due.js';
 import { runBroadcastDueJob } from './broadcast-due.js';
 import { runLeadPoolDueJob } from './leadpool-due.js';
+import { runAllocationDueJob } from './allocation-due.js';
+import { runCampaignExpiryDueJob } from './campaign-expiry-due.js';
 import { runSessionRemindersJob } from './session-reminders.js';
 import { runErasureDueJob } from './erasure-due.js';
 import { runEventRsvpDueJob } from './event-rsvp-due.js';
@@ -30,6 +32,10 @@ import { runEventRsvpDueJob } from './event-rsvp-due.js';
  * - scheduled outreach (every minute): fire due bulk-SMS outbox rows.
  * - scheduled broadcasts (every minute): fire due multi-channel campaigns.
  * - lead-pool sweep (every 15 minutes): warn + auto-return idle claims.
+ * - campaign allocation sweep (every 30 minutes): match shared-pool leads
+ *   into Active campaigns (personal-list) within daily/total caps.
+ * - campaign flight expiry (daily 01:30 server-local): end fixed flights
+ *   whose end date passed so spend never continues past the paid flight.
  * - session reminders (every 15 minutes): T-24h SMS + T-1h SMS/push for bookings.
  * - event RSVP reminders (every 15 minutes): T-24h + T-1h SMS/push/in-app for going/interested RSVPs.
  * - self-erasure sweep (daily 03:30 server-local): 48h reminders + due executions.
@@ -68,10 +74,12 @@ export function scheduleJobs() {
   cron.schedule('* * * * *', () => runOutreachDueJob());
   cron.schedule('* * * * *', () => runBroadcastDueJob());
   cron.schedule('*/15 * * * *', () => runLeadPoolDueJob());
+  cron.schedule('*/30 * * * *', () => runAllocationDueJob());
+  cron.schedule('30 1 * * *', () => runCampaignExpiryDueJob());
   cron.schedule('*/15 * * * *', () => runSessionRemindersJob());
   cron.schedule('*/15 * * * *', () => runEventRsvpDueJob());
   cron.schedule('30 3 * * *', () => runErasureDueJob());
-  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00, dormant nudge at 09:00, digests at 19:00, outreach + broadcasts due every minute, lead-pool sweep + session/event reminders every 15 minutes, self-erasure sweep at 03:30');
+  console.log('[jobs] scheduled: nightly team snapshots at 02:00, daily brief at 06:30, weekly review Mondays at 07:00, birthdays at 08:00, dormant nudge at 09:00, digests at 19:00, outreach + broadcasts due every minute, lead-pool sweep + session/event reminders every 15 minutes, campaign allocation sweep every 30 minutes, campaign flight expiry at 01:30, self-erasure sweep at 03:30');
 }
 
 export { runBirthdayJob } from './birthday.js';
@@ -82,6 +90,8 @@ export { runDormantNudgeJob } from './dormant-nudge.js';
 export { runOutreachDueJob } from './outreach-due.js';
 export { runBroadcastDueJob } from './broadcast-due.js';
 export { runLeadPoolDueJob } from './leadpool-due.js';
+export { runAllocationDueJob } from './allocation-due.js';
+export { runCampaignExpiryDueJob } from './campaign-expiry-due.js';
 export { runSessionRemindersJob } from './session-reminders.js';
 export { runEventRsvpDueJob } from './event-rsvp-due.js';
 export { runErasureDueJob } from './erasure-due.js';

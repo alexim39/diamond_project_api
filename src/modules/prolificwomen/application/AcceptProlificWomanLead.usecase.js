@@ -6,7 +6,7 @@ const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
 
 const notesFor = (lead) =>
   [
-    'Prolific Woman website application',
+    'Prolific Women website application',
     `Location: ${lead.location}`,
     `Mentorship: ${lead.readyToBeMentored === 'yes' ? 'Ready now' : 'Exploring'}`,
     `Head office: ${lead.headOfficeInvite === 'yes' ? 'Visit requested' : 'Online'}`,
@@ -47,7 +47,7 @@ export class AcceptProlificWomanLeadUseCase {
         prospectName: lead.name,
         prospectSurname: '',
         prospectPhone: phone,
-        prospectSource: 'Prolific Woman',
+        prospectSource: 'Prolific Women',
         partnerId,
         consentToContact: true,
         notes: notesFor(lead),

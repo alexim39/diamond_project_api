@@ -80,7 +80,17 @@ const userSurveySchema = mongoose.Schema(
             type: String,
             default: 'business',
            // unique: true,
-            //required: [true, "Please enter username"]
+           //required: [true, "Please enter surname"]
+        },
+        // System allocation → personal-list: the campaign this row was
+        // assigned under (drives exact ROI attribution on accept).
+        campaignId: {
+            type: mongoose.Schema.Types.ObjectId,
+            default: null,
+        },
+        allocatedAt: {
+            type: Date,
+            default: null,
         },
         country: { 
             type: String,

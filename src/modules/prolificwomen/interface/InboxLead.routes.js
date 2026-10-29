@@ -37,7 +37,7 @@ export const buildProlificWomanInboxRouter = ({ leads, list, accept } = {}) => {
         skip: query.skip,
       });
       return sendSuccess(res, {
-        message: 'Prolific Woman leads retrieved successfully',
+        message: 'Prolific Women leads retrieved successfully',
         data,
       });
     }),
