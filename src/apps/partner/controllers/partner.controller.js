@@ -43,11 +43,11 @@ const safePartner = (doc) => {
 
 // Public page fields (client PartnerInterface + landing content). Everything
 // else (password, reservationCode, settings, wallet, telemetry) stays hidden.
-// NOTE: phone/email stay visible — the public one-pager falls back to them
-// when displayPhone/displayEmail are unset (existing behavior, kept).
+// Phone and email are private by default: only the explicit displayPhone /
+// displayEmail values a partner chooses are exposed publicly.
 const PUBLIC_PROFILE_SELECT = [
   'username', 'name', 'surname', 'bio', 'jobTitle', 'profileImage',
-  'phone', 'email', 'testimonial',
+  'testimonial',
   'whatsappGroupLink', 'whatsappChatLink',
   'facebookPage', 'linkedinPage', 'youtubePage', 'instagramPage', 'tiktokPage', 'twitterPage',
   'headline', 'subHeadline', 'heroBadge', 'businessTagline', 'aboutStory', 'achievements',
