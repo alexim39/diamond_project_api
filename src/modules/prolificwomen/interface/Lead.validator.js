@@ -14,6 +14,7 @@ export const ListLeadsQuery = z.object({
   q: z.string().trim().max(120).optional().default(''),
   limit: z.coerce.number().int().min(1).max(100).optional().default(25),
   skip: z.coerce.number().int().min(0).optional().default(0),
+  status: z.enum(['all', 'new', 'accepted']).optional().default('all'),
 });
 
 export const InboxLeadsQuery = z.object({

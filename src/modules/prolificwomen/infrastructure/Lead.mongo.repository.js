@@ -1,6 +1,13 @@
 import { ProlificWomanLeadMongooseModel } from './Lead.schema.js';
 import { ProlificWomanLeadMapper } from './Lead.mapper.js';
 
+/** Status facet for the admin desk: new = never accepted, accepted = in a pipeline. */
+const statusFilter = (status) => {
+  if (status === 'new') return { acceptedAt: null };
+  if (status === 'accepted') return { acceptedAt: { $ne: null } };
+  return {};
+};
+
 export class MongoProlificWomanLeadRepository {
   async save(entity) {
     const created = await ProlificWomanLeadMongooseModel.create(
@@ -14,8 +21,8 @@ export class MongoProlificWomanLeadRepository {
     return doc ? ProlificWomanLeadMapper.toDomain(doc) : null;
   }
 
-  async list({ q = '', limit = 25, skip = 0 } = {}) {
-    return this.listWhere({}, { q, limit, skip });
+  async list({ q = '', limit = 25, skip = 0, status = 'all' } = {}) {
+    return this.listWhere(statusFilter(status), { q, limit, skip });
   }
 
   async listPending({ q = '', limit = 500, skip = 0 } = {}) {
@@ -81,5 +88,18 @@ export class MongoProlificWomanLeadRepository {
         $unset: { acceptedByPartnerId: 1 },
       },
     );
+  }
+
+  /**
+   * Hard delete — only unaccepted rows. Accepted rows already live on as
+   * pipeline prospects, so removing them here would orphan the trail.
+   * Returns the deleted domain row, or null when missing/already accepted.
+   */
+  async removeById(id) {
+    const doc = await ProlificWomanLeadMongooseModel.findOneAndDelete({
+      _id: id,
+      acceptedAt: null,
+    }).lean().catch(() => null);
+    return doc ? ProlificWomanLeadMapper.toDomain(doc) : null;
   }
 }

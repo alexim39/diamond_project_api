@@ -38,7 +38,7 @@ export const AUDIT_ACTIONS = Object.freeze([
   'broadcast.delete',
   'lead.import', 'lead.delete', 'lead.status',
   'pagelead.delete', 'pagelead.reassign',
-  'partnersurvey.delete',
+  'partnersurvey.delete', 'prolificwomanlead.delete',
   'page.reset',
   'subscription.delete', 'subscription.status',
   'billing.plan.update',
