@@ -53,20 +53,30 @@ export class GetCampaignRoiUseCase {
       const outreachSpend = this.outreach
         ? await this.outreach.spendByCampaign(partnerId, String(c._id), window.start, window.end).catch(() => 0)
         : 0;
-      if (exact.prospects > 0) return buildCampaignRoi(c, exact, 'exact', { outreachSpend });
+      // Internal lead spend rides along regardless of attribution branch —
+      // money left the wallet whether or not the lead converted yet.
+      // Replaced rows were credited back, so they never inflate spend.
+      const allocation = this.marketing.allocationSpendWindow
+        ? await this.marketing.allocationSpendWindow(partnerId, String(c._id), window.start, window.end).catch(() => ({ spent: 0, leads: 0 }))
+        : { spent: 0, leads: 0 };
+      const extra = { outreachSpend, allocationSpend: allocation.spent, allocatedLeads: allocation.leads };
+      if (exact.prospects > 0) return buildCampaignRoi(c, exact, 'exact', extra);
       const link = await this.marketing.countLinkWindow(partnerId, window.start, window.end);
-      return buildCampaignRoi(c, link, 'estimated', { outreachSpend });
+      return buildCampaignRoi(c, link, 'estimated', extra);
     }));
     const totals = rows.reduce(
       (s, r) => ({
         visits: s.visits + r.visits,
         budget: s.budget + r.budget,
         outreachSpend: s.outreachSpend + (r.outreachSpend ?? 0),
+        allocationSpend: s.allocationSpend + (r.allocationSpend ?? 0),
+        allocatedLeads: s.allocatedLeads + (r.allocatedLeads ?? 0),
         prospects: s.prospects + r.windowProspects,
         conversions: s.conversions + r.windowConversions,
       }),
-      { visits: 0, budget: 0, outreachSpend: 0, prospects: 0, conversions: 0 },
+      { visits: 0, budget: 0, outreachSpend: 0, allocationSpend: 0, allocatedLeads: 0, prospects: 0, conversions: 0 },
     );
+    const fullSpend = totals.budget + totals.outreachSpend + totals.allocationSpend;
     const rate = totals.prospects > 0 ? (totals.conversions / totals.prospects) * 100 : null;
     return {
       days: d,
@@ -75,12 +85,13 @@ export class GetCampaignRoiUseCase {
         ...totals,
         budget: Math.round(totals.budget * 100) / 100,
         outreachSpend: Math.round(totals.outreachSpend * 100) / 100,
+        allocationSpend: Math.round(totals.allocationSpend * 100) / 100,
         conversionRate: rate === null ? null : Math.round(rate * 100) / 100,
-        costPerProspect: totals.prospects > 0 && totals.budget > 0
-          ? Math.round((totals.budget / totals.prospects) * 100) / 100
+        costPerProspect: totals.prospects > 0 && fullSpend > 0
+          ? Math.round((fullSpend / totals.prospects) * 100) / 100
           : null,
-        costPerConversion: totals.conversions > 0 && totals.budget > 0
-          ? Math.round((totals.budget / totals.conversions) * 100) / 100
+        costPerConversion: totals.conversions > 0 && fullSpend > 0
+          ? Math.round((fullSpend / totals.conversions) * 100) / 100
           : null,
       },
     };

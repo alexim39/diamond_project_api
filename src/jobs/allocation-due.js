@@ -4,6 +4,7 @@ import { NotifyUseCase } from '../modules/notifications/application/Notification
 import { MongoStoredNotificationStore } from '../modules/notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { PartnersModel } from '../apps/partner/models/partner.model.js';
 import { sendEmail } from '../services/emailService.js';
+import { JobRunModel, withJobHealth } from './job-health.js';
 
 /**
  * Campaign allocation sweep (every 30 minutes, server-local).
@@ -58,7 +59,10 @@ export const buildAllocationDueJob = (deps = {}) => {
 /** Allocate for one campaign now (activation kick + manual top-up). */
 export async function runAllocationForCampaign(campaignId, deps = {}) {
   const { allocate, notify } = buildAllocationDueJob(deps);
-  const result = await allocate.execute({ campaignId, limit: 10 });
+  const runs = deps.runs ?? JobRunModel;
+  const result = await withJobHealth(runs, 'campaign-allocation', () =>
+    allocate.execute({ campaignId, limit: 10 }),
+  );
   if (result.delivered > 0) {
     await notify({ partnerId: result.ownerId, delivered: result.delivered, campaignName: result.campaignName, campaignId, immediate: true });
   }

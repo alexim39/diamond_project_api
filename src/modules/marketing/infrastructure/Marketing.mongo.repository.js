@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { CampaignModel } from '../../../apps/campaign/models/campaign.model.js';
 import { ProspectModel } from '../../../apps/prospect/models/prospect.model.js';
+import { CampaignAllocationModel } from '../../../apps/campaign/models/allocation.model.js';
 
 const objectId = (v) => new mongoose.Types.ObjectId(String(v));
 const oid = (v) => String(v);
@@ -41,6 +42,22 @@ export class MongoMarketingRepository {
       }),
     ]);
     return { prospects, conversions };
+  }
+
+  /** Internal lead spend in-window (replaced rows credited back — excluded). */
+  async allocationSpendWindow(partnerId, campaignId, start, end) {
+    const rows = await CampaignAllocationModel.aggregate([
+      {
+        $match: {
+          partnerId: objectId(partnerId),
+          campaignId: objectId(campaignId),
+          createdAt: { $gte: start, $lte: end },
+          status: { $ne: 'replaced' },
+        },
+      },
+      { $group: { _id: null, spent: { $sum: '$costDebited' }, leads: { $sum: 1 } } },
+    ]).catch(() => []);
+    return { spent: Number(rows?.[0]?.spent ?? 0), leads: Number(rows?.[0]?.leads ?? 0) };
   }
 
   async findOwned(campaignId, partnerId) {

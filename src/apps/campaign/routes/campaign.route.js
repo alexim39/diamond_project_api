@@ -21,6 +21,7 @@ import {
     reportAllocationBySurvey,
     verdictAllocation,
     listReportedAllocations,
+    campaignNames,
     cancelCampaign,
     duplicateCampaign,
     estimateSupply,
@@ -53,6 +54,7 @@ CampaignRouter.post('/allocations/by-survey/:surveyId/report', requireAuth, repo
 CampaignRouter.patch('/allocations/:allocationId/verdict', requireAuth, requireRole('admin'), verdictAllocation);
 CampaignRouter.get('/mine/allocation-summary', requireAuth, myAllocationSummaries);
 CampaignRouter.get('/estimate-supply', requireAuth, estimateSupply);
+CampaignRouter.get('/names', requireAuth, campaignNames);
 CampaignRouter.post('/:id/allocate', requireAuth, allocateCampaignNow);
 CampaignRouter.post('/:id/duplicate', requireAuth, duplicateCampaign);
 CampaignRouter.post('/:id/cancel', requireAuth, cancelCampaign);

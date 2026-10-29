@@ -898,6 +898,29 @@ export const reportAllocation = async (req, res) => {
   }
 };
 
+// Batch campaign names for pipeline badges (per-row ownership check —
+// foreign rows are silently skipped, never confirmed).
+export const campaignNames = async (req, res) => {
+  try {
+    const ids = [...new Set(
+      String(req.query.ids ?? '').split(',').map((s) => s.trim()).filter((s) => /^[a-fA-F0-9]{24}$/.test(s)),
+    )].slice(0, 50);
+    const rows = ids.length > 0
+      ? await CampaignModel.find({ _id: { $in: ids } }).select('_id campaignName createdBy').lean().catch(() => [])
+      : [];
+    const out = {};
+    for (const r of rows ?? []) {
+      try {
+        await guard.requireListAccess(sessionId(req), r.createdBy);
+        out[String(r._id)] = r.campaignName ?? 'Campaign';
+      } catch { /* skip foreign rows silently */ }
+    }
+    res.status(200).json({ message: 'Campaign names retrieved', data: out, success: true });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to load campaign names', error: error.message, success: false });
+  }
+};
+
 // Admin verdict on a reported allocation (replace = credit + refill slot).
 export const verdictAllocation = async (req, res) => {
   try {
