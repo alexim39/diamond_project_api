@@ -26,7 +26,9 @@ const OID = (n) => String(n).padStart(24, 'b');
 /** Minimal in-memory group store — throws if an unexpected method is touched. */
 const fakeGroups = () => {
   const members = new Map([[`${OID(1)}:${OID(9)}`, 'admin']]);
+  const requests = new Map();
   return {
+    __seedRequest(r) { requests.set(String(r._id), r); },
     async createGroup(input) {
       return { id: OID(1), ...input, createdBy: input.createdBy };
     },
@@ -34,6 +36,9 @@ const fakeGroups = () => {
       return String(id) === OID(1)
         ? { id: OID(1), name: 'Hustlers', joinPolicy: 'approval', createdBy: OID(9), pinnedMessageId: null }
         : null;
+    },
+    async updateGroup(id, patch) {
+      return { id: String(id), name: 'Hustlers', ...patch };
     },
     async memberRole(gid, pid) {
       return members.get(`${gid}:${pid}`) ?? null;
@@ -44,6 +49,21 @@ const fakeGroups = () => {
         .map(([k, role]) => ({ id: k.split(':')[1], role, muted: false }));
     },
     async listRequests() { return []; },
+    async findRequestById(id) { return requests.get(String(id)) ?? null; },
+    async decideRequest(id, { decision }) {
+      const r = requests.get(String(id));
+      if (r) r.status = decision === 'approve' ? 'approved' : 'rejected';
+      return r ?? null;
+    },
+    async addMember(gid, pid) {
+      members.set(`${gid}:${pid}`, 'member');
+      return true;
+    },
+    async reportMessage() { return { created: true }; },
+    async findGroupMessage() {
+      return { _id: OID(70), id: OID(70), groupId: OID(1), senderId: OID(2), body: 'spammy' };
+    },
+    async listAdminIds() { return [OID(9)]; },
     async isMember(gid, pid) { return members.has(`${gid}:${pid}`); },
     async isBanned() { return false; },
     async memberCount() { return 1; },
@@ -56,7 +76,20 @@ const fakeGroups = () => {
   };
 };
 
-const buildApp = () => {
+const fakeImages = (url = 'https://img.test/group.png') => ({
+  uploaded: [],
+  destroyed: [],
+  async upload(buffer, { publicId } = {}) {
+    this.uploaded.push({ bytes: buffer.length, publicId });
+    return { url };
+  },
+  async destroy(publicId) {
+    this.destroyed.push(publicId);
+    return true;
+  },
+});
+
+const buildApp = (over = {}) => {
   const app = express();
   app.use(express.json());
   app.use(buildGroupRouter({
@@ -65,6 +98,8 @@ const buildApp = () => {
     notify: { execute: async () => ({}) },
     partners: { findById: async () => ({ _id: 'stub' }), find: async () => [] },
     audit: { record: () => {} },
+    images: fakeImages(),
+    ...over,
   }));
   app.use(errorMiddleware);
   return app;
@@ -144,5 +179,73 @@ describe('group routes', () => {
       headers: { authorization: `Bearer ${token(2)}` },
     });
     assert.equal(stranger.status, 404);
+  });
+
+  it('approves and rejects join requests (covers the admin fan-out)', async (t) => {
+    const groups = fakeGroups();
+    groups.__seedRequest({ _id: OID(60), id: OID(60), groupId: OID(1), partnerId: OID(4), status: 'pending' });
+    groups.__seedRequest({ _id: OID(61), id: OID(61), groupId: OID(1), partnerId: OID(5), status: 'pending' });
+    const app = buildApp({ groups });
+    const server = await listen(app);
+    t.after(() => close(server));
+    const { port } = server.address();
+    const admin = { authorization: `Bearer ${token()}` };
+
+    const ok = await fetch(`http://127.0.0.1:${port}/groups/${OID(1)}/requests/${OID(60)}/decision`, {
+      method: 'POST', headers: { ...admin, 'content-type': 'application/json' },
+      body: JSON.stringify({ decision: 'approve' }),
+    });
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).data.decision, 'approved');
+
+    const no = await fetch(`http://127.0.0.1:${port}/groups/${OID(1)}/requests/${OID(61)}/decision`, {
+      method: 'POST', headers: { ...admin, 'content-type': 'application/json' },
+      body: JSON.stringify({ decision: 'reject' }),
+    });
+    assert.equal(no.status, 200);
+    assert.equal((await no.json()).data.decision, 'rejected');
+
+    // Garbage request ids still 400 before any fan-out.
+    const bad = await fetch(`http://127.0.0.1:${port}/groups/${OID(1)}/requests/nope/decision`, {
+      method: 'POST', headers: { ...admin, 'content-type': 'application/json' },
+      body: JSON.stringify({ decision: 'approve' }),
+    });
+    assert.equal(bad.status, 400);
+  });
+
+  it('accepts message reports and notifies admins', async (t) => {
+    const app = buildApp();
+    const server = await listen(app);
+    t.after(() => close(server));
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/groups/${OID(1)}/report`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token()}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ messageId: OID(70), reason: 'spam' }),
+    });
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).message.includes('notified'), true);
+  });
+
+  it('uploads a group avatar for admins, refuses strangers', async (t) => {
+    const app = buildApp();
+    const server = await listen(app);
+    t.after(() => close(server));
+    const { port } = server.address();
+
+    const form = new FormData();
+    form.append('photo', new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' }), 'avatar.png');
+    const res = await fetch(`http://127.0.0.1:${port}/groups/${OID(1)}/photo`, {
+      method: 'POST', headers: { authorization: `Bearer ${token()}` }, body: form,
+    });
+    assert.equal(res.status, 200);
+    assert.equal((await res.json()).data.photo, 'https://img.test/group.png');
+
+    const strangerForm = new FormData();
+    strangerForm.append('photo', new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' }), 'avatar.png');
+    const stranger = await fetch(`http://127.0.0.1:${port}/groups/${OID(1)}/photo`, {
+      method: 'POST', headers: { authorization: `Bearer ${token(2)}` }, body: strangerForm,
+    });
+    assert.equal(stranger.status, 403);
   });
 });

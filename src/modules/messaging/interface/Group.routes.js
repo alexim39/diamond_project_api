@@ -7,7 +7,10 @@ import { MongoGroupStore } from '../infrastructure/Group.mongo.repository.js';
 import { MongoStoredNotificationStore } from '../../notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { NotifyUseCase } from '../../notifications/application/NotificationsCenter.usecases.js';
 import { recordAudit } from '../../audit/index.js';
+import { env } from '../../../shared/config/env.js';
 import { ATTACHMENT_MIMES, MAX_ATTACHMENT_BYTES } from '../../community/domain/Post.entity.js';
+import { buildImageStore } from '../../settings/infrastructure/CloudinaryClient.js';
+import { groupPhotoUpload } from './Group.upload.js';
 import {
   AddGroupMemberUseCase,
   BanGroupMemberUseCase,
@@ -33,6 +36,7 @@ import {
   SearchGroupsUseCase,
   SendGroupMessageUseCase,
   SetGroupAdminUseCase,
+  SetGroupPhotoUseCase,
   UnbanGroupMemberUseCase,
   UpdateGroupUseCase,
 } from '../application/Group.usecases.js';
@@ -77,6 +81,8 @@ export const buildGroupRouter = (deps = {}) => {
   const partners = deps.partners ?? null;
   /** Audit recorder (injected in tests to avoid the 10s buffered-insert wait). */
   const audit = deps.audit ?? { record: (input) => recordAudit(input) };
+  /** Group avatars live on Cloudinary (profile-photo pattern) under their own folder. */
+  const groupImages = deps.images ?? buildImageStore({ ...(env.cloudinary ?? {}), folder: 'diamond-projects/groups', label: 'Group photo' });
 
   /** Best-effort in-app notice (never fails the request). */
   const tell = (input) => notify.execute(input).catch(() => null);
@@ -129,6 +135,25 @@ export const buildGroupRouter = (deps = {}) => {
     const body = req.validated?.body ?? req.body;
     const data = await new UpdateGroupUseCase({ groups }).execute({ partnerId: req.auth?.partnerId, groupId: params.id, patch: body });
     res.status(200).json({ message: 'Group updated', data, success: true });
+  }));
+
+  // Group avatar (multipart `photo` field, admins) — streams to Cloudinary
+  // and swaps the group's photo. Multer size/filter errors map to 400 in
+  // errorMiddleware, same as community media.
+  g.post('/:id/photo', groupPhotoUpload.single('photo'), validate({ params: z.object({ id: objectId }) }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    if (!req.file?.buffer) {
+      return res.status(400).json({ message: 'No photo uploaded', success: false, code: 'VALIDATION_ERROR' });
+    }
+    const data = await new SetGroupPhotoUseCase({ groups, images: groupImages }).execute({
+      partnerId: req.auth?.partnerId, groupId: params.id,
+      buffer: req.file.buffer, originalName: req.file.originalname,
+    });
+    void audit.record({
+      actorId: req.auth?.partnerId, action: 'chat.group.photo',
+      targetType: 'group', targetId: params.id,
+    });
+    res.status(200).json({ message: 'Group photo updated', data, success: true });
   }));
 
   g.delete('/:id', validate({ params: z.object({ id: objectId }) }), asyncHandler(async (req, res) => {

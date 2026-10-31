@@ -195,6 +195,37 @@ export class UpdateGroupUseCase {
   }
 }
 
+/** Group avatar upload (admins). Streams the buffer to the image store,
+ * swaps the photo, and best-effort destroys the previous Cloudinary asset
+ * so storage doesn't leak one avatar per change. */
+export class SetGroupPhotoUseCase {
+  constructor({ groups, images }) {
+    Object.assign(this, { groups, images });
+  }
+
+  async execute({ partnerId, groupId, buffer, originalName = 'group-photo' }) {
+    const id = cleanId(groupId, 'group');
+    if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+      throw new ValidationException('No photo uploaded');
+    }
+    const group = await groupOr404(this.groups, id);
+    await requireAdmin(this.groups, id, partnerId);
+    if (!this.images?.upload) throw new ValidationException('Photo uploads are not configured yet');
+    const stored = await this.images.upload(buffer, { publicId: `group-${id}-${Date.now()}` });
+    const url = String(stored?.url ?? '').trim();
+    if (!url) throw new ValidationException('Photo upload returned no URL');
+    const updated = await this.groups.updateGroup(id, { photo: url });
+    // Best-effort: retire the previous avatar (never fail the request).
+    const previous = String(group.photo ?? '').trim();
+    if (previous && previous !== url && typeof this.images?.destroy === 'function') {
+      const { publicIdFromUrl } = await import('../../settings/infrastructure/CloudinaryClient.js');
+      const publicId = publicIdFromUrl(previous);
+      if (publicId) await this.images.destroy(publicId).catch(() => null);
+    }
+    return withId(updated ?? { id, photo: url });
+  }
+}
+
 /** Creator-only delete (cascades members, messages, requests, reports). */
 export class DeleteGroupUseCase {
   constructor({ groups }) {

@@ -5,7 +5,7 @@ import {
   SendGroupMessageUseCase, EditGroupMessageUseCase, DeleteGroupMessageUseCase,
   ReportGroupMessageUseCase, DecideGroupReportUseCase, MuteGroupUseCase, PinGroupMessageUseCase,
   AddGroupMemberUseCase, BanGroupMemberUseCase, RemoveGroupMemberUseCase, SearchGroupsUseCase,
-  ListGroupBansUseCase, GetGroupUseCase,
+  ListGroupBansUseCase, GetGroupUseCase, SetGroupPhotoUseCase,
 } from './Group.usecases.js';
 
 const OID = (n) => String(n).padStart(24, 'a');
@@ -30,7 +30,7 @@ const fakeGroups = (over = {}) => {
       const m = state.members.get(`${gid}:${pid}`);
       return m ? m.role : null;
     },
-    async getGroup(id) { return state.groups.get(String(id)) ?? null; },
+    async getGroup(id) { const g = state.groups.get(String(id)) ?? null; return g ? { ...g } : null; },
     async createGroup(input) {
       const g = { ...groupDoc({ ...input, _id: OID(7), createdBy: input.createdBy }), name: input.name };
       state.groups.set(g._id, g);
@@ -131,7 +131,6 @@ const fakeGroups = (over = {}) => {
     async listBans(gid) {
       return [...state.bans].filter((k) => k.startsWith(`${gid}:`)).map((k) => ({ partnerId: k.split(':')[1], reason: 'spam' }));
     },
-    async updateGroup() { return true; },
   };
 };
 
@@ -236,6 +235,33 @@ describe('group moderation', () => {
     const detail = await new GetGroupUseCase({ groups }).execute({ partnerId: OID(9), groupId: OID(1) });
     assert.equal(detail.pendingRequests?.length, 1);
     assert.equal(detail.pendingRequests?.[0].id, OID(77));
+  });
+
+  it('swaps the group avatar and retires the previous Cloudinary asset', async () => {
+    const groups = fakeGroups();
+    groups.state.members.set(`${OID(1)}:${OID(9)}`, { role: 'admin', joinedAt: new Date(1), muted: false });
+    const images = {
+      uploaded: [],
+      destroyed: [],
+      seq: 0,
+      async upload(buffer, { publicId } = {}) {
+        this.uploaded.push({ bytes: buffer.length, publicId });
+        this.seq += 1;
+        return { url: `https://res.cloudinary.com/d/image/upload/v1/groups/g-${this.seq}.png` };
+      },
+      async destroy(publicId) { this.destroyed.push(publicId); return true; },
+    };
+    const set = new SetGroupPhotoUseCase({ groups, images });
+    const first = await set.execute({ partnerId: OID(9), groupId: OID(1), buffer: Buffer.from([1, 2, 3]) });
+    assert.equal(first.photo, 'https://res.cloudinary.com/d/image/upload/v1/groups/g-1.png');
+    // First avatar had nothing to retire (group started photo-less).
+    assert.deepEqual(images.destroyed, []);
+    // Strangers cannot change the avatar.
+    await assert.rejects(set.execute({ partnerId: OID(2), groupId: OID(1), buffer: Buffer.from([1]) }), /admin/);
+    // Second swap retires the first asset; empty buffers are rejected.
+    await set.execute({ partnerId: OID(9), groupId: OID(1), buffer: Buffer.from([9]) });
+    assert.deepEqual(images.destroyed, ['groups/g-1']);
+    await assert.rejects(set.execute({ partnerId: OID(9), groupId: OID(1), buffer: Buffer.alloc(0) }), /No photo/);
   });
 
   it('caps membership at 300', async () => {

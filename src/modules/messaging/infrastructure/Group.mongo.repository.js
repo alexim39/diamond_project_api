@@ -380,4 +380,10 @@ export class MongoGroupStore {
     const rows = await GroupMemberModel.find({ groupId, muted: { $ne: true } }).select('partnerId').lean().catch(() => []);
     return (rows ?? []).map((r) => String(r.partnerId)).filter((id) => id && id !== String(excludeId ?? ''));
   }
+
+  /** Admin ids for admin-only notices (join approvals, reported messages). */
+  async listAdminIds(groupId) {
+    const rows = await GroupMemberModel.find({ groupId, role: 'admin' }).select('partnerId').lean().catch(() => []);
+    return (rows ?? []).map((r) => String(r.partnerId)).filter(Boolean);
+  }
 }
