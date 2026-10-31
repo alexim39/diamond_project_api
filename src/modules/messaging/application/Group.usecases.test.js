@@ -398,6 +398,15 @@ describe('team chat bridge', () => {
     await assert.rejects(new UC({ groups, teams }).execute({ partnerId: OID(3), teamId: OID(5) }), /Only team members/);
     await assert.rejects(new UC({ groups, teams }).execute({ partnerId: OID(9), teamId: OID(6) }), /Team not found/);
   });
+
+  it('opens orphaned chats gracefully when the team is gone', async () => {
+    const groups = fakeGroups();
+    groups.state.groups.set(OID(8), groupDoc({ _id: OID(8), teamId: OID(6), joinPolicy: 'approval' }));
+    groups.state.members.set(`${OID(8)}:${OID(2)}`, { role: 'member', joinedAt: new Date(2), muted: false });
+    const out = await new FindOrCreateTeamGroupUseCase({ groups, teams }).execute({ partnerId: OID(2), teamId: OID(6) });
+    assert.deepEqual([out.joined, out.teamGone, out.created], [true, true, false]);
+    assert.equal(out.groupId, OID(8));
+  });
 });
 
 describe('group search', () => {

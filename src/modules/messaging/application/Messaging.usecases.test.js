@@ -39,6 +39,17 @@ describe('open messaging', () => {
     await assert.rejects(missing.execute({ partnerId: OID(1), counterpartId: 'aaaaaaaaaaaaaaaaaaaaaaaa' }), /not found/i);
   });
 
+  it('passes the before cursor through to the store for paged threads', async () => {
+    let seen = null;
+    const partners = { findById: () => ({ select: () => ({ lean: async () => ({ _id: OID(2) }) }) }) };
+    const uc = new GetThreadUseCase({
+      messages: { async thread(...args) { seen = args; return []; } },
+      partners,
+    });
+    await uc.execute({ partnerId: OID(1), counterpartId: OID(2), limit: 50, before: '2026-01-01T00:00:00.000Z' });
+    assert.deepEqual(seen, [OID(1), OID(2), 50, '2026-01-01T00:00:00.000Z']);
+  });
+
   it('searches people by username or name (safe fields only)', async () => {
     const docs = [
       { _id: OID(2), username: 'coachada', name: 'Ada', surname: 'Obi', profileImage: 'uploads/a.png' },

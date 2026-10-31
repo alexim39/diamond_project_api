@@ -73,7 +73,9 @@ const fakeGroups = () => {
       return { created: true };
     },
     async findAnyRequest() { return null; },
-    async findByTeamId() { return null; },
+    async findByTeamId(tid) {
+      return String(tid) === OID(6) ? { id: OID(8), name: 'Orphan', joinPolicy: 'approval' } : null;
+    },
     async listBans() { return [{ partnerId: OID(2), reason: 'spam', name: 'Spammer' }]; },
   };
 };
@@ -289,7 +291,15 @@ describe('group routes', () => {
     });
     assert.equal(stranger.status, 403);
 
-    const missing = await fetch(`http://127.0.0.1:${port}/groups/by-team/${OID(6)}`, {
+    const orphan = await fetch(`http://127.0.0.1:${port}/groups/by-team/${OID(6)}`, {
+      headers: { authorization: `Bearer ${token(2)}` },
+    });
+    assert.equal(orphan.status, 200);
+    const orphanBody = await orphan.json();
+    assert.equal(orphanBody.data.teamGone, true);
+    assert.equal(orphanBody.data.groupId, OID(8));
+
+    const missing = await fetch(`http://127.0.0.1:${port}/groups/by-team/${OID(7)}`, {
       headers: { authorization: `Bearer ${token()}` },
     });
     assert.equal(missing.status, 404);

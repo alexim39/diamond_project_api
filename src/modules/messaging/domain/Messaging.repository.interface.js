@@ -8,7 +8,7 @@ export class MessageStore {
   async createMany(rows) { throw new Error('Not implemented'); }
   async inbox(partnerId, limit) { throw new Error('Not implemented'); }
   async sent(partnerId, limit) { throw new Error('Not implemented'); }
-  async thread(partnerId, counterpartId, limit) { throw new Error('Not implemented'); }
+  async thread(partnerId, counterpartId, limit, before) { throw new Error('Not implemented'); }
   async findById(id) { throw new Error('Not implemented'); }
   async markRead(id) { throw new Error('Not implemented'); }
   async unreadCount(partnerId) { throw new Error('Not implemented'); }

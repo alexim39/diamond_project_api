@@ -137,33 +137,45 @@ export class FindOrCreateTeamGroupUseCase {
   async execute({ partnerId, teamId }) {
     const tid = cleanId(teamId, 'team');
     if (!partnerId) throw new ValidationException('Sign in to open the team chat');
-    const team = await teamById(this.teams, tid);
-    if (!team) throw new NotFoundException('Team not found');
+    const [team, group] = await Promise.all([
+      teamById(this.teams, tid),
+      this.groups.findByTeamId(tid).catch(() => null),
+    ]);
+    if (!team) {
+      // The team is gone but its chat may live on — open the orphan instead
+      // of 404ing, clearly flagged so the UI can say so.
+      if (!group) throw new NotFoundException('Team not found');
+      return this.openExisting(group, partnerId, { teamGone: true });
+    }
     const roster = [...new Set([team.partnerId, ...(team.members ?? [])].map(String))]
       .filter((id) => OBJECT_ID_RE.test(id));
     if (!roster.includes(String(partnerId))) {
       throw new ForbiddenException('Only team members can open the team chat');
     }
-    let group = await this.groups.findByTeamId(tid).catch(() => null);
     if (!group) {
-      group = await this.createTeamGroup(tid, team, partnerId, roster).catch(() => null);
-      if (!group) group = await this.groups.findByTeamId(tid).catch(() => null);
-      if (!group) throw new ConflictException('Team chat is being created — try again');
-      return { groupId: String(group.id ?? group._id), joined: true, pending: false, created: true };
+      const created = await this.createTeamGroup(tid, team, partnerId, roster).catch(() => null);
+      const row = created ?? await this.groups.findByTeamId(tid).catch(() => null);
+      if (!row) throw new ConflictException('Team chat is being created — try again');
+      return { groupId: String(row.id ?? row._id), joined: true, pending: false, created: !!created, teamGone: false };
     }
+    return this.openExisting(group, partnerId, { teamGone: false });
+  }
+
+  /** Shared membership gate for a resolved group row. */
+  async openExisting(group, partnerId, { teamGone }) {
     const gid = String(group.id ?? group._id);
     if (await this.groups.isMember(gid, partnerId).catch(() => false)) {
-      return { groupId: gid, joined: true, pending: false, created: false };
+      return { groupId: gid, joined: true, pending: false, created: false, teamGone };
     }
     if (await this.groups.isBanned(gid, partnerId).catch(() => false)) {
       throw new ForbiddenException('You were removed from this group');
     }
     if ((group.joinPolicy ?? 'approval') === 'open') {
       await this.groups.addMember(gid, partnerId).catch(() => null);
-      return { groupId: gid, joined: true, pending: false, created: false };
+      return { groupId: gid, joined: true, pending: false, created: false, teamGone };
     }
     const existing = await this.groups.findAnyRequest(gid, partnerId).catch(() => null);
-    return { groupId: gid, joined: false, pending: !!existing && existing.status === 'pending', created: false };
+    return { groupId: gid, joined: false, pending: !!existing && existing.status === 'pending', created: false, teamGone };
   }
 
   async createTeamGroup(tid, team, partnerId, roster) {

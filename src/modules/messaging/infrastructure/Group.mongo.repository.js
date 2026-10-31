@@ -394,6 +394,21 @@ export class MongoGroupStore {
     return (rows ?? []).map((r) => ({ partnerId: String(r.partnerId), lastReadAt: r.lastReadAt ?? null }));
   }
 
+  /** Team rename propagation — specs come from the pure, unit-tested planner;
+   * this just executes them, so deliberate group branding survives team edits. */
+  async syncTeamProfile(teamId, { name, description }, { oldName, oldDescription }) {
+    const { teamGroupSyncUpdates } = await import('../domain/GroupTeamSync.js');
+    const ops = teamGroupSyncUpdates(
+      { teamName: oldName, description: oldDescription },
+      { teamName: name, description },
+    );
+    await Promise.all(ops.map((op) => ChatGroupModel.updateMany(
+      { teamId, ...op.filter },
+      { $set: op.update },
+    ).catch(() => null)));
+    return true;
+  }
+
   /** Admin ids for admin-only notices (join approvals, reported messages). */
   async listAdminIds(groupId) {
     const rows = await GroupMemberModel.find({ groupId, role: 'admin' }).select('partnerId').lean().catch(() => []);

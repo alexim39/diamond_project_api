@@ -1,5 +1,6 @@
 import {TeamModel} from '../models/teams.model.js';
 import {PartnersModel} from '../../partner/models/partner.model.js';
+import { MongoGroupStore } from '../../../modules/messaging/infrastructure/Group.mongo.repository.js';
 
 /**
  * Owner labels for team reads — safe fields only. partnerId stays a raw
@@ -327,7 +328,7 @@ export const updateTeamBy = async (req, res) => {
         const partnerId = sessionId(req); // session-owned (body value ignored)  
 
         // Owner-only: partnerId carries the editor's id — refuse anyone else.
-        const existing = await TeamModel.findById(temaId).select('partnerId');
+        const existing = await TeamModel.findById(temaId).select('partnerId teamName description');
         if (!existing) {
             return res.status(404).json({
                 message: 'Team not found',
@@ -350,7 +351,17 @@ export const updateTeamBy = async (req, res) => {
                 message: `Team not found`,
                 success: false
             });  
-        }  
+        }
+
+        // Keep the linked group chat labelled like the team — only fields the
+        // group admin never customized (still equal to the old team values).
+        // Best-effort: team edits must never fail because of chat sync.
+        try {
+            const store = new MongoGroupStore();
+            await store.syncTeamProfile(team._id,
+                { name: team.teamName, description: team.description },
+                { oldName: existing.teamName, oldDescription: existing.description });
+        } catch { /* chat sync is best-effort */ }
 
         res.status(200).json({  
             message: 'Partner updated successfully!',  

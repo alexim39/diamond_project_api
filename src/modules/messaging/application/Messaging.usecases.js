@@ -116,9 +116,9 @@ export class GetThreadUseCase {
     Object.assign(this, { messages, partners: partners ?? PartnersModel });
   }
 
-  async execute({ partnerId, counterpartId, limit = 100 }) {
+  async execute({ partnerId, counterpartId, limit = 100, before = null }) {
     await assertPartnerExists(this.partners, counterpartId);
-    return this.messages.thread(partnerId, counterpartId, Math.min(Math.max(Number(limit) || 100, 1), 200));
+    return this.messages.thread(partnerId, counterpartId, Math.min(Math.max(Number(limit) || 100, 1), 200), before ?? null);
   }
 }
 

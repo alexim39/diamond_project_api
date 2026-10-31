@@ -154,13 +154,15 @@ export const buildGroupRouter = (deps = {}) => {
       });
     }
     res.status(200).json({
-      message: data.created
-        ? 'Team group chat created'
-        : data.joined
-          ? 'Team group chat opened'
-          : data.pending
-            ? 'Request pending — an admin will review it'
-            : 'Join the group to chat',
+      message: data.teamGone
+        ? 'Team no longer exists — opening its group chat'
+        : data.created
+          ? 'Team group chat created'
+          : data.joined
+            ? 'Team group chat opened'
+            : data.pending
+              ? 'Request pending — an admin will review it'
+              : 'Join the group to chat',
       data, success: true,
     });
   }));

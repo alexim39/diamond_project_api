@@ -34,7 +34,9 @@ const TeamAnnounceSchema = z.object({
   body: z.string().trim().min(1).max(2000),
 });
 
-const LimitQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).optional() });
+  const LimitQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).optional() });
+  const ThreadQuery = LimitQuery.extend({ before: z.coerce.date().optional() });
+
 const CounterpartParam = z.object({ counterpartId: objectId });
 const MessageIdParam = z.object({ messageId: objectId });
 const PeopleQuery = z.object({
@@ -99,10 +101,10 @@ export const buildMessagingRouter = (deps = {}) => {
     res.status(200).json({ message: 'Sent messages retrieved successfully', data, success: true });
   }));
 
-  router.get('/thread/:counterpartId', validate({ params: CounterpartParam, query: LimitQuery }), asyncHandler(async (req, res) => {
+  router.get('/thread/:counterpartId', validate({ params: CounterpartParam, query: ThreadQuery }), asyncHandler(async (req, res) => {
     const params = req.validated?.params ?? req.params;
     const q = req.validated?.query ?? req.query;
-    const data = await thread.execute({ partnerId: req.auth?.partnerId, counterpartId: params.counterpartId, limit: q?.limit });
+    const data = await thread.execute({ partnerId: req.auth?.partnerId, counterpartId: params.counterpartId, limit: q?.limit, before: q?.before ?? null });
     res.status(200).json({ message: 'Thread retrieved successfully', data, success: true });
   }));
 

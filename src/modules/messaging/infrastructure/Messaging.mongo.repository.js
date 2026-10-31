@@ -71,18 +71,24 @@ export class MongoMessageStore {
     return withLabels(docs);
   }
 
-  async thread(partnerId, counterpartId, limit = 100) {
-    const docs = await MessageModel.find({
+  async thread(partnerId, counterpartId, limit = 100, before = null) {
+    const filter = {
       kind: 'direct',
       $or: [
         { senderId: partnerId, recipientId: counterpartId },
         { senderId: counterpartId, recipientId: partnerId },
       ],
-    })
-      .sort({ createdAt: 1 })
+    };
+    if (before) {
+      const at = new Date(before);
+      if (!Number.isNaN(at.getTime())) filter.createdAt = { $lt: at };
+    }
+    // Newest-first window, returned chronological (mirrors group threads).
+    const docs = await MessageModel.find(filter)
+      .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
-    return withLabels(docs);
+    return withLabels(docs).reverse();
   }
 
   async findById(id) {
