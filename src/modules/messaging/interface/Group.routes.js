@@ -89,7 +89,12 @@ export const buildGroupRouter = (deps = {}) => {
 
   /** Fan a notice out to every group admin (skips the actor). */
   const tellAdmins = async (groupId, actorId, notice) => {
-    const adminIds = await groups.listAdminIds(String(groupId)).catch(() => []);
+    // Optional-call: an injected store without listAdminIds degrades to
+    // "no fan-out" instead of 500ing the admin's own request.
+    let adminIds = [];
+    try {
+      adminIds = await groups.listAdminIds?.(String(groupId)) ?? [];
+    } catch { adminIds = []; }
     await Promise.allSettled(adminIds
       .map(String)
       .filter((id) => id && id !== String(actorId))
