@@ -46,9 +46,10 @@ export class MongoGroupStore {
     return GroupMemberModel.countDocuments({ groupId }).catch(() => 0);
   }
 
-  async createGroup({ name, description = '', photo = null, joinPolicy = 'approval', createdBy }) {
+  async createGroup({ name, description = '', photo = null, joinPolicy = 'approval', createdBy, teamId = null }) {
     const group = await ChatGroupModel.create({
       name, description, photo, joinPolicy, createdBy,
+      ...(teamId ? { teamId } : {}),
     });
     await GroupMemberModel.create({
       groupId: group._id, partnerId: createdBy, role: 'admin', lastReadAt: new Date(),
@@ -58,6 +59,12 @@ export class MongoGroupStore {
 
   async getGroup(id) {
     const doc = await ChatGroupModel.findById(id).lean().catch(() => null);
+    return doc ? shaped(doc) : null;
+  }
+
+  /** Purpose-team bridge lookup (one group per team). */
+  async findByTeamId(teamId) {
+    const doc = await ChatGroupModel.findOne({ teamId }).lean().catch(() => null);
     return doc ? shaped(doc) : null;
   }
 
@@ -281,9 +288,9 @@ export class MongoGroupStore {
     const memberships = await GroupMemberModel.find({ partnerId }).lean().catch(() => []);
     const ids = (memberships ?? []).map((m) => m.groupId);
     if (ids.length === 0) return [];
-    const [groups, counts, lasts, unreads] = await Promise.all([
+    const [groups, memberCounts, lasts, unreads] = await Promise.all([
       ChatGroupModel.find({ _id: { $in: ids } }).lean().catch(() => []),
-      GroupMessageModel.aggregate([
+      GroupMemberModel.aggregate([
         { $match: { groupId: { $in: ids } } },
         { $group: { _id: '$groupId', count: { $sum: 1 } } },
       ]).catch(() => []),
@@ -303,7 +310,7 @@ export class MongoGroupStore {
       })(),
     ]);
     const byId = Object.fromEntries((groups ?? []).map((g) => [String(g._id), g]));
-    const countsById = Object.fromEntries((counts ?? []).map((c) => [String(c._id), c.count]));
+    const memberCountsById = Object.fromEntries((memberCounts ?? []).map((c) => [String(c._id), c.count]));
     const lastsById = Object.fromEntries((lasts ?? []).map((l) => [String(l._id), shaped(l.last)]));
     const memById = Object.fromEntries((memberships ?? []).map((m) => [String(m.groupId), m]));
     const senderIds = [...new Set(Object.values(lastsById).map((m) => String(m.senderId)).filter(Boolean))];
@@ -318,7 +325,7 @@ export class MongoGroupStore {
       const last = lastsById[gid] ?? null;
       return {
         ...shaped(g),
-        memberCount: countsById[gid] ?? 0,
+        memberCount: memberCountsById[gid] ?? 0,
         unread: unreads[gid] ?? 0,
         myRole: mem.role ?? 'member',
         muted: !!mem.muted,
@@ -379,6 +386,12 @@ export class MongoGroupStore {
   async notifyTargets(groupId, excludeId = null) {
     const rows = await GroupMemberModel.find({ groupId, muted: { $ne: true } }).select('partnerId').lean().catch(() => []);
     return (rows ?? []).map((r) => String(r.partnerId)).filter((id) => id && id !== String(excludeId ?? ''));
+  }
+
+  /** Per-member read watermarks for seen-by ticks. */
+  async readStates(groupId) {
+    const rows = await GroupMemberModel.find({ groupId }).select('partnerId lastReadAt').lean().catch(() => []);
+    return (rows ?? []).map((r) => ({ partnerId: String(r.partnerId), lastReadAt: r.lastReadAt ?? null }));
   }
 
   /** Admin ids for admin-only notices (join approvals, reported messages). */

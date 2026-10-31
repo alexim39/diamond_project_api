@@ -60,6 +60,7 @@ const fakeGroups = () => {
       return true;
     },
     async reportMessage() { return { created: true }; },
+    async readStates() { return []; },
     async findGroupMessage() {
       return { _id: OID(70), id: OID(70), groupId: OID(1), senderId: OID(2), body: 'spammy' };
     },
@@ -72,6 +73,7 @@ const fakeGroups = () => {
       return { created: true };
     },
     async findAnyRequest() { return null; },
+    async findByTeamId() { return null; },
     async listBans() { return [{ partnerId: OID(2), reason: 'spam', name: 'Spammer' }]; },
   };
 };
@@ -97,6 +99,7 @@ const buildApp = (over = {}) => {
     stored: { list: async () => [] },
     notify: { execute: async () => ({}) },
     partners: { findById: async () => ({ _id: 'stub' }), find: async () => [] },
+    teams: { findById: async () => { throw new Error('should not reach teams'); } },
     audit: { record: () => {} },
     images: fakeImages(),
     ...over,
@@ -247,5 +250,76 @@ describe('group routes', () => {
       method: 'POST', headers: { authorization: `Bearer ${token(2)}` }, body: strangerForm,
     });
     assert.equal(stranger.status, 403);
+  });
+
+  it('resolves-or-creates the team group chat for team members', async (t) => {
+    const teams = {
+      findById: async (id) => (String(id) === OID(5)
+        ? { _id: OID(5), teamName: 'Hustlers Cell', description: '', partnerId: OID(9), members: [OID(9)] }
+        : null),
+    };
+    const app = buildApp({ teams });
+    const server = await listen(app);
+    t.after(() => close(server));
+    const { port } = server.address();
+
+    const res = await fetch(`http://127.0.0.1:${port}/groups/by-team/${OID(5)}`, {
+      headers: { authorization: `Bearer ${token()}` },
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.data.joined, true);
+    assert.equal(body.data.created, true);
+    assert.ok(body.data.groupId);
+  });
+
+  it('refuses the team chat to non-team-members and unknown teams', async (t) => {
+    const teams = {
+      findById: async (id) => (String(id) === OID(5)
+        ? { _id: OID(5), teamName: 'Hustlers Cell', description: '', partnerId: OID(9), members: [OID(9)] }
+        : null),
+    };
+    const app = buildApp({ teams });
+    const server = await listen(app);
+    t.after(() => close(server));
+    const { port } = server.address();
+
+    const stranger = await fetch(`http://127.0.0.1:${port}/groups/by-team/${OID(5)}`, {
+      headers: { authorization: `Bearer ${token(2)}` },
+    });
+    assert.equal(stranger.status, 403);
+
+    const missing = await fetch(`http://127.0.0.1:${port}/groups/by-team/${OID(6)}`, {
+      headers: { authorization: `Bearer ${token()}` },
+    });
+    assert.equal(missing.status, 404);
+
+    const bad = await fetch(`http://127.0.0.1:${port}/groups/by-team/nope`, {
+      headers: { authorization: `Bearer ${token()}` },
+    });
+    assert.equal(bad.status, 400);
+  });
+
+  it('serves a roster-free invite preview for link sharing', async (t) => {
+    const app = buildApp();
+    const server = await listen(app);
+    t.after(() => close(server));
+    const { port } = server.address();
+
+    const res = await fetch(`http://127.0.0.1:${port}/groups/invite/${OID(1)}`, {
+      headers: { authorization: `Bearer ${token(2)}` },
+    });
+    assert.equal(res.status, 200);
+    const invite = await res.json();
+    assert.equal(invite.data.name, 'Hustlers');
+    assert.ok(!('members' in invite.data));
+
+    const missing = await fetch(`http://127.0.0.1:${port}/groups/invite/${OID(9)}`, {
+      headers: { authorization: `Bearer ${token(2)}` },
+    });
+    assert.equal(missing.status, 404);
+
+    const unauth = await fetch(`http://127.0.0.1:${port}/groups/invite/${OID(1)}`);
+    assert.equal(unauth.status, 401);
   });
 });

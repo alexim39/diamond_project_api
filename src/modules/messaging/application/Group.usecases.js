@@ -3,6 +3,7 @@ import {
 } from '../../../shared/domain/AppError.js';
 import { createAttachmentEntities, MAX_ATTACHMENTS } from '../../community/domain/Post.entity.js';
 import { PartnersModel } from '../../../apps/partner/models/partner.model.js';
+import { TeamModel } from '../../../apps/teams/models/teams.model.js';
 
 const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
 const MAX_MEMBERS = 300;
@@ -77,6 +78,15 @@ async function partnersByIds(partners, ids) {
   } catch { return []; }
 }
 
+/** Team lookup tolerant of both Mongoose queries and plain fakes. */
+async function teamById(teams, id) {
+  try {
+    const q = teams.findById(id);
+    if (q && typeof q.lean === 'function') return await q.lean();
+    return await q;
+  } catch { return null; }
+}
+
 /** Store-shape normalizer — real store returns shaped { id }, fakes may use _id. */
 const withId = (doc) => {
   if (!doc || typeof doc !== 'object') return doc;
@@ -116,6 +126,72 @@ export class CreateGroupUseCase {
   }
 }
 
+/** Team chat bridge — one group per purpose team, resolved or created on
+ * demand so teammates always have a group conversation to land in.
+ * Only team members (roster or creator) may resolve or create it. */
+export class FindOrCreateTeamGroupUseCase {
+  constructor({ groups, teams = null }) {
+    Object.assign(this, { groups, teams: teams ?? TeamModel });
+  }
+
+  async execute({ partnerId, teamId }) {
+    const tid = cleanId(teamId, 'team');
+    if (!partnerId) throw new ValidationException('Sign in to open the team chat');
+    const team = await teamById(this.teams, tid);
+    if (!team) throw new NotFoundException('Team not found');
+    const roster = [...new Set([team.partnerId, ...(team.members ?? [])].map(String))]
+      .filter((id) => OBJECT_ID_RE.test(id));
+    if (!roster.includes(String(partnerId))) {
+      throw new ForbiddenException('Only team members can open the team chat');
+    }
+    let group = await this.groups.findByTeamId(tid).catch(() => null);
+    if (!group) {
+      group = await this.createTeamGroup(tid, team, partnerId, roster).catch(() => null);
+      if (!group) group = await this.groups.findByTeamId(tid).catch(() => null);
+      if (!group) throw new ConflictException('Team chat is being created — try again');
+      return { groupId: String(group.id ?? group._id), joined: true, pending: false, created: true };
+    }
+    const gid = String(group.id ?? group._id);
+    if (await this.groups.isMember(gid, partnerId).catch(() => false)) {
+      return { groupId: gid, joined: true, pending: false, created: false };
+    }
+    if (await this.groups.isBanned(gid, partnerId).catch(() => false)) {
+      throw new ForbiddenException('You were removed from this group');
+    }
+    if ((group.joinPolicy ?? 'approval') === 'open') {
+      await this.groups.addMember(gid, partnerId).catch(() => null);
+      return { groupId: gid, joined: true, pending: false, created: false };
+    }
+    const existing = await this.groups.findAnyRequest(gid, partnerId).catch(() => null);
+    return { groupId: gid, joined: false, pending: !!existing && existing.status === 'pending', created: false };
+  }
+
+  async createTeamGroup(tid, team, partnerId, roster) {
+    let name = 'Team chat';
+    try {
+      name = cleanName(String(team.teamName ?? ''));
+    } catch { /* fallback above */ }
+    try {
+      const group = await this.groups.createGroup({
+        name,
+        description: cleanDescription(team.description ?? ''),
+        photo: null,
+        joinPolicy: 'approval',
+        createdBy: partnerId,
+        teamId: tid,
+      });
+      const gid = String(group.id ?? group._id);
+      const seeds = roster.filter((id) => id !== String(partnerId)).slice(0, 300);
+      await Promise.allSettled(seeds.map((id) => this.groups.addMember(gid, id)));
+      return group;
+    } catch (error) {
+      // Lost a creation race (unique teamId) — the winner's row is the answer.
+      if (error?.code !== 11000) throw error;
+      return null;
+    }
+  }
+}
+
 /** My groups: enriched rows for the sidebar (member count, unread, last message). */
 export class ListMyGroupsUseCase {
   constructor({ groups }) {
@@ -125,6 +201,29 @@ export class ListMyGroupsUseCase {
   async execute({ partnerId }) {
     if (!partnerId) throw new ValidationException('Sign in to view groups');
     return this.groups.listMine(partnerId);
+  }
+}
+
+/** Invite preview — directory-safe fields for anyone signed in, so a shared
+ * link can render a join card without leaking the roster. */
+export class GetGroupInviteUseCase {
+  constructor({ groups }) {
+    this.groups = groups;
+  }
+
+  async execute({ groupId }) {
+    const id = cleanId(groupId, 'group');
+    const group = await groupOr404(this.groups, id);
+    const memberCount = await this.groups.memberCount(id).catch(() => 0);
+    return {
+      id: String(group.id ?? group._id),
+      name: group.name,
+      description: group.description ?? '',
+      photo: group.photo ?? null,
+      joinPolicy: group.joinPolicy ?? 'approval',
+      memberCount,
+      createdAt: group.createdAt ?? null,
+    };
   }
 }
 
@@ -654,7 +753,6 @@ export class SendGroupMessageUseCase {
     const id = cleanId(groupId, 'group');
     await requireMember(this.groups, id, partnerId);
     const text = String(body ?? '').trim();
-    if (!text || text.length > 2000) throw new ValidationException('Message must be 1–2000 characters');
     let files = [];
     if (Array.isArray(attachments) && attachments.length > 0) {
       if (attachments.length > MAX_ATTACHMENTS) {
@@ -663,11 +761,15 @@ export class SendGroupMessageUseCase {
       const { createAttachmentEntities } = await import('../../community/domain/Post.entity.js');
       files = createAttachmentEntities(attachments);
     }
+    if (text.length > 2000) throw new ValidationException('Message must be 1–2000 characters');
+    if (!text && files.length === 0) throw new ValidationException('Message must have text or an attachment');
     return withId(await this.groups.createGroupMessage({ groupId: id, senderId: partnerId, body: text, attachments: files }));
   }
 }
 
-/** Paged group thread (newest-first window, chronological return). */
+/** Paged group thread (newest-first window, chronological return).
+ * Each message carries `seenBy` — member ids (excluding the sender) whose
+ * read watermark has passed it. */
 export class GroupThreadUseCase {
   constructor({ groups }) {
     this.groups = groups;
@@ -676,7 +778,18 @@ export class GroupThreadUseCase {
   async execute({ partnerId, groupId, limit = 50, before = null }) {
     const id = cleanId(groupId, 'group');
     await requireMember(this.groups, id, partnerId);
-    return this.groups.thread(id, { limit, before });
+    const [rows, states] = await Promise.all([
+      this.groups.thread(id, { limit, before }),
+      this.groups.readStates(id).catch(() => []),
+    ]);
+    const seenBy = (m) => {
+      const at = new Date(m.createdAt ?? 0).getTime();
+      return (states ?? [])
+        .filter((s) => String(s.partnerId) !== String(m.senderId)
+          && s.lastReadAt && new Date(s.lastReadAt).getTime() >= at)
+        .map((s) => String(s.partnerId));
+    };
+    return (rows ?? []).map((m) => ({ ...m, seenBy: seenBy(m) }));
   }
 }
 

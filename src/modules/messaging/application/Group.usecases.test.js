@@ -5,7 +5,8 @@ import {
   SendGroupMessageUseCase, EditGroupMessageUseCase, DeleteGroupMessageUseCase,
   ReportGroupMessageUseCase, DecideGroupReportUseCase, MuteGroupUseCase, PinGroupMessageUseCase,
   AddGroupMemberUseCase, BanGroupMemberUseCase, RemoveGroupMemberUseCase, SearchGroupsUseCase,
-  ListGroupBansUseCase, GetGroupUseCase, SetGroupPhotoUseCase,
+  ListGroupBansUseCase, GetGroupUseCase, SetGroupPhotoUseCase, FindOrCreateTeamGroupUseCase,
+  GetGroupInviteUseCase, GroupThreadUseCase,
 } from './Group.usecases.js';
 
 const OID = (n) => String(n).padStart(24, 'a');
@@ -126,6 +127,13 @@ const fakeGroups = (over = {}) => {
       return r ?? null;
     },
     async thread() { return [...state.messages]; },
+    async readStates() { return []; },
+    async findByTeamId(tid) {
+      for (const g of state.groups.values()) {
+        if (String(g.teamId ?? '') === String(tid)) return { ...g, id: String(g._id) };
+      }
+      return null;
+    },
     async banMember(gid, pid) { state.bans.add(`${gid}:${pid}`); state.members.delete(`${gid}:${pid}`); return true; },
     async unbanMember(gid, pid) { state.bans.delete(`${gid}:${pid}`); return true; },
     async listBans(gid) {
@@ -264,6 +272,42 @@ describe('group moderation', () => {
     await assert.rejects(set.execute({ partnerId: OID(9), groupId: OID(1), buffer: Buffer.alloc(0) }), /No photo/);
   });
 
+  it('accepts attachment-only messages and rejects empty ones', async () => {
+    const groups = fakeGroups();
+    groups.state.members.set(`${OID(1)}:${OID(9)}`, { role: 'admin', joinedAt: new Date(1), muted: false });
+    groups.state.members.set(`${OID(1)}:${OID(2)}`, { role: 'member', joinedAt: new Date(2), muted: false });
+    const send = new SendGroupMessageUseCase({ groups });
+    const file = { url: 'https://img.test/a.png', mime: 'image/png', size: 10 };
+    const msg = await send.execute({ partnerId: OID(2), groupId: OID(1), body: '   ', attachments: [file] });
+    assert.equal(msg.attachments.length, 1);
+    await assert.rejects(
+      send.execute({ partnerId: OID(2), groupId: OID(1), body: '   ', attachments: [] }),
+      /text or an attachment/,
+    );
+    await assert.rejects(
+      send.execute({ partnerId: OID(2), groupId: OID(1), body: '', attachments: [{ url: 'http://x', mime: 'image/png', size: 1 }] }),
+      /Invalid attachment url/,
+    );
+  });
+
+  it('marks thread messages seen by members with newer read watermarks', async () => {
+    const groups = fakeGroups();
+    groups.state.members.set(`${OID(1)}:${OID(9)}`, { role: 'admin', joinedAt: new Date(1), muted: false });
+    groups.state.members.set(`${OID(1)}:${OID(2)}`, { role: 'member', joinedAt: new Date(2), muted: false });
+    const send = new SendGroupMessageUseCase({ groups });
+    await send.execute({ partnerId: OID(2), groupId: OID(1), body: 'hello', attachments: [] });
+    const future = new Date(Date.now() + 60_000).toISOString();
+    groups.readStates = async () => [
+      { partnerId: OID(9), lastReadAt: future },
+      { partnerId: OID(2), lastReadAt: future },
+      { partnerId: OID(4), lastReadAt: null },
+    ];
+    const thread = await new GroupThreadUseCase({ groups }).execute({ partnerId: OID(2), groupId: OID(1) });
+    assert.equal(thread.length, 1);
+    // Sender excluded, null watermarks ignored.
+    assert.deepEqual(thread[0].seenBy, [OID(9)]);
+  });
+
   it('caps membership at 300', async () => {
     const groups = fakeGroups();
     groups.state.groups.set(OID(3), groupDoc({ _id: OID(3), joinPolicy: 'open' }));
@@ -309,7 +353,64 @@ describe('group moderation', () => {
   });
 });
 
+describe('team chat bridge', () => {
+  const teamDoc = { _id: OID(5), teamName: 'Anis Strategic', description: 'cell', partnerId: OID(9), members: [OID(9), OID(2), OID(4)] };
+  const teams = { findById: async (id) => (String(id) === OID(5) ? { ...teamDoc } : null) };
+
+  it('creates the team group on first visit and seeds the roster', async () => {
+    const groups = fakeGroups();
+    const out = await new FindOrCreateTeamGroupUseCase({ groups, teams }).execute({ partnerId: OID(9), teamId: OID(5) });
+    assert.equal(out.created, true);
+    assert.equal(out.joined, true);
+    assert.equal(await groups.isMember(out.groupId, OID(9)), true);
+    assert.equal(await groups.isMember(out.groupId, OID(2)), true);
+    assert.equal(await groups.isMember(out.groupId, OID(4)), true);
+    const created = groups.state.groups.get(out.groupId);
+    assert.equal(created.name, 'Anis Strategic');
+    assert.equal(String(created.teamId), OID(5));
+  });
+
+  it('returns the existing group without duplicating', async () => {
+    const groups = fakeGroups();
+    groups.state.groups.set(OID(8), groupDoc({ _id: OID(8), teamId: OID(5), joinPolicy: 'approval' }));
+    groups.state.members.set(`${OID(8)}:${OID(2)}`, { role: 'member', joinedAt: new Date(2), muted: false });
+    const out = await new FindOrCreateTeamGroupUseCase({ groups, teams }).execute({ partnerId: OID(2), teamId: OID(5) });
+    assert.equal(out.created, false);
+    assert.equal(out.joined, true);
+    assert.equal(out.groupId, OID(8));
+  });
+
+  it('reports pending state for roster members stuck at approval', async () => {
+    const groups = fakeGroups();
+    groups.state.groups.set(OID(8), groupDoc({ _id: OID(8), teamId: OID(5), joinPolicy: 'approval' }));
+    groups.state.members.set(`${OID(8)}:${OID(9)}`, { role: 'admin', joinedAt: new Date(1), muted: false });
+    const UC = FindOrCreateTeamGroupUseCase;
+    const cold = await new UC({ groups, teams }).execute({ partnerId: OID(4), teamId: OID(5) });
+    assert.deepEqual([cold.joined, cold.pending], [false, false]);
+    groups.state.requests.set('req-team', { _id: OID(70), groupId: OID(8), partnerId: OID(4), status: 'pending' });
+    const warm = await new UC({ groups, teams }).execute({ partnerId: OID(4), teamId: OID(5) });
+    assert.deepEqual([warm.joined, warm.pending], [false, true]);
+  });
+
+  it('refuses non-team-members and unknown teams', async () => {
+    const groups = fakeGroups();
+    const UC = FindOrCreateTeamGroupUseCase;
+    await assert.rejects(new UC({ groups, teams }).execute({ partnerId: OID(3), teamId: OID(5) }), /Only team members/);
+    await assert.rejects(new UC({ groups, teams }).execute({ partnerId: OID(9), teamId: OID(6) }), /Team not found/);
+  });
+});
+
 describe('group search', () => {
+  it('exposes a roster-free invite preview for link sharing', async () => {
+    const groups = fakeGroups();
+    groups.state.members.set(`${OID(1)}:${OID(9)}`, { role: 'admin', joinedAt: new Date(1), muted: false });
+    groups.state.members.set(`${OID(1)}:${OID(2)}`, { role: 'member', joinedAt: new Date(2), muted: false });
+    const invite = await new GetGroupInviteUseCase({ groups }).execute({ groupId: OID(1) });
+    assert.equal(invite.name, 'Team Alpha');
+    assert.equal(invite.memberCount, 2);
+    assert.ok(!('members' in invite));
+    await assert.rejects(new GetGroupInviteUseCase({ groups }).execute({ groupId: OID(8) }), /Group not found/);
+  });
   it('returns safe fields only', async () => {
     const { SearchGroupsUseCase } = await import('./Group.usecases.js');
     const directory = [

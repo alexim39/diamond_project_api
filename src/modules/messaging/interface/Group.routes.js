@@ -8,6 +8,7 @@ import { MongoStoredNotificationStore } from '../../notifications/infrastructure
 import { NotifyUseCase } from '../../notifications/application/NotificationsCenter.usecases.js';
 import { recordAudit } from '../../audit/index.js';
 import { env } from '../../../shared/config/env.js';
+import { TeamModel } from '../../../apps/teams/models/teams.model.js';
 import { ATTACHMENT_MIMES, MAX_ATTACHMENT_BYTES } from '../../community/domain/Post.entity.js';
 import { buildImageStore } from '../../settings/infrastructure/CloudinaryClient.js';
 import { groupPhotoUpload } from './Group.upload.js';
@@ -20,6 +21,8 @@ import {
   DeleteGroupMessageUseCase,
   DeleteGroupUseCase,
   EditGroupMessageUseCase,
+  FindOrCreateTeamGroupUseCase,
+  GetGroupInviteUseCase,
   GetGroupUseCase,
   GroupThreadUseCase,
   JoinGroupUseCase,
@@ -59,7 +62,7 @@ const GroupPatch = z.object({
 }).refine((v) => Object.keys(v).length > 0, { message: 'Nothing to update' });
 
 const MessagePayload = z.object({
-  body: z.string().trim().min(1).max(2000),
+  body: z.string().trim().max(2000).optional().default(''),
   attachments: z.array(z.object({
     url: z.string().trim().regex(/^https:\/\/[^\s]+$/, 'Invalid attachment url'),
     mime: z.enum(ATTACHMENT_MIMES),
@@ -79,6 +82,8 @@ export const buildGroupRouter = (deps = {}) => {
   const notify = deps.notify ?? new NotifyUseCase({ stored });
   /** Partner directory (injected in tests so HTTP tests never touch Mongoose). */
   const partners = deps.partners ?? null;
+  /** Purpose teams (injected in tests; the bridge reads the roster to seed chats). */
+  const teams = deps.teams ?? TeamModel;
   /** Audit recorder (injected in tests to avoid the 10s buffered-insert wait). */
   const audit = deps.audit ?? { record: (input) => recordAudit(input) };
   /** Group avatars live on Cloudinary (profile-photo pattern) under their own folder. */
@@ -127,6 +132,37 @@ export const buildGroupRouter = (deps = {}) => {
     const q = req.validated?.query ?? req.query;
     const data = await new SearchGroupsUseCase({ groups }).execute({ q: q.q ?? '', limit: q.limit });
     res.status(200).json({ message: 'Groups found', data, success: true });
+  }));
+
+  // Invite preview — directory-safe fields for anyone signed in, so a shared
+  // link can render a join card. No membership required, roster never leaks.
+  g.get('/invite/:id', validate({ params: z.object({ id: objectId }) }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await new GetGroupInviteUseCase({ groups }).execute({ groupId: params.id });
+    res.status(200).json({ message: 'Group invite retrieved', data, success: true });
+  }));
+
+  // Team chat bridge — resolves (or creates on first visit) the group chat
+  // for a purpose team so teammates always land in a conversation.
+  g.get('/by-team/:teamId', validate({ params: z.object({ teamId: objectId }) }), asyncHandler(async (req, res) => {
+    const params = req.validated?.params ?? req.params;
+    const data = await new FindOrCreateTeamGroupUseCase({ groups, teams }).execute({ partnerId: req.auth?.partnerId, teamId: params.teamId });
+    if (data.created) {
+      void audit.record({
+        actorId: req.auth?.partnerId, action: 'chat.group.create',
+        targetType: 'group', targetId: data.groupId, detail: { via: 'team', teamId: params.teamId },
+      });
+    }
+    res.status(200).json({
+      message: data.created
+        ? 'Team group chat created'
+        : data.joined
+          ? 'Team group chat opened'
+          : data.pending
+            ? 'Request pending — an admin will review it'
+            : 'Join the group to chat',
+      data, success: true,
+    });
   }));
 
   g.get('/:id', validate({ params: z.object({ id: objectId }) }), asyncHandler(async (req, res) => {
