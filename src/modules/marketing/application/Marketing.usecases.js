@@ -72,9 +72,10 @@ export class GetCampaignRoiUseCase {
         allocationSpend: s.allocationSpend + (r.allocationSpend ?? 0),
         allocatedLeads: s.allocatedLeads + (r.allocatedLeads ?? 0),
         prospects: s.prospects + r.windowProspects,
+        worked: s.worked + (r.windowWorked ?? 0),
         conversions: s.conversions + r.windowConversions,
       }),
-      { visits: 0, budget: 0, outreachSpend: 0, allocationSpend: 0, allocatedLeads: 0, prospects: 0, conversions: 0 },
+      { visits: 0, budget: 0, outreachSpend: 0, allocationSpend: 0, allocatedLeads: 0, prospects: 0, worked: 0, conversions: 0 },
     );
     const fullSpend = totals.budget + totals.outreachSpend + totals.allocationSpend;
     const rate = totals.prospects > 0 ? (totals.conversions / totals.prospects) * 100 : null;

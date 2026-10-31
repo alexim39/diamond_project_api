@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import mongoose from 'mongoose';
 import dotenv  from "dotenv"
 import cors from 'cors';
@@ -82,6 +83,7 @@ import ProlificWomanLeadRouter, {
 import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 import { ensureIndexes } from './src/shared/mongo/indexes.js';
 import { scheduleJobs } from './src/jobs/schedule.js';
+import { attachMessagingGateway } from './src/modules/messaging/interface/Messaging.gateway.js';
 
 const port = process.env.PORT || 8080;
 const app = express();
@@ -266,7 +268,9 @@ mongoose.connect(`mongodb+srv://${process.env.MONGODB_USERNAME}:${process.env.MO
       (r) => console.log(`[bonuses] seed: ${r.seeded ? `created welcome N2500 (${r.id})` : 'welcome campaign present'}`),
       (error) => console.warn('[bonuses] seed skipped:', error?.message ?? error),
     );
-    app.listen(port, () => {
+    const server = http.createServer(app);
+    attachMessagingGateway(server);
+    server.listen(port, () => {
         console.log(`Server is running on port: http://localhost:${port}`)
     })
 }).catch((error) => {

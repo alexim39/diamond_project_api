@@ -14,7 +14,7 @@ export class MongoMarketingRepository {
 
   /** 'Unique Link' prospects (and their conversions) created in-window. */
   async countLinkWindow(partnerId, start, end) {
-    const [prospects, conversions] = await Promise.all([
+    const [prospects, conversions, worked] = await Promise.all([
       ProspectModel.countDocuments({
         partnerId, prospectSource: 'Unique Link', createdAt: { $gte: start, $lte: end },
       }),
@@ -24,13 +24,19 @@ export class MongoMarketingRepository {
         'status.stage': 'Converted',
         createdAt: { $gte: start, $lte: end },
       }),
+      ProspectModel.countDocuments({
+        partnerId,
+        prospectSource: 'Unique Link',
+        createdAt: { $gte: start, $lte: end },
+        $or: [{ 'communications.0': { $exists: true } }, { 'stageHistory.0': { $exists: true } }],
+      }),
     ]);
-    return { prospects, conversions };
+    return { prospects, conversions, worked };
   }
 
   /** Prospects stamped with this campaign id, created in-window. */
   async countExactWindow(partnerId, campaignId, start, end) {
-    const [prospects, conversions] = await Promise.all([
+    const [prospects, conversions, worked] = await Promise.all([
       ProspectModel.countDocuments({
         partnerId, campaignId: objectId(campaignId), createdAt: { $gte: start, $lte: end },
       }),
@@ -40,8 +46,14 @@ export class MongoMarketingRepository {
         'status.stage': 'Converted',
         createdAt: { $gte: start, $lte: end },
       }),
+      ProspectModel.countDocuments({
+        partnerId,
+        campaignId: objectId(campaignId),
+        createdAt: { $gte: start, $lte: end },
+        $or: [{ 'communications.0': { $exists: true } }, { 'stageHistory.0': { $exists: true } }],
+      }),
     ]);
-    return { prospects, conversions };
+    return { prospects, conversions, worked };
   }
 
   /** Internal lead spend in-window (replaced rows credited back — excluded). */

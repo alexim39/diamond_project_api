@@ -28,14 +28,15 @@ export const flightWindow = (campaign, now, days) => {
 
 /**
  * @param {object} campaign legacy campaign doc (lean)
- * @param {{prospects: number, conversions: number}} counts
+ * @param {{prospects: number, conversions: number, worked?: number}} counts
  * @param {'exact' | 'estimated'} attribution
  * @param {{outreachSpend?: number, allocationSpend?: number, allocatedLeads?: number}} extra additive spends for the window
  */
-export const buildCampaignRoi = (campaign, { prospects, conversions }, attribution, extra = {}) => {
+export const buildCampaignRoi = (campaign, { prospects, conversions, worked = 0 }, attribution, extra = {}) => {
   const budget = Number(campaign.budget?.budgetAmount ?? 0);
   const outreachSpend = Math.round(Number(extra.outreachSpend ?? 0) * 100) / 100;
   const allocationSpend = Math.round(Number(extra.allocationSpend ?? 0) * 100) / 100;
+  const allocatedLeads = Math.max(0, Math.floor(Number(extra.allocatedLeads ?? 0)));
   const fullSpend = r2(budget + outreachSpend + allocationSpend);
   const rate = prospects > 0 ? (conversions / prospects) * 100 : null;
   return {
@@ -45,9 +46,10 @@ export const buildCampaignRoi = (campaign, { prospects, conversions }, attributi
     budget: r2(budget),
     outreachSpend,
     allocationSpend,
-    allocatedLeads: Number(extra.allocatedLeads ?? 0),
+    allocatedLeads,
     totalSpend: fullSpend,
     windowProspects: prospects,
+    windowWorked: Number(worked ?? 0),
     windowConversions: conversions,
     conversionRate: rate === null ? null : r2(rate),
     costPerProspect: prospects > 0 && fullSpend > 0 ? r2(fullSpend / prospects) : null,

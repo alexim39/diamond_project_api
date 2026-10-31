@@ -8,13 +8,18 @@
 const STATE_ALIASES = new Map([
   ['abuja', 'fct abuja'],
   ['fct', 'fct abuja'],
-  ['fct (abuja)', 'fct abuja'],
-  ['fct-abuja', 'fct abuja'],
   ['fct abuja', 'fct abuja'],
+  ['federal capital territory', 'fct abuja'],
+  // Common misspelling seen in form data.
+  ['nassarawa', 'nasarawa'],
 ]);
 
 export const normalizeState = (value) => {
-  const s = String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const s = String(value ?? '').trim().toLowerCase()
+    .replace(/[().]/g, ' ') // "FCT (Abuja)" -> "FCT  Abuja"
+    .replace(/[-_]/g, ' ') // "FCT-Abuja" -> "FCT Abuja"
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!s) return '';
   return STATE_ALIASES.get(s) ?? s;
 };

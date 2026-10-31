@@ -1,29 +1,28 @@
 import {
-  ForbiddenException, NotFoundException, ValidationException,
+  ConflictException, NotFoundException, ValidationException,
 } from '../../../shared/domain/AppError.js';
 import { createAnnouncementEntity, createDirectEntity, createTeamAnnouncementEntity } from '../domain/Message.entity.js';
-import { collectDownlineIds, isAncestor } from '../../network/infrastructure/Network.mongo.repository.js';
+import { collectDownlineIds } from '../../network/infrastructure/Network.mongo.repository.js';
 import { TeamModel } from '../../../apps/teams/models/teams.model.js';
+import { PartnersModel } from '../../identity-access/infrastructure/Auth.models.js';
 
-/** Two partners may DM iff one is the other's upline (any depth). */
-async function related(network, a, b) {
-  return (await isAncestor(network, a, b)) || (await isAncestor(network, b, a));
+/** Anyone registered may DM anyone — abuse is rate-limited, not gated. */
+async function assertPartnerExists(partners, id) {
+  const found = await partners.findById(id).select('_id').lean().catch(() => null);
+  if (!found) throw new NotFoundException('Partner not found');
+  return found;
 }
 
-/** POST /v1/messages — direct message within the business relationship. */
+/** POST /v1/messages — any registered partner may DM any other. */
 export class SendDirectUseCase {
-  /** @param {{messages, network}} deps */
-  constructor({ messages, network }) {
-    Object.assign(this, { messages, network });
+  /** @param {{messages, network, partners?}} deps */
+  constructor({ messages, network, partners = null }) {
+    Object.assign(this, { messages, network, partners: partners ?? PartnersModel });
   }
 
   async execute({ senderId, to, ...input }) {
     if (String(senderId) === String(to)) throw new ValidationException('You cannot message yourself');
-    const node = await this.network.findNode(to);
-    if (!node) throw new NotFoundException('Recipient not found');
-    if (!(await related(this.network, senderId, to))) {
-      throw new ForbiddenException('Direct messages are limited to your upline and downline');
-    }
+    await assertPartnerExists(this.partners, to);
     return this.messages.create({ ...createDirectEntity(input), senderId, recipientId: to, kind: 'direct' });
   }
 }
@@ -112,16 +111,41 @@ export class ListSentUseCase {
 }
 
 export class GetThreadUseCase {
-  /** @param {{messages, network}} deps */
-  constructor({ messages, network }) {
-    Object.assign(this, { messages, network });
+  /** @param {{messages, network?, partners?}} deps */
+  constructor({ messages, network = null, partners = null }) {
+    Object.assign(this, { messages, partners: partners ?? PartnersModel });
   }
 
   async execute({ partnerId, counterpartId, limit = 100 }) {
-    if (!(await related(this.network, partnerId, counterpartId))) {
-      throw new ForbiddenException('No conversation with that partner');
-    }
+    await assertPartnerExists(this.partners, counterpartId);
     return this.messages.thread(partnerId, counterpartId, Math.min(Math.max(Number(limit) || 100, 1), 200));
+  }
+}
+
+/** Global people search for starting chats (safe fields only). */
+export class SearchPeopleUseCase {
+  /** @param {{partners}} deps */
+  constructor({ partners = null } = {}) {
+    this.partners = partners;
+  }
+
+  async execute({ q, excludeId = null, limit = 10 }) {
+    const query = String(q ?? '').trim();
+    if (query.length < 2) return [];
+    const store = this.partners ?? PartnersModel;
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = new RegExp(escaped, 'i');
+    const docs = await store.find({
+      $or: [{ username: rx }, { name: rx }, { surname: rx }],
+    }).select('_id username name surname profileImage').limit(Math.min(Math.max(Number(limit) || 10, 1), 25)).lean().catch(() => []);
+    return (docs ?? [])
+      .filter((d) => String(d._id) !== String(excludeId))
+      .map((d) => ({
+        id: String(d._id),
+        username: d.username,
+        name: [d.name, d.surname].filter(Boolean).join(' ') || d.username,
+        photo: d.profileImage ?? null,
+      }));
   }
 }
 
@@ -171,7 +195,7 @@ export class ListContactsUseCase {
       seen.add(parent);
       const p = await this.network.findNode(parent);
       if (!p) break;
-      uplines.push({ id: p.id, username: p.username, name: [p.name, p.surname].filter(Boolean).join(' ') || p.username, relation: 'upline' });
+      uplines.push({ id: p.id, username: p.username, name: [p.name, p.surname].filter(Boolean).join(' ') || p.username, photo: p.profileImage ?? null, relation: 'upline' });
       current = parent;
     }
     const children = await this.network.findChildren([String(partnerId)], 500);
@@ -181,6 +205,7 @@ export class ListContactsUseCase {
         id: c.id,
         username: c.username,
         name: [c.name, c.surname].filter(Boolean).join(' ') || c.username,
+        photo: c.profileImage ?? null,
         relation: 'downline',
       })),
     ];

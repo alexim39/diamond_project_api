@@ -13,11 +13,24 @@ test('normalizeState matches messy variants and aliases FCT/Abuja', () => {
   assert.equal(normalizeState('FCT (Abuja)'), 'fct abuja');
   assert.equal(normalizeState('Abuja'), 'fct abuja');
   assert.equal(normalizeState('FCT'), 'fct abuja');
+  assert.equal(normalizeState('Federal Capital Territory'), 'fct abuja');
   assert.equal(normalizeState(''), '');
   assert.ok(sameState('Lagos', ' lagos '));
   assert.ok(sameState('Abuja', 'FCT (Abuja)'));
   assert.ok(!sameState('Lagos', 'Oyo'));
   assert.ok(!sameState('', 'Lagos'));
+});
+
+test('hyphenated and dotted FCT spellings all resolve to fct abuja', () => {
+  for (const variant of ['FCT - Abuja', 'FCT-Abuja', 'fct - abuja', 'FCT.Abuja', 'FCT_abuja']) {
+    assert.equal(normalizeState(variant), 'fct abuja', variant);
+  }
+  // The wizard dropdown value must match plain pool/server spellings.
+  assert.ok(sameState('FCT - Abuja', 'FCT'));
+  assert.ok(sameState('FCT - Abuja', 'Abuja'));
+  assert.ok(sameState('FCT - Abuja', 'Federal Capital Territory'));
+  assert.equal(normalizeState('Nassarawa'), 'nasarawa');
+  assert.ok(!sameState('FCT - Abuja', 'Lagos'));
 });
 
 test('scoreLead ranks hot, stale and returned leads sanely', () => {

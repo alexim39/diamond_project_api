@@ -12,13 +12,14 @@ const campaign = {
 
 describe('buildCampaignRoi', () => {
   it('prices unit costs on full spend: budget + sms + allocation', () => {
-    const row = buildCampaignRoi(campaign, { prospects: 10, conversions: 2 }, 'exact', {
+    const row = buildCampaignRoi(campaign, { prospects: 10, conversions: 2, worked: 6 }, 'exact', {
       outreachSpend: 1000,
       allocationSpend: 3000,
       allocatedLeads: 10,
     });
     assert.equal(row.allocationSpend, 3000);
     assert.equal(row.allocatedLeads, 10);
+    assert.equal(row.windowWorked, 6);
     assert.equal(row.totalSpend, 24000);
     // Not budget-only (2000) — full spend per prospect and conversion.
     assert.equal(row.costPerProspect, 2400);
