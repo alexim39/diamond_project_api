@@ -33,6 +33,7 @@ const TYPING_LIMIT = 60;
 const WINDOW_MS = 60000;
 
 export const roomFor = (partnerId) => `user:${String(partnerId)}`;
+export const groupRoom = (groupId) => `group:${String(groupId)}`;
 
 /** Extract the session cookie the REST layer sets (cross-origin safe fallback). */
 export function cookieToken(cookieHeader) {
@@ -76,6 +77,7 @@ export function buildMessagingGateway(deps = {}) {
   const read = deps.read ?? new MarkReadUseCase({ messages });
   const findMessage = deps.findMessage ?? ((id) => messages.findById(id));
   const rooms = deps.rooms ?? null; // test double: { to(id): { emit(ev, payload) } }
+  const groups = deps.groups ?? null; // GroupStore: set by the host app; null = DMs only
   const push = deps.push ?? {
     sender: buildPushSender(env.push, env.appBaseUrl),
     subscriptions: new MongoStoredNotificationStore(),
@@ -129,45 +131,116 @@ export function buildMessagingGateway(deps = {}) {
   const onConnection = (io) => async (socket) => {
     const me = String(socket.data.partnerId);
     const buckets = { send: [], typing: [] };
-    if (!rooms) socket.join(roomFor(me));
+    socket.join(roomFor(me));
     await touchPresence(me);
     for (const id of await contactIds(me)) emitTo(io, id, 'presence', { userId: me, online: true });
+    // Member groups join their rooms so group traffic arrives live.
+    if (groups?.memberGroups) {
+      try {
+        for (const gid of await groups.memberGroups(me)) socket.join(groupRoom(gid));
+      } catch { /* groups are additive — never break connect */ }
+    }
 
     /** Web-push nudge when the recipient has no live socket — best-effort. */
-    const notifyOffline = async (to, message) => {
-      try {
-        if (hasLiveSockets(io, to)) return;
-        const subs = await push.subscriptions.listSubscriptions(to).catch(() => []);
-        if (!subs || subs.length === 0) return;
-        const sender = await partners.findById(String(message.senderId)).select('name surname').lean().catch(() => null);
-        const senderName = sender
-          ? [sender.name, sender.surname].filter(Boolean).join(' ') || 'Teammate'
-          : 'Teammate';
-        const text = String(message.body ?? '');
-        const body = text.length > 140 ? `${text.slice(0, 139)}…` : text;
-        await Promise.all((subs ?? []).map(async (sub) => {
-          try {
-            const res = await push.sender.send({
-              subscription: sub,
-              title: `New message from ${senderName}`,
-              body,
-              link: '/dashboard/messages',
-            });
-            if (res?.gone) await push.subscriptions.pruneSubscription(to, sub.endpoint).catch(() => null);
-          } catch { /* one bad endpoint never fails the batch */ }
-        }));
-      } catch { /* push is best-effort — the in-app message already landed */ }
-    };
+  const notifyOffline = async (to, message) => {
+    try {
+      if (hasLiveSockets(io, to)) return;
+      const subs = await push.subscriptions.listSubscriptions(to).catch(() => []);
+      if (!subs || subs.length === 0) return;
+      const sender = await partners.findById(String(message.senderId)).select('name surname').lean().catch(() => null);
+      const senderName = sender
+        ? [sender.name, sender.surname].filter(Boolean).join(' ') || 'Teammate'
+        : 'Teammate';
+      const text = String(message.body ?? '');
+      const body = text.length > 140 ? `${text.slice(0, 139)}…` : text;
+      await Promise.all((subs ?? []).map(async (sub) => {
+        try {
+          const res = await push.sender.send({
+            subscription: sub,
+            title: `New message from ${senderName}`,
+            body,
+            link: '/dashboard/messages',
+          });
+          if (res?.gone) await push.subscriptions.pruneSubscription(to, sub.endpoint).catch(() => null);
+        } catch { /* one bad endpoint never fails the batch */ }
+      }));
+    } catch { /* push is best-effort — the in-app message already landed */ }
+  };
+
+  /** Offline push for group members (unmuted, no live socket). Best-effort. */
+  const notifyGroupOffline = async (gid, senderId, message, groupName) => {
+    try {
+      if (!groups?.notifyTargets) return;
+      const targets = await groups.notifyTargets(gid, senderId).catch(() => []);
+      if (!targets || targets.length === 0) return;
+      const sender = await partners.findById(String(senderId)).select('name surname').lean().catch(() => null);
+      const senderName = sender
+        ? [sender.name, sender.surname].filter(Boolean).join(' ') || 'Teammate'
+        : 'Teammate';
+      const text = String(message.body ?? '');
+      const body = text.length > 140 ? `${text.slice(0, 139)}…` : text;
+      await Promise.all((targets ?? []).map(async (to) => {
+        try {
+          if (hasLiveSockets(io, to)) return;
+          const subs = await push.subscriptions.listSubscriptions(to).catch(() => []);
+          await Promise.all((subs ?? []).map(async (sub) => {
+            try {
+              const res = await push.sender.send({
+                subscription: sub,
+                title: `${senderName} in ${groupName ?? 'a group chat'}`,
+                body,
+                link: '/dashboard/messages',
+              });
+              if (res?.gone) await push.subscriptions.pruneSubscription(to, sub.endpoint).catch(() => null);
+            } catch { /* one bad endpoint never fails the batch */ }
+          }));
+        } catch { /* per-recipient failures stay local */ }
+      }));
+    } catch { /* push is best-effort */ }
+  };
+
+  const emitToGroup = (io, gid, event, payload) => {
+    if (rooms) {
+      rooms.to(groupRoom(gid))?.emit(event, payload);
+      return;
+    }
+    io.to(groupRoom(gid)).emit(event, payload);
+  };
 
     socket.on('message:send', async (payload, ack) => {
       const reply = (v) => { try { typeof ack === 'function' && ack(v); } catch { /* ignore */ } };
       try {
-        const to = String(payload?.to ?? '');
+        // Validate shape first so malformed payloads never burn rate budget.
+        const gid = payload?.groupId ? String(payload.groupId) : '';
         const body = String(payload?.body ?? '').trim();
-        if (!OBJECT_ID_RE.test(to)) throw new Error('Invalid recipient');
         if (!body || body.length > BODY_MAX) throw new Error('Message must be 1–2000 characters');
+        let to = '';
+        if (gid) {
+          if (!OBJECT_ID_RE.test(gid)) throw new Error('Invalid group');
+        } else {
+          to = String(payload?.to ?? '');
+          if (!OBJECT_ID_RE.test(to)) throw new Error('Invalid recipient');
+        }
         if (!takeToken(buckets.send, Date.now(), SEND_LIMIT)) {
           throw new Error('Slow down — too many messages');
+        }
+        // Group branch: membership-checked, fanned out to the group room.
+        if (gid) {
+          if (!groups) throw new Error('Groups unavailable — refresh and retry');
+          const membership = await groups.isMember(gid, me).catch(() => false);
+          if (!membership) throw new Error('You are not in this group');
+          const attachments = Array.isArray(payload?.attachments) ? payload.attachments.slice(0, 4) : [];
+          const message = await groups.createGroupMessage({ groupId: gid, senderId: me, body, attachments });
+          const shaped = { ...message, id: String(message?.id ?? message?._id ?? '') };
+          emitToGroup(io, gid, 'message:new', { message: shaped, groupId: gid });
+          reply(ok({ message: shaped, clientId: payload?.clientId ?? null }));
+          void (async () => {
+            try {
+              const g = await groups.getGroup(gid).catch(() => null);
+              await notifyGroupOffline(gid, me, shaped, g?.name ?? null);
+            } catch { /* best-effort */ }
+          })();
+          return;
         }
         const message = await direct.execute({ senderId: me, to, body });
         const shaped = { ...message, id: String(message?.id ?? message?._id ?? '') };
@@ -200,6 +273,14 @@ export function buildMessagingGateway(deps = {}) {
     const typing = (on) => async (payload) => {
       try {
         if (!takeToken(buckets.typing, Date.now(), TYPING_LIMIT)) return;
+        const gid = payload?.groupId ? String(payload.groupId) : '';
+        if (gid) {
+          if (!OBJECT_ID_RE.test(gid)) return;
+          if (await groups?.isMember(gid, me).catch(() => false)) {
+            emitToGroup(io, gid, 'typing', { from: me, groupId: gid, typing: on });
+          }
+          return;
+        }
         const to = String(payload?.to ?? '');
         if (!OBJECT_ID_RE.test(to)) return;
         emitTo(io, to, 'typing', { from: me, typing: on });
@@ -208,10 +289,45 @@ export function buildMessagingGateway(deps = {}) {
     socket.on('typing:start', typing(true));
     socket.on('typing:stop', typing(false));
 
+    // Explicit join/leave so a socket only ever hears rooms it belongs in.
+    // Membership is re-checked server-side; the client cannot force entry.
+    socket.on('group:join', async (payload, ack) => {
+      const reply = (v) => { try { typeof ack === 'function' && ack(v); } catch { /* ignore */ } };
+      try {
+        const gid = String(payload?.groupId ?? '');
+        if (!OBJECT_ID_RE.test(gid)) throw new Error('Invalid group');
+        if (!groups) throw new Error('Groups unavailable');
+        if (!(await groups.isMember(gid, me).catch(() => false))) {
+          throw new Error('Join from the group page first');
+        }
+        if (typeof socket.join === 'function') socket.join(groupRoom(gid));
+        reply(ok({ groupId: gid }));
+      } catch (error) {
+        reply(fail(error));
+      }
+    });
+
+    socket.on('group:leave', async (payload, ack) => {
+      const reply = (v) => { try { typeof ack === 'function' && ack(v); } catch { /* ignore */ } };
+      try {
+        const gid = String(payload?.groupId ?? '');
+        if (!OBJECT_ID_RE.test(gid)) throw new Error('Invalid group');
+        if (typeof socket.leave === 'function') socket.leave(groupRoom(gid));
+        reply(ok({ groupId: gid }));
+      } catch (error) {
+        reply(fail(error));
+      }
+    });
+
     socket.on('disconnect', async () => {
       // Transient offline signal for live viewers; the DB timestamp
       // stays untouched (it records last real activity, not socket state).
       for (const id of await contactIds(me)) emitTo(io, id, 'presence', { userId: me, online: false });
+      if (groups?.memberGroups) {
+        for (const gid of await groups.memberGroups(me).catch(() => [])) {
+          emitToGroup(io, gid, 'presence', { userId: me, online: false });
+        }
+      }
     });
   };
 

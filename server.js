@@ -36,6 +36,7 @@ import DashboardRouter from './src/modules/dashboard/index.js';
 import ReportsRouter from './src/modules/reports/index.js';
 import ExportsRouter from './src/modules/exports/index.js';
 import MessagingRouter from './src/modules/messaging/index.js';
+import { buildGroupRouter } from './src/modules/messaging/interface/Group.routes.js';
 import ProgressionRouter from './src/modules/progression/index.js';
 import TrainingRouter from './src/modules/training/index.js';
 import AdminTrainingRouter from './src/modules/training/interface/AdminTraining.routes.js';
@@ -84,6 +85,7 @@ import { errorMiddleware } from './src/shared/http/errorMiddleware.js';
 import { ensureIndexes } from './src/shared/mongo/indexes.js';
 import { scheduleJobs } from './src/jobs/schedule.js';
 import { attachMessagingGateway } from './src/modules/messaging/interface/Messaging.gateway.js';
+import { MongoGroupStore } from './src/modules/messaging/infrastructure/Group.mongo.repository.js';
 
 const port = process.env.PORT || 8080;
 const app = express();
@@ -156,6 +158,7 @@ app.use('/v1/dashboard', DashboardRouter);
 app.use('/v1/reports', ReportsRouter);
 app.use('/v1/exports', ExportsRouter);
 app.use('/v1/messages', MessagingRouter);
+app.use('/v1/messages', buildGroupRouter());
 app.use('/v1/progression', ProgressionRouter);
 app.use('/v1/training', TrainingRouter);
 app.use('/v1/billing', DepositRouter);
@@ -269,7 +272,7 @@ mongoose.connect(`mongodb+srv://${process.env.MONGODB_USERNAME}:${process.env.MO
       (error) => console.warn('[bonuses] seed skipped:', error?.message ?? error),
     );
     const server = http.createServer(app);
-    attachMessagingGateway(server);
+    attachMessagingGateway(server, { groups: new MongoGroupStore() });
     server.listen(port, () => {
         console.log(`Server is running on port: http://localhost:${port}`)
     })

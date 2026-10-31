@@ -2,7 +2,7 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
 import { setRevocationChecker } from '../../identity-access/infrastructure/SessionRevocation.js';
-import { roomFor, takeToken, verifySocketToken, cookieToken, buildMessagingGateway } from './Messaging.gateway.js';
+import { roomFor, groupRoom, takeToken, verifySocketToken, cookieToken, buildMessagingGateway } from './Messaging.gateway.js';
 
 const OID = (n) => String(n).padStart(24, 'a');
 
@@ -172,5 +172,99 @@ describe('offline push nudge', () => {
     assert.equal(ack.ok, true);
     await tick();
     assert.deepEqual(pruned, ['e1']);
+  });
+});
+
+describe('group chat over sockets', () => {
+  const tick = () => new Promise((r) => setTimeout(r, 20));
+  const baseGroup = {
+    async isMember(gid, pid) { return String(pid) === OID(1); },
+    async createGroupMessage({ groupId, senderId, body }) {
+      return { id: OID(5), groupId, senderId, body, createdAt: new Date().toISOString() };
+    },
+    async memberGroups() { return [OID(7)]; },
+    async getGroup() { return { name: 'Hustlers' }; },
+    async notifyTargets() { return [OID(2)]; },
+  };
+  const basePush = {
+    sent: [],
+    subscriptions: { async listSubscriptions() { return [{ endpoint: 'e9' }]; }, async pruneSubscription() {} },
+    async sender() { return { delivered: true }; },
+  };
+  const groupDeps = (over = {}) => gatewayDeps({
+    groups: { ...baseGroup, ...(over.groups ?? {}) },
+    push: { ...basePush, ...(over.push ?? {}) },
+    ...(over.hasLiveSockets !== undefined ? { hasLiveSockets: over.hasLiveSockets } : {}),
+  });
+
+  it('fans group messages out to the group room after a membership check', async () => {
+    const deps = groupDeps();
+    const { onConnection } = buildMessagingGateway(deps);
+    const socket = fakeSocket(OID(1));
+    await onConnection(null)(socket);
+    assert.ok(socket.joined.includes(roomFor(OID(1))), 'joins own room on connect');
+    assert.ok(socket.joined.includes(`group:${OID(7)}`), 'auto-joins member groups on connect');
+    const ack = await socket.fire('message:send', { groupId: OID(7), body: 'team huddle', clientId: 'g1' });
+    assert.equal(ack.ok, true);
+    assert.equal(ack.clientId, 'g1');
+    const news = deps.emitted.filter((e) => e.ev === 'message:new');
+    assert.equal(news.length, 1);
+    assert.equal(news[0].to, `group:${OID(7)}`);
+    assert.equal(news[0].payload.groupId, OID(7));
+  });
+
+  it('rejects strangers and validates group payloads', async () => {
+    const deps = groupDeps({ groups: { ...groupDeps().groups, async isMember() { return false; } } });
+    const { onConnection } = buildMessagingGateway(deps);
+    const socket = fakeSocket(OID(2));
+    await onConnection(null)(socket);
+    const ack = await socket.fire('message:send', { groupId: OID(7), body: 'sneaky' });
+    assert.equal(ack.ok, false);
+    assert.match(ack.error, /not in this group/);
+    const bad = await socket.fire('message:send', { groupId: 'nope', body: 'x' });
+    assert.equal(bad.ok, false);
+  });
+
+  it('joins group rooms only after a membership check', async () => {
+    const deps = groupDeps();
+    const { onConnection } = buildMessagingGateway(deps);
+    const socket = { ...fakeSocket(OID(1)), joined: [], leave() {} };
+    await onConnection(null)(socket);
+    // Auto-join on connect covers member groups; explicit join is idempotent.
+    assert.ok(socket.joined.includes(`group:${OID(7)}`));
+    const ok = await socket.fire('group:join', { groupId: OID(7) });
+    assert.equal(ok.ok, true);
+    const nope = await socket.fire('group:join', { groupId: 'bad' });
+    assert.equal(nope.ok, false);
+  });
+
+  it('pushes group messages to offline unmuted members only', async () => {
+    const sent = [];
+    const seen = [];
+    const deps = groupDeps({
+      hasLiveSockets: () => false,
+      groups: {
+        async isMember() { return true; },
+        async createGroupMessage({ groupId, senderId, body }) {
+          return { id: OID(5), groupId, senderId, body, createdAt: new Date().toISOString() };
+        },
+        async memberGroups() { return [OID(7)]; },
+        async getGroup() { return { name: 'Hustlers' }; },
+        async notifyTargets() { return [OID(2), OID(3)]; },
+      },
+      push: {
+        sender: { async send({ title }) { sent.push(title); return { delivered: true }; } },
+        subscriptions: { async listSubscriptions(id) { seen.push(id); return id === OID(2) ? [{ endpoint: 'e2' }] : []; }, async pruneSubscription() {} },
+      },
+    });
+    const { onConnection } = buildMessagingGateway(deps);
+    const socket = fakeSocket(OID(1));
+    await onConnection(null)(socket);
+    const ack = await socket.fire('message:send', { groupId: OID(7), body: 'hi team' });
+    assert.equal(ack.ok, true);
+    await tick();
+    assert.deepEqual(seen.sort(), [OID(2), OID(3)].sort());
+    assert.equal(sent.length, 1);
+    assert.match(sent[0], /Hustlers/);
   });
 });
