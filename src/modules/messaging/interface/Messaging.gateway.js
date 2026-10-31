@@ -5,6 +5,7 @@ import { SendDirectUseCase, MarkReadUseCase } from '../application/Messaging.use
 import { MongoMessageStore } from '../infrastructure/Messaging.mongo.repository.js';
 import { MongoNetworkRepository } from '../../network/infrastructure/Network.mongo.repository.js';
 import { PartnersModel } from '../../identity-access/infrastructure/Auth.models.js';
+import { createAttachmentEntities } from '../../community/domain/Post.entity.js';
 import { buildPushSender } from '../../notifications/infrastructure/PushSender.js';
 import { MongoStoredNotificationStore } from '../../notifications/infrastructure/StoredNotifications.mongo.repository.js';
 import { env } from '../../../shared/config/env.js';
@@ -213,7 +214,20 @@ export function buildMessagingGateway(deps = {}) {
         // Validate shape first so malformed payloads never burn rate budget.
         const gid = payload?.groupId ? String(payload.groupId) : '';
         const body = String(payload?.body ?? '').trim();
-        if (!body || body.length > BODY_MAX) throw new Error('Message must be 1–2000 characters');
+        const rawAttachments = Array.isArray(payload?.attachments) ? payload.attachments : [];
+        let attachments = [];
+        if (rawAttachments.length > 0) {
+          try {
+            attachments = createAttachmentEntities(rawAttachments);
+          } catch (error) {
+            throw new Error(error?.message ?? 'Invalid attachments');
+          }
+        }
+        if (body.length > BODY_MAX) throw new Error('Message must be 1–2000 characters');
+        if (!body && attachments.length === 0) {
+          // DMs keep the legacy wording (pinned by tests); groups name the real rule.
+          throw new Error(gid ? 'Message must have text or an attachment' : 'Message must be 1–2000 characters');
+        }
         let to = '';
         if (gid) {
           if (!OBJECT_ID_RE.test(gid)) throw new Error('Invalid group');
@@ -229,7 +243,6 @@ export function buildMessagingGateway(deps = {}) {
           if (!groups) throw new Error('Groups unavailable — refresh and retry');
           const membership = await groups.isMember(gid, me).catch(() => false);
           if (!membership) throw new Error('You are not in this group');
-          const attachments = Array.isArray(payload?.attachments) ? payload.attachments.slice(0, 4) : [];
           const message = await groups.createGroupMessage({ groupId: gid, senderId: me, body, attachments });
           const shaped = { ...message, id: String(message?.id ?? message?._id ?? '') };
           emitToGroup(io, gid, 'message:new', { message: shaped, groupId: gid });

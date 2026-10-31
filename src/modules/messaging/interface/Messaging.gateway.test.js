@@ -213,6 +213,28 @@ describe('group chat over sockets', () => {
     assert.equal(news[0].payload.groupId, OID(7));
   });
 
+  it('validates group attachments and allows attachment-only messages', async () => {
+    const seen = [];
+    const deps = groupDeps({ groups: { ...baseGroup, async createGroupMessage(input) { seen.push(input); return { id: OID(5), ...input }; } } });
+    const { onConnection } = buildMessagingGateway(deps);
+    const socket = fakeSocket(OID(1));
+    await onConnection(null)(socket);
+    const bad = await socket.fire('message:send', {
+      groupId: OID(7), body: 'x',
+      attachments: [{ url: 'http://evil/x.png', mime: 'image/png', size: 10 }],
+    });
+    assert.equal(bad.ok, false);
+    const good = await socket.fire('message:send', {
+      groupId: OID(7), body: '',
+      attachments: [{ url: 'https://img.test/a.png', mime: 'image/png', size: 10 }],
+    });
+    assert.equal(good.ok, true);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].attachments.length, 1);
+    const empty = await socket.fire('message:send', { groupId: OID(7), body: '   ' });
+    assert.equal(empty.ok, false);
+  });
+
   it('rejects strangers and validates group payloads', async () => {
     const deps = groupDeps({ groups: { ...groupDeps().groups, async isMember() { return false; } } });
     const { onConnection } = buildMessagingGateway(deps);

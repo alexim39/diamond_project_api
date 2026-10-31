@@ -114,6 +114,7 @@ app.use(cors({
         'https://shop.c21fg.online',
         'https://diamondproject.c21fg.online',
         'https://prolificwomen.c21fg.online',
+        'https://prolificwomen.c21fg.online',
         ...extraOrigins,
     ]
 }));
